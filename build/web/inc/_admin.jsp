@@ -81,6 +81,7 @@
             </div>
 
             <div class="col-md-9">
+<<<<<<< HEAD
                 <!-- BIỂU ĐỒ THỐNG KÊ BÁN HÀNG -->
                 <div class="card shadow mb-4">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
@@ -107,6 +108,8 @@
                 </div>
 
                 <!-- DANH SÁCH SẢN PHẨM -->
+=======
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
                 <div class="card shadow">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
                         <h5 class="mb-0 fw-bold">DANH SÁCH SẢN PHẨM</h5>
@@ -148,6 +151,7 @@
         </div>
     </div>
 </body>
+<<<<<<< HEAD
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
@@ -245,4 +249,6 @@
         salesChart.update();
     });
 </script>
+=======
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
 </html>

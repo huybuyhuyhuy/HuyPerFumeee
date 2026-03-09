@@ -3,11 +3,21 @@
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
+<<<<<<< HEAD
             <file>file:/D:/JSP_Netbean/BaiThiCuoiKi/src/java/controller/HomeServlet.java</file>
             <file>file:/D:/JSP_Netbean/BaiThiCuoiKi/src/java/controller/AdminHomeServlet.java</file>
             <file>file:/D:/JSP_Netbean/BaiThiCuoiKi/web/inc/_admin.jsp</file>
             <file>file:/D:/JSP_Netbean/BaiThiCuoiKi/src/java/controller/CheckoutServlet.java</file>
             <file>file:/D:/JSP_Netbean/BaiThiCuoiKi/web/inc/success.jsp</file>
+=======
+            <file>file:/D:/JSP_Netbean/BaiThiCuoiKi/src/java/data/impl/ProductsImpl.java</file>
+            <file>file:/D:/JSP_Netbean/BaiThiCuoiKi/src/java/data/dao/CategoryDao.java</file>
+            <file>file:/D:/JSP_Netbean/BaiThiCuoiKi/src/java/data/impl/UserImpl.java</file>
+            <file>file:/D:/JSP_Netbean/BaiThiCuoiKi/src/java/data/impl/CategoryImpl.java</file>
+            <file>file:/D:/JSP_Netbean/BaiThiCuoiKi/src/java/controller/CartServlet.java</file>
+            <file>file:/D:/JSP_Netbean/BaiThiCuoiKi/src/java/controller/HomeServlet.java</file>
+            <file>file:/D:/JSP_Netbean/BaiThiCuoiKi/src/java/data/dao/Database.java</file>
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
         </group>
     </open-files>
 </project-private>

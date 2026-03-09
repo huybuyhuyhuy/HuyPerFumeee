@@ -78,6 +78,7 @@
         border-color: #003D2E; 
         color: white; 
     }
+<<<<<<< HEAD
     /* CSS cho nút Trái tim yêu thích */
     .btn-wishlist-abs {
         position: absolute;
@@ -108,6 +109,8 @@
         text-decoration: none;
         color: inherit;
     }
+=======
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
 </style>
 
 <div class="breadcrumb-custom">
@@ -168,6 +171,7 @@
                             <c:if test="${p.status}">
                                 <div class="col-lg-3 col-md-6 col-sm-6 mb-4">
                                     <div class="product-card-custom">
+<<<<<<< HEAD
                               <div class="img-container">
                                     <c:choose>
                                         <c:when test="${sessionScope.user == null}">
@@ -208,6 +212,32 @@
                                     </div>
                                 </div>
                                                                         <div class="product-info">
+=======
+                                        <div class="img-container">
+                                            <img src="${pageContext.request.contextPath}/assets/images/${p.image}" 
+                                                 class="w-100" 
+                                                 style="aspect-ratio: 1/1; object-fit: cover;"/>
+                                            <div class="img-overlay">
+                                                <c:choose>
+                                                    <%-- THAY ĐỔI: Kiểm tra session "user" để đồng bộ --%>
+                                                    <c:when test="${sessionScope.user == null}">
+                                                        <%-- Nếu chưa đăng nhập: chuyển hướng đến trang login kèm ID sản phẩm --%>
+                                                        <a href="${pageContext.request.contextPath}/login?target_id=${p.id}" class="btn btn-overlay">
+                                                            <i class="fas fa-shopping-cart"></i> Mua ngay
+                                                        </a>
+                                                    </c:when>
+                                                    <c:otherwise>
+                                                        <%-- Nếu đã đăng nhập: thực hiện thêm vào giỏ hàng --%>
+                                                        <a href="${pageContext.request.contextPath}/home?add_to_cart=${p.id}&page=${currentPage}" 
+                                                           class="btn btn-overlay">
+                                                            <i class="fas fa-shopping-cart"></i> Mua ngay
+                                                        </a>
+                                                    </c:otherwise>
+                                                </c:choose>
+                                            </div>
+                                        </div>
+                                        <div class="product-info">
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
                                             <h5 class="card-title">${p.name}</h5>
                                             <p class="product-price mb-0">${p.price} VND</p>
                                         </div>
@@ -228,6 +258,7 @@
                 <nav aria-label="Page navigation" class="mt-4">
                     <ul class="pagination justify-content-center">
                         <li class="page-item ${currentPage == 1 ? 'disabled' : ''}">
+<<<<<<< HEAD
                             <a class="page-link" href="home?page=${currentPage - 1}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}">Trước</a>
                         </li>
                         <c:forEach begin="1" end="${totalPages}" var="i">
@@ -237,12 +268,24 @@
                         </c:forEach>
                         <li class="page-item ${currentPage == totalPages ? 'disabled' : ''}">
                             <a class="page-link" href="home?page=${currentPage + 1}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}">Sau</a>
+=======
+                            <a class="page-link" href="home?page=${currentPage - 1}${not empty txtSearch ? '&txtSearch='.concat(txtSearch) : ''}${not empty id_category ? '&id_category='.concat(id_category) : ''}">Trước</a>
+                        </li>
+                        <c:forEach begin="1" end="${totalPages}" var="i">
+                            <li class="page-item ${currentPage == i ? 'active' : ''}">
+                                <a class="page-link" href="home?page=${i}${not empty txtSearch ? '&txtSearch='.concat(txtSearch) : ''}${not empty id_category ? '&id_category='.concat(id_category) : ''}">${i}</a>
+                            </li>
+                        </c:forEach>
+                        <li class="page-item ${currentPage == totalPages ? 'disabled' : ''}">
+                            <a class="page-link" href="home?page=${currentPage + 1}${not empty txtSearch ? '&txtSearch='.concat(txtSearch) : ''}${not empty id_category ? '&id_category='.concat(id_category) : ''}">Sau</a>
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
                         </li>
                     </ul>
                 </nav>
             </c:if>
         </div>
     </div>
+<<<<<<< HEAD
 </div>
             <script>
 function addToWishlist(btn, productId) {
@@ -277,3 +320,6 @@ function addToWishlist(btn, productId) {
         .catch(err => console.error('Lỗi Wishlist:', err));
 }
 </script>
+=======
+</div>
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870

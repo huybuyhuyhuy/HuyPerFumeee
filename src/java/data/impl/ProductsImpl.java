@@ -215,6 +215,7 @@ public boolean delete(int id) {
     }
     return false;
     }
+<<<<<<< HEAD
 @Override
 public Products getDetail(int id) {
     String sql = "SELECT * FROM products WHERE id = ?"; 
@@ -232,4 +233,6 @@ public Products getDetail(int id) {
     }
     return null;
 }
+=======
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
 }

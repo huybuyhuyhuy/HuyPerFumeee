@@ -1,7 +1,10 @@
-<%@ page contentType="text/html; charset=UTF-8" language="java" %>
+<%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
 <style>
     /* Hiệu ứng hover cho màn hình máy tính (Desktop) */
     @media (min-width: 992px) {

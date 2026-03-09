@@ -11,12 +11,17 @@
     <style>
         body {
             background-color: #f0f2f5;
+<<<<<<< HEAD
             min-height: 100vh;
+=======
+            height: 100vh;
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
             display: flex;
             align-items: center;
             justify-content: center;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
+<<<<<<< HEAD
         .success-wrapper {
             max-width: 1100px;
             width: 100%;
@@ -27,6 +32,16 @@
             border-radius: 20px;
             box-shadow: 0 15px 35px rgba(0,0,0,0.08);
             margin-bottom: 25px;
+=======
+        .success-card {
+            background: #fff;
+            padding: 50px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            max-width: 550px;
+            width: 100%;
+            text-align: center;
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
             animation: fadeIn 0.8s ease-out;
         }
         @keyframes fadeIn {
@@ -34,16 +49,28 @@
             to { opacity: 1; transform: translateY(0); }
         }
         .checkmark-wrapper {
+<<<<<<< HEAD
             width: 90px;
             height: 90px;
             background-color: #d4edda;
             color: #28a745;
             font-size: 45px;
+=======
+            width: 100px;
+            height: 100px;
+            background-color: #d4edda;
+            color: #28a745;
+            font-size: 50px;
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
+<<<<<<< HEAD
             margin: 0 auto 20px;
+=======
+            margin: 0 auto 30px;
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
         }
         .btn-home {
             background-color: #1a1a1a;
@@ -59,6 +86,7 @@
             color: #fff;
             transform: scale(1.05);
         }
+<<<<<<< HEAD
         .pm-card {
             border-radius: 12px;
             padding: 18px 16px;
@@ -244,5 +272,28 @@
         showMethod(defaultMethod);
     })();
 </script>
+=======
+    </style>
+</head>
+<body>
+
+    <div class="success-card">
+        <div class="checkmark-wrapper">
+            <i class="fas fa-check"></i>
+        </div>
+        <h1 class="fw-bold text-dark mb-3">ĐẶT HÀNG THÀNH CÔNG!</h1>
+        <p class="text-muted mb-4 fs-5">
+            Cảm ơn bạn đã lựa chọn <strong>Huy Perfume</strong>. <br>
+            Yêu cầu của bạn đã được tiếp nhận và đang trong quá trình xử lý.
+        </p>
+        <hr class="my-4">
+        <div class="d-grid gap-2">
+            <a href="${pageContext.request.contextPath}/home" class="btn-home">
+                <i class="fas fa-arrow-left me-2"></i> TIẾP TỤC MUA SẮM
+            </a>
+        </div>
+    </div>
+
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
 </body>
 </html>

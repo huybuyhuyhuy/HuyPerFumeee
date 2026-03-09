@@ -1,6 +1,9 @@
 package controller;
 
+<<<<<<< HEAD
 import data.dao.Database;
+=======
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
 import java.io.IOException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -25,9 +28,14 @@ public class CartServlet extends HttpServlet {
         }
         
         request.setAttribute("title", "Cart Detail");
+<<<<<<< HEAD
         request.setAttribute("listCategory", Database.getCategoryDao().findAll());
         request.setAttribute("listBrands", Database.getBrandDao().getAllBrands());
         request.getRequestDispatcher("/views/cart.jsp").forward(request, response);
+=======
+        // Nên dùng forward để hiển thị trang giỏ hàng
+       request.getRequestDispatcher("/views/cart.jsp").forward(request, response);
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
     }
         // đưa dữ liệu lên và xử lí
     @Override

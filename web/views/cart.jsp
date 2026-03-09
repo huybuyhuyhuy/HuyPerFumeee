@@ -1,4 +1,5 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
+<<<<<<< HEAD
 <%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
 <c:import url="/inc/header.jsp"/>
 <c:import url="/inc/navbar.jsp"/>
@@ -38,4 +39,10 @@
     </div>
 </div>
 
+=======
+<%@taglib uri ="http://java.sun.com/jsp/jstl/core" prefix ="c" %>
+<c:import url="/inc/header.jsp"/>
+<c:import url="/inc/navbar.jsp"/>
+<c:import url="/inc/_cart.jsp"/> 
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
 <c:import url="/inc/footer.jsp"/>

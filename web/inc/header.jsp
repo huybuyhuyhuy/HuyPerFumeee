@@ -66,6 +66,7 @@
             background-color: #dc3545;
             color: white;
         }
+<<<<<<< HEAD
         /* Style cho Wishlist tương tự như Cart */
 .wishlist-icon-wrapper {
     position: relative;
@@ -94,6 +95,8 @@
 .cart-icon-wrapper:hover {
     color: #ffc107; /* Màu vàng nhẹ khi hover giỏ hàng */
 }
+=======
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
     </style>
 </head>
 <body>
@@ -110,6 +113,7 @@
                         </div>
                     </form>
                 </div>
+<<<<<<< HEAD
                     <div class="col-md-4 text-center">
                         <a href="${pageContext.request.contextPath}/home" class="logo-text">HUY PERFUME</a>
                         <div class="tagline">Magic Of Your Emotions</div>
@@ -145,6 +149,35 @@
             </span>
         </a>
     </div>
+=======
+                
+                <div class="col-md-4 text-center">
+                    <a href="${pageContext.request.contextPath}/home" class="logo-text">HUY PERFUME</a>
+                    <div class="tagline">Magic Of Your Emotions</div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="d-flex justify-content-end align-items-center">
+                        <div class="user-area text-end">
+                            <c:choose>
+                                <c:when test="${not empty sessionScope.user}">
+                                    <span class="text-white me-2 small">Hi, ${sessionScope.user.name}</span>
+                                    <a href="${pageContext.request.contextPath}/logout" class="btn-login-text">Đăng xuất</a>
+                                </c:when>
+                                <c:otherwise>
+                                    <a href="${pageContext.request.contextPath}/login" class="btn-login-text">Đăng nhập</a>
+                                    <span class="mx-1 text-white-50">|</span>
+                                    <a href="${pageContext.request.contextPath}/register" class="btn-login-text">Đăng ký</a>
+                                </c:otherwise>
+                            </c:choose>
+                        </div>
+                        
+                        <a href="${pageContext.request.contextPath}/cart" class="cart-icon-wrapper">
+                            <i class="fa-solid fa-cart-shopping fa-lg"></i>
+                            <span class="cart-badge">${not empty sessionScope.cart ? sessionScope.cart.size() : 0}</span>
+                        </a>
+                    </div>
+>>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
                 </div>
 
             </div>
