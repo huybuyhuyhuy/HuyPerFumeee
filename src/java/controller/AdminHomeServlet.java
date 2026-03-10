@@ -1,10 +1,7 @@
 package controller;
 
 import data.dao.Database;
-<<<<<<< HEAD
 import data.driver.MySQLDriver;
-=======
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
 import model.Products;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -12,7 +9,6 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-<<<<<<< HEAD
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -21,9 +17,6 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-=======
-import java.util.List;
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
 
 @WebServlet(name = "AdminHomeServlet", urlPatterns = {"/admin"})
 public class AdminHomeServlet extends HttpServlet {
@@ -52,7 +45,6 @@ public class AdminHomeServlet extends HttpServlet {
 
         // 3. Đưa tất cả dữ liệu cần thiết sang JSP
         request.setAttribute("listCategories", Database.getCategoryDao().findAll());
-<<<<<<< HEAD
         request.setAttribute("listBrands", Database.getBrandDao().getAllBrands());
         request.setAttribute("listProducts", list);
         request.setAttribute("title", "Quản lý sản phẩm");
@@ -63,19 +55,14 @@ public class AdminHomeServlet extends HttpServlet {
         //  - order_items(id, order_id, product_id, quantity, price, ...)
         // và CheckoutServlet phải insert dữ liệu vào đó thì thống kê mới có ý nghĩa.
 
-        request.setAttribute("salesByDay",   getSalesByDay(1));   // 7 ngày gần nhất
-        request.setAttribute("salesByWeek",  getSalesByWeek(1));  // 4 tuần gần nhất
-        request.setAttribute("salesByMonth", getSalesByMonth(1)); // 6 tháng gần nhất
+        request.setAttribute("salesByDay",   getSalesByDay(7));   // 7 ngày gần nhất
+        request.setAttribute("salesByWeek",  getSalesByWeek(4));  // 4 tuần gần nhất
+        request.setAttribute("salesByMonth", getSalesByMonth(6)); // 6 tháng gần nhất
+        request.setAttribute("salesByYear", getSalesByYear(5)); // 5 năm gần nhất
 
         // 5. Thống kê: hôm nay có bao nhiêu user đã đặt hàng
         request.setAttribute("todayUserOrderCount", getTodayUserOrderCount());
 
-=======
-        request.setAttribute("listBrands", Database.getBrandDao().getAllBrands()); // CẬP NHẬT DÒNG NÀY
-        request.setAttribute("listProducts", list);
-        request.setAttribute("title", "Quản lý sản phẩm");
-        
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
         request.getRequestDispatcher("/inc/_admin.jsp").forward(request, response);
     }
 
@@ -84,7 +71,6 @@ public class AdminHomeServlet extends HttpServlet {
             throws ServletException, IOException {
         doGet(request, response);
     }
-<<<<<<< HEAD
 
     // ================== HÀM THỐNG KÊ BÁN HÀNG ==================
 
@@ -216,6 +202,4 @@ public class AdminHomeServlet extends HttpServlet {
         return 0;
     }
     // ==========================================================
-=======
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
 }

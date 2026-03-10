@@ -24,24 +24,20 @@ public class HomeServlet extends HttpServlet {
         request.setCharacterEncoding("UTF-8");
         HttpSession session = request.getSession();
 
-<<<<<<< HEAD
         // 1. XỬ LÝ GIỎ HÀNG (Dùng target_id hoặc add_to_cart)
-=======
-        // 1. XỬ LÝ GIỎ HÀNG
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
         String cartParam = request.getParameter("add_to_cart");
+        if (cartParam == null || cartParam.isEmpty()) {
+            cartParam = request.getParameter("target_id");
+        }
+        
         if (cartParam != null && !cartParam.isEmpty()) {
             User user = (User) session.getAttribute("user");
             if (user == null) {
-<<<<<<< HEAD
-=======
                 // Lưu lại ID sản phẩm để sau khi login có thể thêm tiếp
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
                 response.sendRedirect("login?target_id=" + cartParam);
                 return; 
             }
             addProductsToCart(request);
-<<<<<<< HEAD
             
             // Xóa tham số add_to_cart khỏi URL để tránh refresh trang bị thêm liên tục
             String currentQuery = request.getQueryString();
@@ -50,16 +46,7 @@ public class HomeServlet extends HttpServlet {
             return; 
         }
 
-        // 2. NHẬN THAM SỐ
-=======
-            // Sau khi thêm giỏ hàng, quay lại đúng trang và bộ lọc hiện tại
-            String redirectUrl = "home?" + (request.getQueryString() != null ? request.getQueryString().replace("add_to_cart=" + cartParam, "") : "");
-            response.sendRedirect(redirectUrl.endsWith("?") ? "home" : redirectUrl);
-            return; 
-        }
-
         // 2. NHẬN THAM SỐ PHÂN TRANG & LỌC
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
         int pageSize = 12; 
         int currentPage = 1;
         String pageStr = request.getParameter("page");
@@ -71,32 +58,54 @@ public class HomeServlet extends HttpServlet {
         String txtSearch = request.getParameter("txtSearch");
         String categoryIdParam = request.getParameter("id_category");
         String brandIdParam = request.getParameter("brand_id");
+        String priceRangeParam = request.getParameter("price_range");
 
         List<Products> productList = new ArrayList<>();
         int totalProducts = 0;
         String pageTitle = "Tất cả Sản phẩm";
 
-<<<<<<< HEAD
-        // 3. LOGIC LỌC (Cần đồng nhất phân trang cho cả Lọc)
+        // 3. LOGIC LỌC KẾT HỢP PHÂN TRANG
         try {
             if (txtSearch != null && !txtSearch.isEmpty()) {
                 productList = Database.getProductsDao().findByName(txtSearch);
                 totalProducts = productList.size();
                 pageTitle = "Kết quả cho: '" + txtSearch + "'";
+                request.setAttribute("txtSearch", txtSearch);
             } 
+            else if (categoryIdParam != null && !categoryIdParam.isEmpty() && brandIdParam != null && !brandIdParam.isEmpty()) {
+                // Lọc theo cả danh mục và thương hiệu
+                int categoryId = Integer.parseInt(categoryIdParam);
+                int brandId = Integer.parseInt(brandIdParam);
+                productList = filterByCategoryAndBrand(categoryId, brandId);
+                totalProducts = productList.size();
+                pageTitle = "Kết quả lọc";
+                request.setAttribute("id_category", categoryId);
+                request.setAttribute("brand_id", brandId);
+            }
             else if (categoryIdParam != null && !categoryIdParam.isEmpty()) {
                 int categoryId = Integer.parseInt(categoryIdParam);
                 productList = Database.getProductsDao().getProductsByCategoryId(categoryId);
                 totalProducts = productList.size();
-                pageTitle = "Danh mục sản phẩm";
+                
+                // Cập nhật Page Title theo danh mục
+                if (categoryId == 5) pageTitle = "Nước hoa chiết";
+                else pageTitle = "Danh mục sản phẩm";
+                
+                request.setAttribute("id_category", categoryId);
             } 
             else if (brandIdParam != null && !brandIdParam.isEmpty()) {
                 int brandId = Integer.parseInt(brandIdParam);
-                // Ép kiểu sang ProductsImpl để gọi hàm Brand
-                productList = ((ProductsImpl)Database.getProductsDao()).getProductsByBrandId(brandId);
+                productList = Database.getProductsDao().getProductsByBrandId(brandId);
                 totalProducts = productList.size();
                 pageTitle = "Thương hiệu sản phẩm";
+                request.setAttribute("brand_id", brandId);
             } 
+            else if (priceRangeParam != null && !priceRangeParam.isEmpty()) {
+                productList = filterByPrice(priceRangeParam);
+                totalProducts = productList.size();
+                pageTitle = "Lọc theo giá";
+                request.setAttribute("price_range", priceRangeParam);
+            }
             else {
                 // Trang chủ mặc định có phân trang
                 productList = Database.getProductsDao().findProductsByPage(offset, pageSize);
@@ -104,96 +113,78 @@ public class HomeServlet extends HttpServlet {
             }
         } catch (Exception e) {
             e.printStackTrace();
-=======
-        // 3. LOGIC LỌC KẾT HỢP PHÂN TRANG
-        if (txtSearch != null && !txtSearch.isEmpty()) {
-            productList = Database.getProductsDao().findByName(txtSearch);
-            totalProducts = productList.size();
-            pageTitle = "Kết quả cho: '" + txtSearch + "'";
-            request.setAttribute("txtSearch", txtSearch);
-        } 
-        else if (categoryIdParam != null && !categoryIdParam.isEmpty()) {
-            int categoryId = Integer.parseInt(categoryIdParam);
-            productList = Database.getProductsDao().getProductsByCategoryId(categoryId);
-            totalProducts = productList.size();
-            pageTitle = "Danh mục sản phẩm";
-            request.setAttribute("id_category", categoryId);
-        } 
-        else if (brandIdParam != null && !brandIdParam.isEmpty()) {
-            int brandId = Integer.parseInt(brandIdParam);
-            // Đảm bảo ProductsImpl đã được import
-            productList = ((ProductsImpl)Database.getProductsDao()).getProductsByBrandId(brandId);
-            totalProducts = productList.size();
-            pageTitle = "Thương hiệu sản phẩm";
-            request.setAttribute("brand_id", brandId);
-        } 
-        else {
-            productList = Database.getProductsDao().findProductsByPage(offset, pageSize);
-            totalProducts = Database.getProductsDao().countAllProducts();
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
         }
 
         int totalPages = (int) Math.ceil((double) totalProducts / pageSize);
 
-<<<<<<< HEAD
-        // 4. CUNG CẤP DỮ LIỆU ĐỂ HIỂN THỊ SIDEBAR VÀ NAVBAR
-        request.setAttribute("listCategory", Database.getCategoryDao().findAll());
-        request.setAttribute("listBrands", Database.getBrandDao().getAllBrands());
-
-        // 5. ĐẨY DỮ LIỆU SẢN PHẨM
-=======
         // 4. QUAN TRỌNG: LUÔN CUNG CẤP DỮ LIỆU CHO NAVBAR 
-        
         request.setAttribute("listCategory", Database.getCategoryDao().findAll());
         request.setAttribute("listBrands", Database.getBrandDao().getAllBrands());
 
         // 5. ĐẨY DỮ LIỆU HIỂN THỊ SẢN PHẨM
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
         request.setAttribute("listProducts", productList);
         request.setAttribute("pageTitle", pageTitle);
         request.setAttribute("totalPages", totalPages);
         request.setAttribute("currentPage", currentPage);
-<<<<<<< HEAD
 
         // 6. THÔNG BÁO THANH TOÁN
-        if ("success".equals(request.getParameter("checkout"))) {
-            request.setAttribute("paymentMessage", "Bạn đã đặt hàng thành công!");
+        String checkoutStatus = request.getParameter("checkout");
+        if ("success".equals(checkoutStatus)) {
+            request.setAttribute("paymentMessage", "Bạn đã đặt hàng và thanh toán thành công!");
         }
 
-        // 7. HIỂN THỊ
-=======
-           //6.
-           // Trong HomeServlet.java
-            String checkoutStatus = request.getParameter("checkout");
-            if ("success".equals(checkoutStatus)) {
-                request.setAttribute("paymentMessage", "Bạn đã đặt hàng và thanh toán thành công!");
-            }
-        // 7.. HIỂN THỊ (Đảm bảo file home.jsp nằm đúng thư mục /views/)
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
+        // 7. HIỂN THỊ (Đảm bảo file home.jsp nằm đúng thư mục /views/)
         request.getRequestDispatcher("/views/home.jsp").forward(request, response);
+    }
+
+    private List<Products> filterByCategoryAndBrand(int categoryId, int brandId) {
+        List<Products> all = Database.getProductsDao().findAll();
+        List<Products> filtered = new ArrayList<>();
+        for (Products p : all) {
+            if (p.isStatus() && p.getId_category() == categoryId && p.getId_brand() == brandId) {
+                filtered.add(p);
+            }
+        }
+        return filtered;
+    }
+
+    private List<Products> filterByPrice(String range) {
+        List<Products> all = Database.getProductsDao().findAll();
+        List<Products> filtered = new ArrayList<>();
+        for (Products p : all) {
+            if (!p.isStatus()) continue;
+            double price = p.getPrice();
+            switch (range) {
+                case "under500":
+                    if (price < 500000) filtered.add(p);
+                    break;
+                case "500to1000":
+                    if (price >= 500000 && price <= 1000000) filtered.add(p);
+                    break;
+                case "1000to2000":
+                    if (price >= 1000000 && price <= 2000000) filtered.add(p);
+                    break;
+                case "above2000":
+                    if (price > 2000000) filtered.add(p);
+                    break;
+            }
+        }
+        return filtered;
     }
 
     void addProductsToCart(HttpServletRequest request) {
         try {
-<<<<<<< HEAD
-            String productIdStr = request.getParameter("add_to_cart");
-            if (productIdStr == null) return;
-            
-            int productId = Integer.parseInt(productIdStr);
-=======
             String cartParam = request.getParameter("add_to_cart");
             if (cartParam == null || cartParam.isEmpty()) {
                 cartParam = request.getParameter("target_id");
             }
             if (cartParam == null || cartParam.isEmpty()) return;
             
-            int id_products = Integer.parseInt(cartParam);
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
+            int productId = Integer.parseInt(cartParam);
             HttpSession session = request.getSession();
             List<Products> cart = (List<Products>) session.getAttribute("cart");
             if (cart == null) cart = new ArrayList<>();
             
-<<<<<<< HEAD
             boolean exists = false;
             for (Products p : cart) {
                 if (p.getId() == productId) {
@@ -210,28 +201,8 @@ public class HomeServlet extends HttpServlet {
                 }
             }
             session.setAttribute("cart", cart);
-        } catch (NumberFormatException e) {
-            System.err.println("ID sản phẩm không hợp lệ");
-=======
-            boolean isProductInCart = false;
-            for (Products pro : cart) {
-                if (pro.getId() == id_products) {
-                    pro.setQuantity(pro.getQuantity() + 1);
-                    isProductInCart = true;
-                    break;
-                }
-            }
-            if (!isProductInCart) {
-                Products products = Database.getProductsDao().findProducts(id_products);
-                if (products != null) {
-                    products.setQuantity(1);
-                    cart.add(products);
-                }
-            }
-            session.setAttribute("cart", cart);
         } catch (Exception e) {
             System.err.println("Lỗi thêm giỏ hàng: " + e.getMessage());
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
         }
     }
 

@@ -1,203 +1,191 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 
 <style>
-footer {
-    background: #022e25;
-    color: #ffffff;
-    font-family: "Segoe UI", sans-serif;
-    padding: 50px 0 0;
-}
+    .lux-footer {
+        background: #001a15; /* Tone tối hơn sang trọng hơn */
+        color: #e0e0e0;
+        font-family: 'Montserrat', sans-serif;
+        padding: 80px 0 0;
+        font-size: 14px;
+        border-top: 4px solid #003D2E;
+    }
 
-footer .row {
-    max-width: 1200px;
-    margin: auto;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 20px;
-}
+    .lux-footer h4 {
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-bottom: 30px;
+        letter-spacing: 2px;
+        position: relative;
+    }
 
-footer .col {
-    width: 22%;
-    min-width: 200px;
-}
+    .lux-footer h4::after {
+        content: '';
+        position: absolute;
+        bottom: -10px;
+        left: 0;
+        width: 25px;
+        height: 1px;
+        background: #ffc107;
+    }
 
-footer h4 {
-    font-size: 17px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    margin-bottom: 15px;
-    color: #d5ffef;
-}
+    .lux-footer ul {
+        list-style: none;
+        padding: 0;
+    }
 
-footer ul {
-    padding: 0;
-    list-style: none;
-}
+    .lux-footer ul li {
+        margin-bottom: 15px;
+    }
 
-footer ul li {
-    margin-bottom: 8px;
-}
+    .lux-footer ul li a {
+        color: #999;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        font-size: 13px;
+    }
 
-footer ul li a {
-    color: #dcdcdc;
-    text-decoration: none;
-    font-size: 14px;
-    transition: all 0.2s ease;
-}
+    .lux-footer ul li a:hover {
+        color: #ffc107;
+        padding-left: 8px;
+    }
 
-footer ul li a:hover {
-    color: #ffffff;
-    padding-left: 4px;
-}
+    .lux-footer .contact-info p {
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #999;
+        font-size: 13px;
+    }
 
-/* PAYMENT / SOCIAL */
-.center-box {
-    text-align: center;
-    margin: 40px auto;
-}
+    .lux-footer .contact-info i {
+        color: #ffc107;
+        font-size: 14px;
+    }
 
-.logo-row img,
-.social img {
-    transition: 0.2s;
-}
+    .lux-footer .social-icons {
+        margin-top: 35px;
+        display: flex;
+        gap: 12px;
+    }
 
-.logo-row img {
-    width: 55px;
-    margin: 8px;
-    opacity: 0.9;
-}
+    .lux-footer .social-icons a {
+        width: 35px;
+        height: 35px;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
 
-.logo-row img:hover {
-    opacity: 1;
-    transform: scale(1.05);
-}
+    .lux-footer .social-icons a:hover {
+        background: #ffc107;
+        color: #001a15;
+        border-color: #ffc107;
+        transform: translateY(-5px);
+    }
 
-.social img {
-    width: 42px;
-    margin: 6px;
-    opacity: 0.85;
-}
+    .lux-footer .payment-methods {
+        padding: 40px 0;
+        margin-top: 60px;
+        text-align: center;
+        border-top: 1px solid rgba(255,255,255,0.05);
+    }
 
-.social img:hover {
-    opacity: 1;
-    transform: scale(1.1);
-}
+    .lux-footer .payment-methods img {
+        height: 22px;
+        margin: 0 15px;
+        filter: grayscale(1) invert(1) brightness(0.8);
+        transition: all 0.4s ease;
+        opacity: 0.4;
+    }
 
-/* Contact */
-.contact {
-    text-align: center;
-    line-height: 1.8;
-    margin-top: 40px;
-    font-size: 15px;
-    color: #dcdcdc;
-}
+    .lux-footer .payment-methods img:hover {
+        filter: none;
+        opacity: 1;
+        transform: scale(1.1);
+    }
 
-/* Divider */
-footer .divider {
-    width: 80%;
-    height: 1px;
-    background: rgba(255,255,255,0.1);
-    margin: 40px auto 20px;
-}
-
-/* Copyright */
-.copy {
-    background: #011f19;
-    text-align: center;
-    padding: 15px;
-    margin-top: 10px;
-    font-size: 14px;
-    letter-spacing: 0.4px;
-    color: #9ae0cf;
-}
+    .lux-footer .copyright {
+        background: #000;
+        padding: 25px 0;
+        text-align: center;
+        font-size: 11px;
+        color: #444;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+    }
 </style>
 
-<footer>
+<footer class="lux-footer">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-lg-4 col-md-6">
+                <h4>Huy Perfume</h4>
+                <div class="contact-info mt-4">
+                    <p><i class="fas fa-map-marker-alt"></i> Khu Royal Park, Thừa Thiên Huế</p>
+                    <p><i class="fas fa-phone-alt"></i> 0906.530.794</p>
+                    <p><i class="fas fa-envelope"></i> info@huyperfume.vn</p>
+                </div>
+                <div class="social-icons">
+                    <a href="https://www.facebook.com/qhuy.29/" target="_blank"><i class="fab fa-facebook-f"></i></a>
+                    <a href="https://www.instagram.com/quochuy29_/" target="_blank"><i class="fab fa-instagram"></i></a>
+                    <a href="https://www.youtube.com/@quochuy4739" target="_blank"><i class="fab fa-youtube"></i></a>
+                    <a href="https://www.google.com/search?q=huy+perfume" target="_blank"><i class="fab fa-google"></i></a>
+                </div>
+            </div>
 
-    <!-- 4 CỘT -->
-    <div class="row">
-        <div class="col">
-            <h4>VỀ PARFUMERIE</h4>
-            <ul>
-                <li><a href="#">Trang chủ</a></li>
-                <li><a href="#">Giới thiệu</a></li>
-                <li><a href="#">Sản phẩm</a></li>
-                <li><a href="#">Liên hệ</a></li>
-            </ul>
-        </div>
+            <div class="col-lg-2 col-md-6">
+                <h4>Khám phá</h4>
+                <ul>
+                    <li><a href="${pageContext.request.contextPath}/home">Trang chủ</a></li>
+                    <li><a href="${pageContext.request.contextPath}/about">Giới thiệu</a></li>
+                    <li><a href="${pageContext.request.contextPath}/blog">Blog kiến thức</a></li>
+                    <li><a href="${pageContext.request.contextPath}/contact">Liên hệ</a></li>
+                </ul>
+            </div>
 
-        <div class="col">
-            <h4>HƯỚNG DẪN</h4>
-            <ul>
-                <li><a href="#">Hướng dẫn mua hàng</a></li>
-                <li><a href="#">Hướng dẫn thanh toán</a></li>
-                <li><a href="#">Hướng dẫn kiểm hàng</a></li>
-                <li><a href="#">Điều khoản sử dụng</a></li>
-            </ul>
-        </div>
+            <div class="col-lg-3 col-md-6">
+                <h4>Dịch vụ</h4>
+                <ul>
+                    <li><a href="#">Hướng dẫn mua hàng</a></li>
+                    <li><a href="#">Chính sách bảo mật</a></li>
+                    <li><a href="#">Chính sách đổi trả</a></li>
+                    <li><a href="#">Vận chuyển & Giao hàng</a></li>
+                </ul>
+            </div>
 
-        <div class="col">
-            <h4>CHÍNH SÁCH</h4>
-            <ul>
-                <li><a href="#">Chính sách mua hàng</a></li>
-                <li><a href="#">Chính sách bảo mật</a></li>
-                <li><a href="#">Chính sách giao hàng</a></li>
-                <li><a href="#">Chính sách đổi trả</a></li>
-            </ul>
-        </div>
-
-        <div class="col">
-            <h4>HỖ TRỢ</h4>
-            <ul>
-                <li><a href="#">Tìm kiếm</a></li>
-                <li><a href="#">Đăng nhập</a></li>
-                <li><a href="#">Đăng ký</a></li>
-                <li><a href="#">Cộng tác viên</a></li>
-            </ul>
-        </div>
-    </div>
-
-    <!-- PAYMENT -->
-    <div class="center-box">
-        <h4>PHƯƠNG THỨC THANH TOÁN</h4>
-        <div class="logo-row">
-            <img src="assets/icon/visa.png">
-            <img src="assets/icon/master.png">
-            <img src="assets/icon/jcb.png">
-            <img src="assets/icon/napas.png">
-            <img src="assets/icon/cod.png">
-            <img src="assets/icon/bank.png">
-            <img src="assets/icon/vnpay.png">
-            <img src="assets/icon/momo.png">
+            <div class="col-lg-3 col-md-6">
+                <h4>Đăng ký nhận tin</h4>
+                <p class="text-muted small mb-3">Nhận cập nhật về các dòng nước hoa mới nhất và ưu đãi đặc quyền.</p>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control form-control-sm bg-transparent border-secondary text-white" placeholder="Email của bạn">
+                    <button class="btn btn-outline-warning btn-sm" type="button">Gửi</button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- SOCIAL -->
-    <div class="center-box">
-        <h4>KẾT NỐI VỚI CHÚNG TÔI</h4>
-        <div class="social">
-            <img src="assets/icon/fb.png">
-            <img src="assets/icon/ig.png">
-            <img src="assets/icon/yt.png">
-            <img src="assets/icon/gg.png">
+    <div class="payment-methods">
+        <div class="container">
+            <img src="${pageContext.request.contextPath}/assets/icon/visa.png" alt="Visa">
+            <img src="${pageContext.request.contextPath}/assets/icon/master.png" alt="Mastercard">
+            <img src="${pageContext.request.contextPath}/assets/icon/jcb.png" alt="JCB">
+            <img src="${pageContext.request.contextPath}/assets/icon/cod.png" alt="COD">
+            <img src="${pageContext.request.contextPath}/assets/icon/bank.png" alt="Banking">
+            <img src="${pageContext.request.contextPath}/assets/icon/momo.png" alt="MoMo">
         </div>
     </div>
 
-    <div class="divider"></div>
-
-    <!-- CONTACT -->
-    <div class="contact">
-        <h4>THÔNG TIN LIÊN HỆ</h4>
-        Hộ Kinh doanh HUYPERFUME<br>
-        Số ĐKKD 0238308374 – UBND Thành Phố Huế<br>
-        Khu Royal Park<br>
-        Điện thoại: 0888070308<br>
-        Email: info@huyperfume.vn
+    <div class="copyright">
+        <div class="container">
+            &copy; 2026 HUY PERFUME. ALL RIGHTS RESERVED. DESIGNED BY HUYY
+        </div>
     </div>
-
-    <div class="copy">
-        HuyPerfume.vn | Cung cấp bởi Huyy
-    </div>
-
 </footer>

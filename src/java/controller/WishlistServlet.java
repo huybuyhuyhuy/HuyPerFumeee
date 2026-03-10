@@ -47,7 +47,6 @@ public class WishlistServlet extends HttpServlet {
                     Products p = dao.findProducts(id);
                     if (p != null) {
                         boolean exists = false;
-                        // Thay for để tránh tiềm ẩn lỗi ClassCastException khi stream null
                         for (Products prod : wishlist) {
                             if (prod.getId() == id) {
                                 exists = true;
@@ -56,6 +55,9 @@ public class WishlistServlet extends HttpServlet {
                         }
                         if (!exists) {
                             wishlist.add(p);
+                        } else {
+                            // Nếu đã tồn tại thì BỎ YÊU THÍCH (Toggle mode cho AJAX)
+                            wishlist.removeIf(item -> item.getId() == id);
                         }
                     }
                 } else if ("remove".equals(action)) {

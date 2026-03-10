@@ -1,254 +1,340 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core"%>
+<%@taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt"%>
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>${title != null ? title : "Quản Trị Sản Phẩm"}</title>
+    <title>${title != null ? title : "Quản Trị Hệ Thống | Huy Perfume"}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        .list-group-item.active { background-color: #212529; border-color: #212529; }
-        .sidebar { min-height: 80vh; }
-        .nav-link:hover { color: #ffc107 !important; }
+        :root {
+            --admin-primary: #003D2E;
+            --admin-secondary: #005e47;
+            --admin-bg: #f4f7f6;
+            --sidebar-width: 260px;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--admin-bg); color: #333; }
+        
+        /* Sidebar Style */
+        .sidebar-lux {
+            width: var(--sidebar-width);
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            background: var(--admin-primary);
+            color: white;
+            z-index: 1000;
+            transition: all 0.3s;
+            box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+        }
+        .sidebar-brand {
+            padding: 30px 25px;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .sidebar-menu { padding: 20px 0; }
+        .menu-item {
+            padding: 12px 25px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            transition: 0.3s;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .menu-item:hover, .menu-item.active {
+            color: white;
+            background: rgba(255,255,255,0.1);
+            border-left: 4px solid #ffc107;
+        }
+        .menu-label {
+            padding: 20px 25px 10px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.4);
+            font-weight: 700;
+        }
+
+        /* Main Content */
+        .main-lux {
+            margin-left: var(--sidebar-width);
+            padding: 30px;
+            transition: all 0.3s;
+        }
+        .top-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            background: white;
+            padding: 15px 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+        }
+        
+        /* Card Lux */
+        .card-lux {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+            background: white;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        .card-lux-header {
+            padding: 20px 25px;
+            background: white;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        /* Stats Widget */
+        .stat-card {
+            background: linear-gradient(135deg, var(--admin-primary) 0%, var(--admin-secondary) 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card i {
+            position: absolute;
+            right: -10px;
+            bottom: -10px;
+            font-size: 80px;
+            opacity: 0.1;
+        }
+
+        /* Table Style */
+        .table-lux thead th {
+            background: #f8f9fa;
+            border: none;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 15px;
+            color: #888;
+        }
+        .table-lux tbody td {
+            padding: 15px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f9f9f9;
+            font-size: 14px;
+        }
+        .product-img-td {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+        
+        /* Buttons */
+        .btn-lux-primary {
+            background: var(--admin-primary);
+            color: white;
+            border-radius: 10px;
+            padding: 8px 20px;
+            font-weight: 600;
+            border: none;
+            transition: 0.3s;
+        }
+        .btn-lux-primary:hover {
+            background: var(--admin-secondary);
+            color: white;
+            transform: translateY(-2px);
+        }
     </style>
 </head>
-<body class="bg-light">
+<body>
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-        <div class="container-fluid">
-            <a class="navbar-brand fw-bold" href="${pageContext.request.contextPath}/admin">HUY PERFUME</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">DANH MỤC</a>
-                        <ul class="dropdown-menu">
-                            <c:forEach items="${listCategories}" var="cat">
-                                <li><a class="dropdown-item" href="admin?categoryId=${cat.id}">${cat.name}</a></li>
-                            </c:forEach>
-                        </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">THƯƠNG HIỆU</a>
-                        <ul class="dropdown-menu">
-                            <c:forEach items="${listBrands}" var="b">
-                                <li><a class="dropdown-item" href="admin?brandId=${b.id}">${b.name}</a></li>
-                            </c:forEach>
-                        </ul>
-                    </li>
-                </ul>
-                
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link text-warning fw-bold" href="${pageContext.request.contextPath}/logout" 
-                           onclick="return confirm('Bạn có chắc chắn muốn đăng xuất không?')">
-                            <i class="fas fa-sign-out-alt me-1"></i> ĐĂNG XUẤT
-                        </a>
-                    </li>
-                </ul>
+    <!-- Sidebar -->
+    <div class="sidebar-lux">
+        <div class="sidebar-brand">
+            <i class="fas fa-crown text-warning me-2"></i>HUY ADMIN
+        </div>
+        <div class="sidebar-menu">
+            <div class="menu-label">Tổng quan</div>
+            <a href="admin" class="menu-item active">
+                <i class="fas fa-th-large"></i> Dashboard
+            </a>
+            <a href="home" class="menu-item">
+                <i class="fas fa-external-link-alt"></i> Xem Website
+            </a>
+
+            <div class="menu-label">Quản lý</div>
+            <a href="admin?type=products" class="menu-item">
+                <i class="fas fa-box"></i> Sản phẩm
+            </a>
+            <a href="admin?type=orders" class="menu-item">
+                <i class="fas fa-shopping-cart"></i> Đơn hàng
+            </a>
+            <a href="admin?type=users" class="menu-item">
+                <i class="fas fa-users"></i> Khách hàng
+            </a>
+
+            <div class="menu-label">Hệ thống</div>
+            <a href="admin?type=settings" class="menu-item">
+                <i class="fas fa-cog"></i> Cài đặt
+            </a>
+            <a href="${pageContext.request.contextPath}/logout" class="menu-item text-danger mt-5">
+                <i class="fas fa-sign-out-alt"></i> Đăng xuất
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-lux">
+        <div class="top-header">
+            <h4 class="m-0 fw-bold">Bảng điều khiển</h4>
+            <div class="d-flex align-items-center gap-3">
+                <span class="small text-muted">Xin chào, <strong>Admin</strong></span>
+                <img src="https://ui-avatars.com/api/?name=Admin&background=003D2E&color=fff" class="rounded-circle" width="35">
             </div>
         </div>
-    </nav>
 
-    <div class="container-fluid">
-        <div class="row px-3">
-            <div class="col-md-3">
-                <div class="card shadow-sm sidebar">
-                    <div class="card-header bg-secondary text-white fw-bold">BỘ LỌC TÌM KIẾM</div>
-                    <div class="list-group list-group-flush">
-                        <a href="admin" class="list-group-item list-group-item-action fw-bold py-3">🏠 TẤT CẢ SẢN PHẨM</a>
-                        
-                        <div class="p-3 bg-light fw-bold text-muted small text-uppercase">Danh Mục</div>
-                        <c:forEach items="${listCategories}" var="cat">
-                            <a href="admin?categoryId=${cat.id}" class="list-group-item list-group-item-action ${param.categoryId == cat.id ? 'active' : ''}">📂 ${cat.name}</a>
-                        </c:forEach>
-
-                        <div class="p-3 bg-light fw-bold text-muted small text-uppercase mt-2">Thương Hiệu</div>
-                        <c:forEach items="${listBrands}" var="b">
-                            <a href="admin?brandId=${b.id}" class="list-group-item list-group-item-action ${param.brandId == b.id ? 'active' : ''}">✨ ${b.name}</a>
-                        </c:forEach>
-                        
-                        <a href="${pageContext.request.contextPath}/logout" class="list-group-item list-group-item-action text-danger mt-5" onclick="return confirm('Đăng xuất?')">
-                            <i class="fas fa-power-off me-2"></i>Thoát hệ thống
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-9">
-<<<<<<< HEAD
-                <!-- BIỂU ĐỒ THỐNG KÊ BÁN HÀNG -->
-                <div class="card shadow mb-4">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
-                        <div>
-                            <h5 class="mb-1 fw-bold">Thống kê bán hàng</h5>
-                            <small class="text-muted">
-                                Hôm nay có 
-                                <span class="fw-bold text-success">
-                                    ${todayUserOrderCount}
-                                </span> 
-                                khách đã đặt hàng
-                            </small>
-                        </div>
-                        <select id="chartRange" class="form-select form-select-sm" style="width: auto;">
-                            <option value="day">Theo ngày</option>
-                            <option value="week">Theo tuần</option>
-                            <option value="month">Theo tháng</option>
-                            <option value="year">Theo năm</option>
+        <div class="row g-4 mb-4">
+            <div class="col-md-8">
+                <!-- BIỂU ĐỒ -->
+                <div class="card-lux">
+                    <div class="card-lux-header">
+                        <h6 class="m-0 fw-bold">Thống kê doanh thu</h6>
+                        <select id="chartRange" class="form-select form-select-sm w-auto border-0 bg-light">
+                            <option value="day">Hôm nay</option>
+                            <option value="week">Tuần này</option>
+                            <option value="month">Tháng này</option>
+                            <option value="year">Năm nay</option>
                         </select>
                     </div>
                     <div class="card-body">
-                        <canvas id="salesChart" height="90"></canvas>
+                        <canvas id="salesChart" height="120"></canvas>
                     </div>
                 </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card h-100">
+                    <h6 class="text-uppercase opacity-75 small fw-bold">Đơn hàng mới</h6>
+                    <h2 class="display-5 fw-bold my-3">${todayUserOrderCount}</h2>
+                    <p class="m-0 small">Khách hàng đã đặt trong ngày</p>
+                    <i class="fas fa-shopping-bag"></i>
+                </div>
+            </div>
+        </div>
 
-                <!-- DANH SÁCH SẢN PHẨM -->
-=======
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
-                <div class="card shadow">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
-                        <h5 class="mb-0 fw-bold">DANH SÁCH SẢN PHẨM</h5>
-                        <a href="${pageContext.request.contextPath}/admin/product/add" class="btn btn-success btn-sm">+ Thêm mới</a>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover table-bordered align-middle">
-                                <thead class="table-dark">
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Hình</th>
-                                        <th>Tên</th>
-                                        <th>Giá</th>
-                                        <th>Trạng thái</th>
-                                        <th class="text-center">Hành động</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <c:forEach items="${listProducts}" var="p">
-                                        <tr>
-                                            <td>${p.id}</td>
-                                            <td><img src="${pageContext.request.contextPath}/assets/images/${p.image}" width="50" class="rounded border"></td>
-                                            <td class="fw-bold">${p.name}</td>
-                                            <td class="text-danger">${p.price} VNĐ</td>
-                                            <td>${p.status ? '<span class="badge bg-success">Hiện</span>' : '<span class="badge bg-secondary">Ẩn</span>'}</td>
-                                            <td class="text-center">
-                                                <a href="admin/product/edit?id=${p.id}" class="btn btn-sm btn-warning">Sửa</a>
-                                                <a href="admin/product/delete?id=${p.id}" class="btn btn-sm btn-danger" onclick="return confirm('Xóa?')">Xóa</a>
-                                            </td>
-                                        </tr>
-                                    </c:forEach>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+        <!-- DANH SÁCH SẢN PHẨM -->
+        <div class="card-lux">
+            <div class="card-lux-header">
+                <h6 class="m-0 fw-bold">Danh sách sản phẩm</h6>
+                <a href="${pageContext.request.contextPath}/admin/product/add" class="btn-lux-primary btn-sm">
+                    <i class="fas fa-plus me-2"></i>Thêm sản phẩm
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-lux m-0">
+                        <thead>
+                            <tr>
+                                <th>Sản phẩm</th>
+                                <th>Giá bán</th>
+                                <th>Trạng thái</th>
+                                <th class="text-end">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <c:forEach items="${listProducts}" var="p">
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-3">
+                                            <img src="${pageContext.request.contextPath}/assets/images/${p.image}" class="product-img-td border">
+                                            <div>
+                                                <div class="fw-bold">${p.name}</div>
+                                                <div class="text-muted small">ID: #${p.id}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="fw-bold text-success">
+                                        <fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ
+                                    </td>
+                                    <td>
+                                        <c:choose>
+                                            <c:when test="${p.status}">
+                                                <span class="badge rounded-pill bg-success-subtle text-success px-3">Đang hiện</span>
+                                            </c:when>
+                                            <c:otherwise>
+                                                <span class="badge rounded-pill bg-secondary-subtle text-secondary px-3">Đang ẩn</span>
+                                            </c:otherwise>
+                                        </c:choose>
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="admin/product/edit?id=${p.id}" class="btn btn-sm btn-outline-primary border-0"><i class="fas fa-edit"></i></a>
+                                        <a href="admin/product/delete?id=${p.id}" class="btn btn-sm btn-outline-danger border-0" onclick="return confirm('Xóa sản phẩm này?')"><i class="fas fa-trash"></i></a>
+                                    </td>
+                                </tr>
+                            </c:forEach>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
-</body>
-<<<<<<< HEAD
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    const dataDayLabels = [
-        <c:forEach items="${salesByDay}" var="e" varStatus="st">
-            '${e.key}'${!st.last ? ',' : ''}
-        </c:forEach>
-    ];
-    const dataDayValues = [
-        <c:forEach items="${salesByDay}" var="e" varStatus="st">
-            ${e.value}${!st.last ? ',' : ''}
-        </c:forEach>
-    ];
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Copy logic Chart từ bản cũ sang (đảm bảo dữ liệu vẫn chạy)
+        const dataDayLabels = [<c:forEach items="${salesByDay}" var="e" varStatus="st">'${e.key}'${!st.last ? ',' : ''}</c:forEach>];
+        const dataDayValues = [<c:forEach items="${salesByDay}" var="e" varStatus="st">${e.value}${!st.last ? ',' : ''}</c:forEach>];
+        const dataWeekLabels = [<c:forEach items="${salesByWeek}" var="e" varStatus="st">'${e.key}'${!st.last ? ',' : ''}</c:forEach>];
+        const dataWeekValues = [<c:forEach items="${salesByWeek}" var="e" varStatus="st">${e.value}${!st.last ? ',' : ''}</c:forEach>];
+        const dataMonthLabels = [<c:forEach items="${salesByMonth}" var="e" varStatus="st">'${e.key}'${!st.last ? ',' : ''}</c:forEach>];
+        const dataMonthValues = [<c:forEach items="${salesByMonth}" var="e" varStatus="st">${e.value}${!st.last ? ',' : ''}</c:forEach>];
+        const dataYearLabels = [<c:forEach items="${salesByYear}" var="e" varStatus="st">'${e.key}'${!st.last ? ',' : ''}</c:forEach>];
+        const dataYearValues = [<c:forEach items="${salesByYear}" var="e" varStatus="st">${e.value}${!st.last ? ',' : ''}</c:forEach>];
 
-    const dataWeekLabels = [
-        <c:forEach items="${salesByWeek}" var="e" varStatus="st">
-            '${e.key}'${!st.last ? ',' : ''}
-        </c:forEach>
-    ];
-    const dataWeekValues = [
-        <c:forEach items="${salesByWeek}" var="e" varStatus="st">
-            ${e.value}${!st.last ? ',' : ''}
-        </c:forEach>
-    ];
-
-    const dataMonthLabels = [
-        <c:forEach items="${salesByMonth}" var="e" varStatus="st">
-            '${e.key}'${!st.last ? ',' : ''}
-        </c:forEach>
-    ];
-    const dataMonthValues = [
-        <c:forEach items="${salesByMonth}" var="e" varStatus="st">
-            ${e.value}${!st.last ? ',' : ''}
-        </c:forEach>
-    ];
-
-    const dataYearLabels = [
-        <c:forEach items="${salesByYear}" var="e" varStatus="st">
-            '${e.key}'${!st.last ? ',' : ''}
-        </c:forEach>
-    ];
-    const dataYearValues = [
-        <c:forEach items="${salesByYear}" var="e" varStatus="st">
-            ${e.value}${!st.last ? ',' : ''}
-        </c:forEach>
-    ];
-
-    const ctx = document.getElementById('salesChart').getContext('2d');
-    const chartConfig = {
-        type: 'line',
-        data: {
-            labels: dataDayLabels,
-            datasets: [{
-                label: 'Số lượng sản phẩm bán ra',
-                data: dataDayValues,
-                borderColor: '#0d6efd',
-                backgroundColor: 'rgba(13,110,253,0.1)',
-                borderWidth: 2,
-                tension: 0.3,
-                fill: true,
-                pointRadius: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { display: true },
-                tooltip: { enabled: true }
+        const ctx = document.getElementById('salesChart').getContext('2d');
+        const salesChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dataDayLabels,
+                datasets: [{
+                    label: 'Số lượng bán',
+                    data: dataDayValues,
+                    borderColor: '#003D2E',
+                    backgroundColor: 'rgba(0,61,46,0.05)',
+                    fill: true,
+                    tension: 0.4,
+                    borderWidth: 3,
+                    pointRadius: 0,
+                    pointHoverRadius: 6
+                }]
             },
-            scales: {
-                y: {
-                    beginAtZero: true
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { display: false } },
+                    x: { grid: { display: false } }
                 }
             }
-        }
-    };
+        });
 
-    const salesChart = new Chart(ctx, chartConfig);
-
-    document.getElementById('chartRange').addEventListener('change', function () {
-        const type = this.value;
-        if (type === 'day') {
-            salesChart.data.labels = dataDayLabels;
-            salesChart.data.datasets[0].data = dataDayValues;
-        } else if (type === 'week') {
-            salesChart.data.labels = dataWeekLabels;
-            salesChart.data.datasets[0].data = dataWeekValues;
-        } else if (type === 'month') {
-            salesChart.data.labels = dataMonthLabels;
-            salesChart.data.datasets[0].data = dataMonthValues;
-        } else if (type === 'year') {
-            salesChart.data.labels = dataYearLabels;
-            salesChart.data.datasets[0].data = dataYearValues;
-        }
-        salesChart.update();
-    });
-</script>
-=======
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
+        document.getElementById('chartRange').addEventListener('change', function() {
+            const type = this.value;
+            if(type === 'day') { salesChart.data.labels = dataDayLabels; salesChart.data.datasets[0].data = dataDayValues; }
+            else if(type === 'week') { salesChart.data.labels = dataWeekLabels; salesChart.data.datasets[0].data = dataWeekValues; }
+            else if(type === 'month') { salesChart.data.labels = dataMonthLabels; salesChart.data.datasets[0].data = dataMonthValues; }
+            else if(type === 'year') { salesChart.data.labels = dataYearLabels; salesChart.data.datasets[0].data = dataYearValues; }
+            salesChart.update();
+        });
+    </script>
+</body>
 </html>

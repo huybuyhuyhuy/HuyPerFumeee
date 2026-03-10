@@ -1,5 +1,6 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 
 <%-- 1. Import Header và Navbar từ cùng thư mục inc --%>
 <c:import url="header.jsp"/>
@@ -76,7 +77,7 @@
                     <hr>
                 </div>
             </div>
-            
+
             <div class="row">
         <c:choose>
             <%-- 2. Kiểm tra danh sách trong Session --%>
@@ -89,7 +90,9 @@
                             
                             <div class="card-body d-flex flex-column">
                                 <h5 class="card-title text-truncate" title="${p.name}">${p.name}</h5>
-                                <p class="card-text text-danger fw-bold fs-5">${p.price} VNĐ</p>
+                                <p class="card-text text-danger fw-bold fs-5">
+                                    <fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ
+                                </p>
                                 
                                 <div class="mt-auto d-grid gap-2">
                                     <%-- Nút thêm vào giỏ hàng --%>

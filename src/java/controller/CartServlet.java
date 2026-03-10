@@ -1,9 +1,6 @@
 package controller;
 
-<<<<<<< HEAD
 import data.dao.Database;
-=======
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
 import java.io.IOException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -19,7 +16,6 @@ import model.Products;
 public class CartServlet extends HttpServlet {
 
     @Override
-    //Nhận tham số và hiển thị 
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         // Xử lý Clear giỏ hàng
@@ -28,16 +24,11 @@ public class CartServlet extends HttpServlet {
         }
         
         request.setAttribute("title", "Cart Detail");
-<<<<<<< HEAD
         request.setAttribute("listCategory", Database.getCategoryDao().findAll());
         request.setAttribute("listBrands", Database.getBrandDao().getAllBrands());
         request.getRequestDispatcher("/views/cart.jsp").forward(request, response);
-=======
-        // Nên dùng forward để hiển thị trang giỏ hàng
-       request.getRequestDispatcher("/views/cart.jsp").forward(request, response);
->>>>>>> 5f028194b71b897525d3cafdfb1497588c826870
     }
-        // đưa dữ liệu lên và xử lí
+
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -50,14 +41,18 @@ public class CartServlet extends HttpServlet {
         String idParam = request.getParameter("id_product");
         
         if (action != null && idParam != null) {
-            int id_product = Integer.parseInt(idParam);
-            switch (action) {
-                case "update":
-                    doUpdate(request, id_product);
-                    break;
-                case "delete":
-                    doDelete(request, id_product);
-                    break;
+            try {
+                int id_product = Integer.parseInt(idParam);
+                switch (action) {
+                    case "update":
+                        doUpdate(request, id_product);
+                        break;
+                    case "delete":
+                        doDelete(request, id_product);
+                        break;
+                }
+            } catch (NumberFormatException e) {
+                e.printStackTrace();
             }
         }
         
@@ -71,16 +66,20 @@ public class CartServlet extends HttpServlet {
         if (cart != null) {
             String qParam = request.getParameter("quantity");
             if (qParam != null) {
-                int quantity = Integer.parseInt(qParam);
-                for (Products pro : cart) {
-                    if (pro.getId() == id_product) {
-                        if (quantity > 0) {
-                            pro.setQuantity(quantity);
+                try {
+                    int quantity = Integer.parseInt(qParam);
+                    for (Products pro : cart) {
+                        if (pro.getId() == id_product) {
+                            if (quantity > 0) {
+                                pro.setQuantity(quantity);
+                            }
+                            break;
                         }
-                        break;
                     }
+                    session.setAttribute("cart", cart);
+                } catch (NumberFormatException e) {
+                    e.printStackTrace();
                 }
-                session.setAttribute("cart", cart);
             }
         }
     }
@@ -90,7 +89,6 @@ public class CartServlet extends HttpServlet {
         List<Products> cart = (List<Products>) session.getAttribute("cart");
         
         if (cart != null) {
-            
             cart.removeIf(pro -> pro.getId() == id_product);
             session.setAttribute("cart", cart);
         }

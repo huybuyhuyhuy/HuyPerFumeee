@@ -1,90 +1,163 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%-- Ví d?: <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"> --%>
-<section class="vh-100" style="background-color: #eee;">
-  <div class="container h-100">
-    <div class="row d-flex justify-content-center align-items-center h-100">
-      <div class="col-lg-12 col-xl-11">
-        <div class="card text-black" style="border-radius: 25px;">
-          <div class="card-body p-md-5">
-            <div class="row justify-content-center">
-              <div class="col-md-10 col-lg-6 col-xl-5 order-2 order-lg-1">
 
-                <p class="text-center h1 fw-bold mb-5 mx-1 mx-md-4 mt-4">Đăng Ký</p>
+<style>
+    .reg-section {
+        background: #f4f7f6;
+        padding: 80px 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+    }
+    .reg-card {
+        border: none;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.08);
+        background: #fff;
+    }
+    .reg-image {
+        background: url('https://images.unsplash.com/photo-1594035910387-fea47794261f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80') center/cover;
+        min-height: 100%;
+    }
+    .reg-form-container {
+        padding: 50px;
+    }
+    .reg-title {
+        font-weight: 800;
+        color: #003D2E;
+        margin-bottom: 10px;
+        font-size: 2rem;
+    }
+    .reg-subtitle {
+        color: #888;
+        margin-bottom: 40px;
+        font-size: 0.9rem;
+    }
+    .form-group-lux {
+        margin-bottom: 20px;
+        position: relative;
+    }
+    .form-group-lux i {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #003D2E;
+        opacity: 0.5;
+    }
+    .form-control-lux {
+        padding: 12px 15px 12px 45px;
+        border-radius: 10px;
+        border: 1px solid #eee;
+        background: #f9f9f9;
+        font-size: 0.9rem;
+        transition: all 0.3s;
+    }
+    .form-control-lux:focus {
+        background: #fff;
+        border-color: #003D2E;
+        box-shadow: 0 0 0 4px rgba(0,61,46,0.05);
+        outline: none;
+    }
+    .btn-reg-lux {
+        background: #003D2E;
+        color: white;
+        border: none;
+        padding: 14px;
+        border-radius: 10px;
+        font-weight: 700;
+        width: 100%;
+        margin-top: 20px;
+        transition: all 0.3s;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .btn-reg-lux:hover {
+        background: #005e47;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,61,46,0.2);
+    }
+    .err-text {
+        font-size: 0.75rem;
+        color: #dc3545;
+        margin-top: 5px;
+        display: block;
+    }
+    .login-link {
+        text-align: center;
+        margin-top: 25px;
+        font-size: 0.85rem;
+        color: #666;
+    }
+    .login-link a {
+        color: #003D2E;
+        font-weight: 700;
+        text-decoration: none;
+    }
+</style>
 
-                <form class="mx-1 mx-md-4" action="" method="post"> <%-- THÊM action="" method="post" --%>
+<section class="reg-section">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="reg-card">
+                    <div class="row g-0">
+                        <div class="col-lg-6 d-none d-lg-block">
+                            <div class="reg-image"></div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="reg-form-container">
+                                <h2 class="reg-title">Tạo tài khoản</h2>
+                                <p class="reg-subtitle">Tham gia cộng đồng yêu nước hoa cùng Huy Perfume</p>
 
-                  <div class="d-flex flex-row align-items-center mb-4">
-                    <i class="fas fa-user fa-lg me-3 fa-fw"></i>
-                    <div class="form-outline flex-fill mb-0">
-                      <input type="text" id="form3Example1c" class="form-control" name="name" placeholder="Your Name" required/>
-                      <%-- <label class="form-label" for="form3Example1c">Your Name</label> --%>
+                                <form action="register" method="post">
+                                    <div class="form-group-lux">
+                                        <i class="fas fa-user"></i>
+                                        <input type="text" name="name" class="form-control-lux w-100" placeholder="Họ và tên" required value="${name}">
+                                    </div>
+
+                                    <div class="form-group-lux">
+                                        <i class="fas fa-envelope"></i>
+                                        <input type="email" name="email" class="form-control-lux w-100" placeholder="Địa chỉ Email" required value="${email}">
+                                        <span class="err-text">${err_email}${err_exist_email}</span>
+                                    </div>
+
+                                    <div class="form-group-lux">
+                                        <i class="fas fa-phone"></i>
+                                        <input type="text" name="phone" class="form-control-lux w-100" placeholder="Số điện thoại" required value="${phone}">
+                                        <span class="err-text">${err_phone}${err_exist_phone}</span>
+                                    </div>
+
+                                    <div class="form-group-lux">
+                                        <i class="fas fa-lock"></i>
+                                        <input type="password" name="password" class="form-control-lux w-100" placeholder="Mật khẩu" required>
+                                    </div>
+
+                                    <div class="form-group-lux">
+                                        <i class="fas fa-check-circle"></i>
+                                        <input type="password" name="repassword" class="form-control-lux w-100" placeholder="Nhập lại mật khẩu" required>
+                                        <span class="err-text">${err_repass}</span>
+                                    </div>
+
+                                    <div class="form-check mb-4 small">
+                                        <input class="form-check-input" type="checkbox" id="terms" required>
+                                        <label class="form-check-label text-muted" for="terms">
+                                            Tôi đồng ý với <a href="#" class="text-dark fw-bold">Điều khoản & Chính sách</a> của cửa hàng.
+                                        </label>
+                                    </div>
+
+                                    <button type="submit" class="btn-reg-lux">Đăng ký ngay</button>
+
+                                    <div class="login-link">
+                                        Đã có tài khoản? <a href="${pageContext.request.contextPath}/login">Đăng nhập tại đây</a>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
                     </div>
-                  </div>
-
-                  <div class="d-flex flex-row align-items-center mb-4">
-                    <i class="fas fa-envelope fa-lg me-3 fa-fw"></i>
-                    <div class="form-outline flex-fill mb-0">
-                      <input type="text" id="form3Example3c" class="form-control" name="email" placeholder="Your Email" required/>
-                      <%-- <label class="form-label" for="form3Example3c">Your Email</label> --%>
-                    </div>
-                  </div>
-                 
-                  <span style="color:red" class="d-block mb-3 ms-5 ps-3">${err_email}${err_exist_email}</span>
-
-                  <div class="d-flex flex-row align-items-center mb-4">
-                    <i class="fas fa-phone fa-lg me-3 fa-fw"></i>
-                    <div class="form-outline flex-fill mb-0">
-                      <input type="text" id="form3ExamplePhone" class="form-control" name="phone" placeholder="Your Phone" required/>
-                      <%-- <label class="form-label" for="form3ExamplePhone">Your Phone</label> --%>
-                    </div>
-                  </div>
-                  <%-- HI?N TH? L?I PHONE --%>
-                  <span style="color:red" class="d-block mb-3 ms-5 ps-3">${err_phone}${err_exist_phone}</span>
-
-                  <div class="d-flex flex-row align-items-center mb-4">
-                    <i class="fas fa-lock fa-lg me-3 fa-fw"></i>
-                    <div class="form-outline flex-fill mb-0">
-                      <input type="password" id="form3Example4c" class="form-control" name="password" placeholder="Password" required/>
-                      <%-- <label class="form-label" for="form3Example4c">Password</label> --%>
-                    </div>
-                  </div>
-
-                  <div class="d-flex flex-row align-items-center mb-4">
-                    <i class="fas fa-key fa-lg me-3 fa-fw"></i>
-                    <div class="form-outline flex-fill mb-0">
-                      <input type="password" id="form3Example4cd" class="form-control" name="repassword" placeholder="Retype Password" required/>
-                      <%-- <label class="form-label" for="form3Example4cd">Repeat your password</label> --%>
-                    </div>
-                  </div>
-                  <%-- HI?N TH? L?I REPASSWORD --%>
-                  <span style="color:red" class="d-block mb-3 ms-5 ps-3">${err_repass}</span>
-
-                  <div class="form-check d-flex justify-content-center mb-5">
-                    <input class="form-check-input me-2" type="checkbox" value="" id="form2Example3c" required/>
-                    <label class="form-check-label" for="form2Example3">
-                      Tôi đồng ý với tất cả các điều khoản  <a href="#!">Điều khoản dịch vụ.</a>
-                    </label>
-                  </div>
-
-                  <div class="d-flex justify-content-center mx-4 mb-3 mb-lg-4">
-                    <%-- Lo?i b? data-mdb-button-init/data-mdb-ripple-init n?u không dùng th? vi?n MDB.js --%>
-                    <button type="submit" class="btn btn-primary btn-lg">Register</button> 
-                  </div>
-
-                </form>
-
-              </div>
-              <div class="col-md-10 col-lg-6 col-xl-7 d-flex align-items-center order-1 order-lg-2">
-
-                <img src="https://i.pinimg.com/736x/dc/be/16/dcbe1686965e8a95fa5dba135491017d.jpg"
-                  class="img-fluid" alt="Sample image">
-
-              </div>
+                </div>
             </div>
-          </div>
         </div>
-      </div>
     </div>
-  </div>
 </section>
