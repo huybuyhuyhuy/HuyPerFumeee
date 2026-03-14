@@ -1,0 +1,7 @@
+{
+    "kiroAgent.configureMCP": "Disabled",
+    "java.project.sourcePaths": [
+        "src/java",
+        "build/web/WEB-INF/lib"
+    ]
+}

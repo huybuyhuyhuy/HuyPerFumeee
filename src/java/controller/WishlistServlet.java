@@ -1,8 +1,6 @@
 package controller;
 
 import data.dao.Database;
-import data.dao.ProductsDao;
-import data.impl.ProductsImpl;
 import java.io.IOException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -43,8 +41,7 @@ public class WishlistServlet extends HttpServlet {
             try {
                 int id = Integer.parseInt(idParam);
                 if ("add".equals(action)) {
-                    ProductsDao dao = new ProductsImpl();
-                    Products p = dao.findProducts(id);
+                    Products p = Database.getProductsDao().findProducts(id);
                     if (p != null) {
                         boolean exists = false;
                         for (Products prod : wishlist) {

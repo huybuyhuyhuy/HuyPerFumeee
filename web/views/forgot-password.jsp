@@ -89,7 +89,7 @@
 
 <section class="forgot-section">
     <div class="container">
-        <div class="forgot-card">
+        <div class="forgot-card animate__animated animate__zoomIn">
             <div class="forgot-icon">
                 <i class="fas fa-lock"></i>
             </div>

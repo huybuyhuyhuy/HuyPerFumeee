@@ -2,6 +2,7 @@ package controller;
 
 import data.dao.Database;
 import data.utils.API;
+import data.utils.CartUtils;
 import java.io.IOException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -57,9 +58,7 @@ public class LoginServlet extends HttpServlet {
             
             // --- LOGIC TỰ ĐỘNG THÊM GIỎ HÀNG SAU LOGIN ---
             if (targetId != null && !targetId.isEmpty()) {
-                // Khởi tạo HomeServlet để dùng hàm addProductsToCart đã viết sẵn
-                HomeServlet home = new HomeServlet();
-                home.addProductsToCart(request);
+                CartUtils.addProductsToCart(request);
             }
             // ----------------------------------------------
 

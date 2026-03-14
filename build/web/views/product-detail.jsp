@@ -80,7 +80,25 @@
                             <h1>${product.name}</h1>
                             
                             <div class="product-price-large">
-                                <fmt:formatNumber value="${product.price}" pattern="#,##0"/>đ
+                                <c:choose>
+                                    <c:when test="${product.discount_price > 0}">
+                                        <div class="d-flex flex-column">
+                                            <div class="d-flex align-items-center gap-2 mb-1">
+                                                <span class="badge bg-danger" style="font-size: 0.75rem;">SALE</span>
+                                                <span class="text-danger fw-800" style="font-size: 2.2rem;"><fmt:formatNumber value="${product.discount_price}" pattern="#,##0"/>đ</span>
+                                            </div>
+                                            <span class="text-muted small text-decoration-line-through" style="font-size: 1.1rem; opacity: 0.7;">
+                                                Giá gốc: <fmt:formatNumber value="${product.price}" pattern="#,##0"/>đ
+                                            </span>
+                                        </div>
+                                    </c:when>
+                                    <c:otherwise>
+                                        <fmt:formatNumber value="${product.price}" pattern="#,##0"/>đ
+                                    </c:otherwise>
+                                </c:choose>
+                                <c:if test="${!product.status}">
+                                    <span class="badge bg-danger ms-3" style="font-size: 0.8rem; vertical-align: middle;">HẾT HÀNG</span>
+                                </c:if>
                             </div>
                             
                             <div class="product-desc-short">
@@ -105,6 +123,11 @@
 
                             <div class="action-btns">
                                 <c:choose>
+                                    <c:when test="${!product.status}">
+                                        <button class="btn-add-cart text-decoration-none text-center bg-secondary" disabled>
+                                            <i class="fas fa-ban me-2"></i> TẠM HẾT HÀNG
+                                        </button>
+                                    </c:when>
                                     <c:when test="${sessionScope.user == null}">
                                         <a href="login?target_id=${product.id}" class="btn-add-cart text-decoration-none text-center">
                                             <i class="fas fa-shopping-bag me-2"></i> MUA NGAY

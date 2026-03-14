@@ -1,4 +1,4 @@
-package data.impl;
+package controller;
 
 import data.dao.Database;
 import java.io.IOException;

@@ -3,6 +3,151 @@
 <%@page contentType="text/html" pageEncoding="UTF-8"%>
 
 <style>
+    /* Banner Carousel Styles */
+    .banner-carousel {
+        position: relative;
+        width: 100%;
+        height: 600px; /* Increased height */
+        overflow: hidden;
+        margin-bottom: 50px;
+        border-radius: 30px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        background: #000;
+    }
+    .carousel-track {
+        display: flex;
+        width: 400%; /* 4 images */
+        height: 100%;
+        transition: transform 1s cubic-bezier(0.7, 0, 0.3, 1);
+        cursor: grab;
+        position: relative;
+        z-index: 1;
+    }
+    .carousel-slide {
+        width: 25%;
+        height: 100%;
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+    }
+    .carousel-slide img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scale(1.1); /* Subtle zoom for parallax effect */
+        transition: transform 8s linear;
+    }
+    .carousel-slide.active img {
+        transform: scale(1);
+    }
+    .carousel-slide::after {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(to right, rgba(0,0,0,0.6), rgba(0,0,0,0.2), transparent);
+    }
+    .carousel-content {
+        position: absolute;
+        top: 50%;
+        left: 10%;
+        transform: translateY(-50%);
+        color: white;
+        z-index: 5;
+        max-width: 600px;
+        pointer-events: none;
+    }
+    .carousel-content h2 {
+        font-size: 4.5rem;
+        font-weight: 900;
+        line-height: 1.1;
+        margin-bottom: 25px;
+        opacity: 0;
+        transform: translateX(-50px);
+        transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        text-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    }
+    .carousel-slide.active .carousel-content h2 {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    .carousel-content .btn-banner {
+        display: inline-block;
+        padding: 15px 40px;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        color: white;
+        text-decoration: none;
+        border-radius: 50px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-size: 0.9rem;
+        opacity: 0;
+        transform: translateY(20px);
+        transition: all 0.5s ease 0.4s;
+        pointer-events: auto;
+    }
+    .carousel-slide.active .carousel-content .btn-banner {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    .carousel-content .btn-banner:hover {
+        background: #fff;
+        color: #000;
+    }
+    .carousel-nav {
+        position: absolute;
+        top: 50%;
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        padding: 0 30px;
+        transform: translateY(-50%);
+        z-index: 10;
+        pointer-events: none;
+    }
+    .nav-btn {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(255,255,255,0.2);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: 0.3s;
+        pointer-events: auto;
+    }
+    .nav-btn:hover {
+        background: #fff;
+        color: #000;
+    }
+    .carousel-dots {
+        position: absolute;
+        bottom: 40px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 15px;
+        z-index: 10;
+    }
+    .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.3);
+        cursor: pointer;
+        transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .dot.active {
+        background: #fff;
+        width: 40px;
+        border-radius: 10px;
+    }
     /* Nâng cấp hiệu ứng Product Card */
     .product-card-custom {
         position: relative; 
@@ -164,6 +309,27 @@
         border-color: #003D2E; 
         color: white; 
     }
+
+    /* Sold Out Style */
+    .sold-out-badge {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(220, 53, 69, 0.9);
+        color: white;
+        padding: 5px 12px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        border-radius: 5px;
+        z-index: 5;
+        letter-spacing: 1px;
+    }
+    .product-card-custom.sold-out {
+        opacity: 0.7;
+    }
+    .product-card-custom.sold-out .img-container img {
+        filter: grayscale(0.8);
+    }
 </style>
 
 <div class="breadcrumb-custom py-3 bg-light mb-4">
@@ -177,8 +343,59 @@
     </div>
 </div>
 
-<div class="container my-5">
-    <div class="row">
+<div class="container-fluid px-lg-5 py-4">
+    <!-- Banner Carousel Section -->
+    <div class="banner-carousel">
+        <div class="carousel-track" id="carouselTrack">
+            <!-- Slide 1 -->
+            <div class="carousel-slide active" onclick="location.href='home'">
+                <img src="${pageContext.request.contextPath}/assets/images/banner1.png" alt="Luxury Perfume Banner 1">
+                <div class="carousel-content">
+                    <h2 class="text-uppercase">Luxury<br>Scent Collection</h2>
+                    <a href="home" class="btn-banner">Khám phá ngay</a>
+                </div>
+            </div>
+            <!-- Slide 2 -->
+            <div class="carousel-slide" onclick="location.href='home'">
+                <img src="${pageContext.request.contextPath}/assets/images/banner2.png" alt="Luxury Perfume Banner 2">
+                <div class="carousel-content">
+                    <h2 class="text-uppercase">Elegant<br>Fragrance</h2>
+                    <a href="home" class="btn-banner">Xem bộ sưu tập</a>
+                </div>
+            </div>
+            <!-- Slide 3 -->
+            <div class="carousel-slide" onclick="location.href='home'">
+                <img src="${pageContext.request.contextPath}/assets/images/banner3.png" alt="Luxury Perfume Banner 3">
+                <div class="carousel-content">
+                    <h2 class="text-uppercase">Premium<br>Essence</h2>
+                    <a href="home" class="btn-banner">Mua sắm ngay</a>
+                </div>
+            </div>
+            <!-- Slide 4 -->
+            <div class="carousel-slide" onclick="location.href='home'">
+                <img src="${pageContext.request.contextPath}/assets/images/banner4.png" alt="Luxury Perfume Banner 4">
+                <div class="carousel-content">
+                    <h2 class="text-uppercase">Exclusive<br>Aroma</h2>
+                    <a href="home" class="btn-banner">Ưu đãi đặc biệt</a>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Navigation Arrows -->
+        <div class="carousel-nav">
+            <div class="nav-btn prev" onclick="prevSlide()"><i class="fas fa-chevron-left"></i></div>
+            <div class="nav-btn next" onclick="nextSlide()"><i class="fas fa-chevron-right"></i></div>
+        </div>
+
+        <div class="carousel-dots" id="carouselDots">
+            <div class="dot active" onclick="goToSlide(0)"></div>
+            <div class="dot" onclick="goToSlide(1)"></div>
+            <div class="dot" onclick="goToSlide(2)"></div>
+            <div class="dot" onclick="goToSlide(3)"></div>
+        </div>
+    </div>
+
+    <div class="row g-5">
         <!-- Sidebar -->
         <div class="col-lg-3 col-md-4">
             <div class="sidebar p-4 border-0 shadow-sm rounded-4 bg-white mb-4">
@@ -245,60 +462,90 @@
                 <c:choose>
                     <c:when test="${not empty listProducts}">
                         <c:forEach items="${listProducts}" var="p">
-                            <c:if test="${p.status}">
-                                <div class="col-lg-3 col-md-6 col-sm-6">
-                                    <div class="product-card-custom">
-                                        <div class="img-container">
-                                            <%-- Wishlist Button --%>
+                            <div class="col-lg-3 col-md-6 col-sm-6">
+                                <div class="product-card-custom ${!p.status ? 'sold-out' : ''}">
+                                    <div class="img-container">
+                                        <%-- Sold Out Badge --%>
+                                        <c:if test="${!p.status}">
+                                            <div class="sold-out-badge">HẾT HÀNG</div>
+                                        </c:if>
+
+                                        <%-- Wishlist Button --%>
+                                        <c:choose>
+                                            <c:when test="${sessionScope.user == null}">
+                                                <a href="${pageContext.request.contextPath}/login?target_id=${p.id}" class="btn-wishlist-abs">
+                                                    <i class="fa-regular fa-heart"></i>
+                                                </a>
+                                            </c:when>
+                                            <c:otherwise>
+                                                <c:set var="inWishlist" value="false"/>
+                                                <c:forEach items="${sessionScope.wishlist}" var="w">
+                                                    <c:if test="${w.id == p.id}"><c:set var="inWishlist" value="true"/></c:if>
+                                                </c:forEach>
+                                                <button class="btn-wishlist-abs ${inWishlist ? 'active' : ''}" onclick="addToWishlist(this, ${p.id})">
+                                                    <i class="${inWishlist ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
+                                                </button>
+                                            </c:otherwise>
+                                        </c:choose>
+
+                                        <img src="${pageContext.request.contextPath}/assets/images/${p.image}" 
+                                             alt="${p.name}"
+                                             style="aspect-ratio: 1/1; object-fit: cover;"/>
+
+                                        <div class="img-overlay">
                                             <c:choose>
+                                                <c:when test="${!p.status}">
+                                                    <button class="btn-overlay opacity-50 cursor-not-allowed" disabled>
+                                                        <i class="fas fa-ban me-2"></i> Tạm hết hàng
+                                                    </button>
+                                                </c:when>
                                                 <c:when test="${sessionScope.user == null}">
-                                                    <a href="${pageContext.request.contextPath}/login?target_id=${p.id}" class="btn-wishlist-abs">
-                                                        <i class="fa-regular fa-heart"></i>
+                                                    <a href="${pageContext.request.contextPath}/login?target_id=${p.id}" class="btn-overlay">
+                                                        <i class="fas fa-shopping-cart me-2"></i> Mua ngay
                                                     </a>
                                                 </c:when>
                                                 <c:otherwise>
-                                                    <c:set var="inWishlist" value="false"/>
-                                                    <c:forEach items="${sessionScope.wishlist}" var="w">
-                                                        <c:if test="${w.id == p.id}"><c:set var="inWishlist" value="true"/></c:if>
-                                                    </c:forEach>
-                                                    <button class="btn-wishlist-abs ${inWishlist ? 'active' : ''}" onclick="addToWishlist(this, ${p.id})">
-                                                        <i class="${inWishlist ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
-                                                    </button>
+                                                    <a href="${pageContext.request.contextPath}/home?add_to_cart=${p.id}&page=${currentPage}" 
+                                                       class="btn-overlay">
+                                                        <i class="fas fa-shopping-cart me-2"></i> Mua ngay
+                                                    </a>
                                                 </c:otherwise>
                                             </c:choose>
-
-                                            <img src="${pageContext.request.contextPath}/assets/images/${p.image}" 
-                                                 alt="${p.name}"
-                                                 style="aspect-ratio: 1/1; object-fit: cover;"/>
-
-                                            <div class="img-overlay">
+                                            <a href="${pageContext.request.contextPath}/product-detail?id=${p.id}" class="btn-overlay bg-transparent text-white border-white" style="border: 1px solid white !important;">
+                                                <i class="fas fa-eye me-2"></i> Chi tiết
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <div class="product-info">
+                                        <h5 class="card-title">${p.name}</h5>
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <div class="price-container text-start">
                                                 <c:choose>
-                                                    <c:when test="${sessionScope.user == null}">
-                                                        <a href="${pageContext.request.contextPath}/login?target_id=${p.id}" class="btn-overlay">
-                                                            <i class="fas fa-shopping-cart me-2"></i> Mua ngay
-                                                        </a>
+                                                    <c:when test="${p.discount_price > 0}">
+                                                        <div class="d-flex flex-column">
+                                                            <span class="badge bg-danger mb-1" style="width: fit-content; font-size: 0.65rem;">KHUYẾN MÃI</span>
+                                                            <p class="product-price mb-0 text-danger fw-800" style="font-size: 1.1rem;">
+                                                                <fmt:formatNumber value="${p.discount_price}" pattern="#,##0"/>đ
+                                                            </p>
+                                                            <p class="text-muted small text-decoration-line-through mb-0" style="font-size: 0.8rem; opacity: 0.7;">
+                                                                <fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ
+                                                            </p>
+                                                        </div>
                                                     </c:when>
                                                     <c:otherwise>
-                                                        <a href="${pageContext.request.contextPath}/home?add_to_cart=${p.id}&page=${currentPage}" 
-                                                           class="btn-overlay">
-                                                            <i class="fas fa-shopping-cart me-2"></i> Mua ngay
-                                                        </a>
+                                                        <p class="product-price mb-0 fw-800" style="font-size: 1.1rem;">
+                                                            <fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ
+                                                        </p>
                                                     </c:otherwise>
                                                 </c:choose>
-                                                <a href="${pageContext.request.contextPath}/product-detail?id=${p.id}" class="btn-overlay bg-transparent text-white border-white" style="border: 1px solid white !important;">
-                                                    <i class="fas fa-eye me-2"></i> Chi tiết
-                                                </a>
                                             </div>
-                                        </div>
-                                        <div class="product-info">
-                                            <h5 class="card-title">${p.name}</h5>
-                                            <p class="product-price mb-0">
-                                                <fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ
-                                            </p>
+                                            <span class="badge ${p.stock > 0 ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'} small border" style="font-size: 0.65rem;">
+                                                Kho: ${p.stock}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
-                            </c:if>
+                            </div>
                         </c:forEach>
                     </c:when>
                     <c:otherwise>

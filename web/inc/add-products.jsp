@@ -18,13 +18,24 @@
                         <label class="form-label fw-bold">Tên sản phẩm</label>
                         <input type="text" name="name" class="form-control" required>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Giá bán (VND)</label>
-                        <input type="number" name="price" class="form-control" required>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Giá gốc (VND)</label>
+                            <input type="number" name="price" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Giá khuyến mãi (VND)</label>
+                            <input type="number" name="discount_price" class="form-control" value="0">
+                            <small class="text-muted">Nhập 0 nếu không có khuyến mãi</small>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Tên file ảnh (trong assets/images/)</label>
                         <input type="text" name="image" class="form-control" placeholder="vi-du.png">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Số lượng tồn kho ban đầu</label>
+                        <input type="number" name="stock" class="form-control" value="100" min="0" required>
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">

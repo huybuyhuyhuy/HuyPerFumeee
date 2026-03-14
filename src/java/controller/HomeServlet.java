@@ -1,7 +1,7 @@
 package controller;
 
 import data.dao.Database;
-import data.impl.ProductsImpl;
+import data.utils.CartUtils;
 import java.io.IOException;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -37,7 +37,7 @@ public class HomeServlet extends HttpServlet {
                 response.sendRedirect("login?target_id=" + cartParam);
                 return; 
             }
-            addProductsToCart(request);
+            CartUtils.addProductsToCart(request);
             
             // Xóa tham số add_to_cart khỏi URL để tránh refresh trang bị thêm liên tục
             String currentQuery = request.getQueryString();
@@ -141,7 +141,7 @@ public class HomeServlet extends HttpServlet {
         List<Products> all = Database.getProductsDao().findAll();
         List<Products> filtered = new ArrayList<>();
         for (Products p : all) {
-            if (p.isStatus() && p.getId_category() == categoryId && p.getId_brand() == brandId) {
+            if (p.getId_category() == categoryId && p.getId_brand() == brandId) {
                 filtered.add(p);
             }
         }
@@ -152,7 +152,6 @@ public class HomeServlet extends HttpServlet {
         List<Products> all = Database.getProductsDao().findAll();
         List<Products> filtered = new ArrayList<>();
         for (Products p : all) {
-            if (!p.isStatus()) continue;
             double price = p.getPrice();
             switch (range) {
                 case "under500":
@@ -170,40 +169,6 @@ public class HomeServlet extends HttpServlet {
             }
         }
         return filtered;
-    }
-
-    void addProductsToCart(HttpServletRequest request) {
-        try {
-            String cartParam = request.getParameter("add_to_cart");
-            if (cartParam == null || cartParam.isEmpty()) {
-                cartParam = request.getParameter("target_id");
-            }
-            if (cartParam == null || cartParam.isEmpty()) return;
-            
-            int productId = Integer.parseInt(cartParam);
-            HttpSession session = request.getSession();
-            List<Products> cart = (List<Products>) session.getAttribute("cart");
-            if (cart == null) cart = new ArrayList<>();
-            
-            boolean exists = false;
-            for (Products p : cart) {
-                if (p.getId() == productId) {
-                    p.setQuantity(p.getQuantity() + 1);
-                    exists = true;
-                    break;
-                }
-            }
-            if (!exists) {
-                Products p = Database.getProductsDao().findProducts(productId);
-                if (p != null) {
-                    p.setQuantity(1);
-                    cart.add(p);
-                }
-            }
-            session.setAttribute("cart", cart);
-        } catch (Exception e) {
-            System.err.println("Lỗi thêm giỏ hàng: " + e.getMessage());
-        }
     }
 
     @Override

@@ -1,4 +1,4 @@
-package data.impl;
+package controller;
 
 import data.dao.Database;
 import java.io.IOException;
@@ -17,6 +17,8 @@ public class AddProductsServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         // Forward đến đúng file trong thư mục inc
+        request.setAttribute("listCategory", Database.getCategoryDao().findAll());
+        request.setAttribute("listBrands", Database.getBrandDao().getAllBrands());
         request.getRequestDispatcher("/inc/add-products.jsp").forward(request, response);
     }
 
@@ -27,17 +29,25 @@ public class AddProductsServlet extends HttpServlet {
         try {
             String name = request.getParameter("name");
             double price = Double.parseDouble(request.getParameter("price"));
+            double discountPrice = 0;
+            String discountPriceStr = request.getParameter("discount_price");
+            if (discountPriceStr != null && !discountPriceStr.isEmpty()) {
+                discountPrice = Double.parseDouble(discountPriceStr);
+            }
             String image = request.getParameter("image");
             int categoryId = Integer.parseInt(request.getParameter("categoryId"));
             int brandId = Integer.parseInt(request.getParameter("brandId"));
+            int stock = Integer.parseInt(request.getParameter("stock"));
             boolean status = request.getParameter("status") != null;
 
             Products p = new Products();
             p.setName(name);
             p.setPrice(price);
+            p.setDiscount_price(discountPrice);
             p.setImage(image);
             p.setId_category(categoryId);
-            p.setId_brand(brandId); // Phải đảm bảo Products.java không còn lệnh throw
+            p.setId_brand(brandId);
+            p.setStock(stock);
             p.setStatus(status);
 
             Database.getProductsDao().insert(p);

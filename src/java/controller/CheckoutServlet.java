@@ -1,5 +1,6 @@
 package controller;
 
+import data.dao.Database;
 import data.driver.MySQLDriver;
 import java.io.IOException;
 import java.sql.Connection;
@@ -27,94 +28,79 @@ public class CheckoutServlet extends HttpServlet {
         HttpSession session = request.getSession();
         List<Products> cart = (List<Products>) session.getAttribute("cart");
 
-        // 1. Kiểm tra giỏ hàng có tồn tại và có sản phẩm không
         if (cart == null || cart.isEmpty()) {
             response.sendRedirect(request.getContextPath() + "/home");
             return;
         }
 
-        // 2. Lấy phương thức thanh toán
         String paymentMethod = request.getParameter("paymentMethod");
-
-        // 3. Lấy thông tin user (có thể cho phép null nếu cho đặt hàng không đăng nhập)
         User user = (User) session.getAttribute("user");
         int userId = (user != null) ? user.getId() : 0;
 
-        // 4. Tính tổng tiền đơn hàng
         double total = 0;
         for (Products p : cart) {
-            total += p.getPrice() * p.getQuantity();
+            double actualPrice = (p.getDiscount_price() > 0) ? p.getDiscount_price() : p.getPrice();
+            total += actualPrice * p.getQuantity();
         }
 
-        // 5. Lưu đơn hàng vào CSDL: bảng orders và order_items
-        //  - orders(id, user_id, total, payment_method, created_at ...)
-        //  - order_items(id, order_id, product_id, quantity, price)
-        int orderId = 0;
         try (Connection con = MySQLDriver.getConnection()) {
-            if (con == null) {
-                throw new ServletException("Không kết nối được tới database");
-            }
+            con.setAutoCommit(false);
             try {
-                con.setAutoCommit(false);
-
-                // Insert vào bảng orders
-                String sqlOrder = "INSERT INTO orders (user_id, total, payment_method) VALUES (?, ?, ?)";
+                // 1. Insert Order
+                int orderId = 0;
+                String sqlOrder = "INSERT INTO orders (user_id, total, payment_method, status, created_at) VALUES (?, ?, ?, ?, NOW())";
                 try (PreparedStatement ps = con.prepareStatement(sqlOrder, Statement.RETURN_GENERATED_KEYS)) {
                     ps.setInt(1, userId);
                     ps.setDouble(2, total);
                     ps.setString(3, paymentMethod);
+                    ps.setString(4, "Chờ xác nhận");
                     ps.executeUpdate();
-
                     try (ResultSet rs = ps.getGeneratedKeys()) {
-                        if (rs.next()) {
-                            orderId = rs.getInt(1);
-                        }
+                        if (rs.next()) orderId = rs.getInt(1);
                     }
                 }
 
-                // Insert các dòng chi tiết vào order_items
+                // 2. Insert Items & Update Stock
                 String sqlItem = "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)";
                 try (PreparedStatement psItem = con.prepareStatement(sqlItem)) {
                     for (Products p : cart) {
                         psItem.setInt(1, orderId);
                         psItem.setInt(2, p.getId());
                         psItem.setInt(3, p.getQuantity());
-                        psItem.setDouble(4, p.getPrice());
+                        double actualPrice = (p.getDiscount_price() > 0) ? p.getDiscount_price() : p.getPrice();
+                        psItem.setDouble(4, actualPrice);
                         psItem.addBatch();
+                        
+                        // Sử dụng DAO để cập nhật kho (nhưng trong cùng transaction thì dùng con này luôn cho an toàn)
+                        // Tuy nhiên yêu cầu là dùng logic trừ kho, tôi sẽ dùng SQL trực tiếp ở đây để đảm bảo Transaction Atomicity
+                        String sqlUpdateStock = "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?";
+                        try (PreparedStatement psStock = con.prepareStatement(sqlUpdateStock)) {
+                            psStock.setInt(1, p.getQuantity());
+                            psStock.setInt(2, p.getId());
+                            psStock.setInt(3, p.getQuantity());
+                            int updated = psStock.executeUpdate();
+                            if (updated == 0) {
+                                throw new SQLException("Sản phẩm " + p.getName() + " đã hết hàng!");
+                            }
+                        }
                     }
                     psItem.executeBatch();
                 }
 
                 con.commit();
-            } catch (SQLException ex) {
-                try {
-                    con.rollback();
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
-                throw new ServletException(ex);
+                session.removeAttribute("cart");
+                request.setAttribute("paymentMethod", paymentMethod);
+                request.getRequestDispatcher("/inc/success.jsp").forward(request, response);
+
+            } catch (Exception ex) {
+                con.rollback();
+                request.setAttribute("errorMsg", ex.getMessage());
+                request.getRequestDispatcher("/views/cart.jsp").forward(request, response);
             } finally {
-                try {
-                    con.setAutoCommit(true);
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
+                con.setAutoCommit(true);
             }
         } catch (SQLException ex) {
             throw new ServletException(ex);
         }
-
-        // 6. XÓA GIỎ HÀNG SAU KHI THANH TOÁN XONG
-        session.removeAttribute("cart");
-
-        // 7. Chuyển hướng sang trang thành công
-        request.setAttribute("paymentMethod", paymentMethod);
-        request.getRequestDispatcher("/inc/success.jsp").forward(request, response);
-    }
-
-    @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.sendRedirect(request.getContextPath() + "/home");
     }
 }

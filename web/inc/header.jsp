@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
     
     <style>
         .perfume-header {
@@ -14,6 +15,73 @@
             color: white;
             padding: 15px 0;
             box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+        }
+        /* Glassmorphism style for dropdowns - Darker for contrast */
+        .glass-dropdown {
+            background: rgba(0, 61, 46, 0.8) !important; /* Dark Green Glass */
+            backdrop-filter: blur(15px) !important;
+            -webkit-backdrop-filter: blur(15px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 15px !important;
+            padding: 15px !important;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3) !important;
+            min-width: 250px !important;
+        }
+        .glass-dropdown .dropdown-item {
+            color: rgba(255, 255, 255, 0.9) !important;
+            border-radius: 10px;
+            transition: all 0.3s;
+            font-size: 0.85rem;
+            padding: 10px 15px;
+            font-weight: 500;
+        }
+        .glass-dropdown .dropdown-item:hover {
+            background: rgba(255, 255, 255, 0.15) !important;
+            color: #ffc107 !important;
+            transform: translateX(8px);
+        }
+        .user-dropdown-toggle {
+            color: white !important;
+            text-decoration: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s;
+        }
+        .user-info-box {
+            padding: 0 0 15px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 12px;
+        }
+        .user-info-box p {
+            margin: 0;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.6);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 5px;
+        }
+        .user-info-box .user-name {
+            font-weight: 800;
+            color: white;
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+        .user-dropdown-toggle::after {
+            display: none; /* Ẩn mũi tên mặc định của Bootstrap */
+        }
+        .user-dropdown-toggle:hover {
+            opacity: 0.8;
+        }
+        
+        /* Hiển thị dropdown khi hover để tiện lợi hơn */
+        .user-area.dropdown:hover > .glass-dropdown {
+            display: block;
+            visibility: visible;
+            opacity: 1;
+            margin-top: 0;
         }
         .search-box .input-group {
             background: white;
@@ -101,28 +169,46 @@
     <div class="perfume-header">
         <div class="container">
             <div class="row align-items-center">
-                
-                <div class="col-md-4">
-                    <form action="${pageContext.request.contextPath}/home" method="get" class="search-box">
-                        <div class="input-group">
-                            <input type="text" name="txtSearch" class="form-control" placeholder="Tìm kiếm sản phẩm...">
-                            <button type="submit"><i class="fas fa-search"></i></button>
-                        </div>
-                    </form>
+                <div class="col-md-3">
+                    <a href="${pageContext.request.contextPath}/home" class="text-decoration-none">
+                        <h2 class="logo-text m-0 animate__animated animate__fadeInLeft">HUY PERFUME</h2>
+                    </a>
                 </div>
-
-                <div class="col-md-4 text-center">
-                    <a href="${pageContext.request.contextPath}/home" class="logo-text">HUY PERFUME</a>
-                    <div class="tagline">Magic Of Your Emotions</div>
+                <div class="col-md-5">
+                    <div class="search-box">
+                        <form action="${pageContext.request.contextPath}/home" method="GET">
+                            <div class="input-group">
+                                <input type="text" name="txtSearch" class="form-control" placeholder="Tìm kiếm mùi hương của bạn..." value="${param.txtSearch}">
+                                <button class="btn btn-search" type="submit">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-
                 <div class="col-md-4">
                     <div class="d-flex justify-content-end align-items-center">
-                        <div class="user-area text-end">
+                        <div class="user-area text-end dropdown me-4">
                             <c:choose>
                                 <c:when test="${not empty sessionScope.user}">
-                                    <span class="text-white me-2 small">Hi, ${sessionScope.user.name}</span>
-                                    <a href="${pageContext.request.contextPath}/logout" class="btn-login-text text-decoration-none">Đăng xuất</a>
+                                    <div class="user-dropdown-toggle" id="userMenu" data-bs-toggle="dropdown" aria-expanded="false" style="cursor: pointer;">
+                                        <i class="fas fa-user-circle fa-lg"></i>
+                                        <span class="small fw-bold ms-2">Hi, ${sessionScope.user.name} <i class="fas fa-chevron-down small ms-1"></i></span>
+                                    </div>
+                                    <ul class="dropdown-menu glass-dropdown animate__animated animate__fadeInDown" aria-labelledby="userMenu" style="right: 0; left: auto;">
+                                        <div class="user-info-box">
+                                            <p class="user-name">${sessionScope.user.name}</p>
+                                            <p><i class="fas fa-phone-alt me-2"></i>${sessionScope.user.phone}</p>
+                                            <p><i class="fas fa-map-marker-alt me-2"></i>${sessionScope.user.getAddress()}</p>
+                                        </div>
+                                        <li><a class="dropdown-item" href="${pageContext.request.contextPath}/profile"><i class="fas fa-user-edit me-2"></i>Thông tin cá nhân</a></li>
+                                        <li><a class="dropdown-item" href="${pageContext.request.contextPath}/order-history"><i class="fas fa-history me-2"></i>Lịch sử đơn hàng</a></li>
+                                        <c:if test="${sessionScope.user.role == 'admin'}">
+                                            <li><a class="dropdown-item text-warning" href="${pageContext.request.contextPath}/admin"><i class="fas fa-shield-alt me-2"></i>Trang quản trị</a></li>
+                                        </c:if>
+                                        <li><hr class="dropdown-divider bg-light opacity-25"></li>
+                                        <li><a class="dropdown-item text-danger fw-bold" href="${pageContext.request.contextPath}/logout"><i class="fas fa-sign-out-alt me-2"></i>ĐĂNG XUẤT</a></li>
+                                    </ul>
                                 </c:when>
                                 <c:otherwise>
                                     <a href="${pageContext.request.contextPath}/login" class="btn-login-text text-decoration-none">Đăng nhập</a>

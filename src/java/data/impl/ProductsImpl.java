@@ -24,11 +24,13 @@ public class ProductsImpl implements ProductsDao {
     public List<Products> findAll() {
         List<Products> listProducts = new ArrayList<>();
         String str = "SELECT * FROM products"; 
-        try (Connection con = MySQLDriver.getConnection();
-             PreparedStatement sttm = con.prepareStatement(str);
-             ResultSet rs = sttm.executeQuery()) {
-            while(rs.next()){
-                listProducts.add(new Products(rs)); 
+        try (Connection con = MySQLDriver.getConnection()) {
+            if (con == null) return listProducts;
+            try (PreparedStatement sttm = con.prepareStatement(str);
+                 ResultSet rs = sttm.executeQuery()) {
+                while(rs.next()){
+                    listProducts.add(new Products(rs)); 
+                }
             }
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -40,13 +42,14 @@ public class ProductsImpl implements ProductsDao {
     @Override
     public Products findProducts(int id_products) {
         String sql = "SELECT * FROM products WHERE id = ?"; 
-        try (Connection con = MySQLDriver.getConnection();
-             PreparedStatement sttm = con.prepareStatement(sql)) {
-            
-            sttm.setInt(1, id_products); 
-            try (ResultSet rs = sttm.executeQuery()) {
-                if (rs.next()) {
-                    return new Products(rs);
+        try (Connection con = MySQLDriver.getConnection()) {
+            if (con == null) return null;
+            try (PreparedStatement sttm = con.prepareStatement(sql)) {
+                sttm.setInt(1, id_products); 
+                try (ResultSet rs = sttm.executeQuery()) {
+                    if (rs.next()) {
+                        return new Products(rs);
+                    }
                 }
             }
         } catch (SQLException ex) {
@@ -58,13 +61,15 @@ public class ProductsImpl implements ProductsDao {
     @Override
     public List<Products> getProductsByCategoryId(int categoryId) {
         List<Products> listProducts = new ArrayList<>();
-        String sql = "SELECT * FROM products WHERE id_category = ? AND status = TRUE";
-        try (Connection con = MySQLDriver.getConnection();
-             PreparedStatement sttm = con.prepareStatement(sql)) {
-            sttm.setInt(1, categoryId);
-            try (ResultSet rs = sttm.executeQuery()) {
-                while(rs.next()){
-                    listProducts.add(createProductFromResultSet(rs));
+        String sql = "SELECT * FROM products WHERE id_category = ?";
+        try (Connection con = MySQLDriver.getConnection()) {
+            if (con == null) return listProducts;
+            try (PreparedStatement sttm = con.prepareStatement(sql)) {
+                sttm.setInt(1, categoryId);
+                try (ResultSet rs = sttm.executeQuery()) {
+                    while(rs.next()){
+                        listProducts.add(createProductFromResultSet(rs));
+                    }
                 }
             }
         } catch (SQLException ex) {
@@ -78,15 +83,17 @@ public class ProductsImpl implements ProductsDao {
         if (brandIds == null || brandIds.isEmpty()) return new ArrayList<>();
         List<Products> listProducts = new ArrayList<>();
         String placeholders = brandIds.stream().map(id -> "?").collect(Collectors.joining(", "));
-        String sql = "SELECT * FROM products WHERE id_brand IN (" + placeholders + ") AND status = TRUE";
-        try (Connection con = MySQLDriver.getConnection();
-             PreparedStatement sttm = con.prepareStatement(sql)) {
-            for (int i = 0; i < brandIds.size(); i++) {
-                sttm.setInt(i + 1, brandIds.get(i));
-            }
-            try (ResultSet rs = sttm.executeQuery()) {
-                while(rs.next()){
-                    listProducts.add(createProductFromResultSet(rs));
+        String sql = "SELECT * FROM products WHERE id_brand IN (" + placeholders + ")";
+        try (Connection con = MySQLDriver.getConnection()) {
+            if (con == null) return listProducts;
+            try (PreparedStatement sttm = con.prepareStatement(sql)) {
+                for (int i = 0; i < brandIds.size(); i++) {
+                    sttm.setInt(i + 1, brandIds.get(i));
+                }
+                try (ResultSet rs = sttm.executeQuery()) {
+                    while(rs.next()){
+                        listProducts.add(createProductFromResultSet(rs));
+                    }
                 }
             }
         } catch (SQLException ex) {
@@ -118,7 +125,7 @@ public class ProductsImpl implements ProductsDao {
     @Override
     public List<Products> findByName(String txtSearch) {
         List<Products> listProducts = new ArrayList<>();
-        String sql = "SELECT * FROM products WHERE name LIKE ? AND status = TRUE";
+        String sql = "SELECT * FROM products WHERE name LIKE ?";
         try (Connection con = MySQLDriver.getConnection();
              PreparedStatement sttm = con.prepareStatement(sql)) {
             sttm.setString(1, "%" + txtSearch + "%");
@@ -137,7 +144,7 @@ public class ProductsImpl implements ProductsDao {
     @Override
     public List<Products> findProductsByPage(int offset, int limit) {
         List<Products> listProducts = new ArrayList<>();
-        String sql = "SELECT * FROM products WHERE status = TRUE LIMIT ?, ?"; 
+        String sql = "SELECT * FROM products LIMIT ?, ?"; 
         try (Connection con = MySQLDriver.getConnection();
              PreparedStatement sttm = con.prepareStatement(sql)) {
             sttm.setInt(1, offset);
@@ -155,7 +162,7 @@ public class ProductsImpl implements ProductsDao {
 
     @Override //đếm tên sản phẩm
     public int countAllProducts() {
-        String sql = "SELECT COUNT(*) FROM products WHERE status = TRUE";
+        String sql = "SELECT COUNT(*) FROM products";
         try (Connection con = MySQLDriver.getConnection();
              PreparedStatement sttm = con.prepareStatement(sql);
              ResultSet rs = sttm.executeQuery()) {
@@ -171,15 +178,17 @@ public class ProductsImpl implements ProductsDao {
     @Override 
     // thêm dữ liệu cho trang cho trang products
     public boolean insert(Products p) {
-        String sql = "INSERT INTO products (name, price, image, status, id_category, id_brand) VALUES (?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO products (name, price, discount_price, image, status, id_category, id_brand, stock) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection con = MySQLDriver.getConnection();
              PreparedStatement sttm = con.prepareStatement(sql)) {
             sttm.setString(1, p.getName());
             sttm.setDouble(2, p.getPrice());
-            sttm.setString(3, p.getImage());
-            sttm.setBoolean(4, p.isStatus());
-            sttm.setInt(5, p.getId_category());
-            sttm.setInt(6, p.getId_brand());
+            sttm.setDouble(3, p.getDiscount_price());
+            sttm.setString(4, p.getImage());
+            sttm.setBoolean(5, p.isStatus());
+            sttm.setInt(6, p.getId_category());
+            sttm.setInt(7, p.getId_brand());
+            sttm.setInt(8, p.getStock());
             return sttm.executeUpdate() > 0;
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -190,17 +199,23 @@ public class ProductsImpl implements ProductsDao {
     //cập nhật dữ liệu sp cho trang products
     @Override
     public boolean update(Products p) {
-        String sql = "UPDATE products SET name=?, price=?, image=?, status=?, id_category=?, id_brand=? WHERE id=?";
+        String sql = "UPDATE products SET name=?, price=?, discount_price=?, image=?, status=?, id_category=?, id_brand=?, stock=? WHERE id=?";
         try (Connection con = MySQLDriver.getConnection();
              PreparedStatement sttm = con.prepareStatement(sql)) {
+            
             sttm.setString(1, p.getName());
             sttm.setDouble(2, p.getPrice());
-            sttm.setString(3, p.getImage());
-            sttm.setBoolean(4, p.isStatus());
-            sttm.setInt(5, p.getId_category());
-            sttm.setInt(6, p.getId_brand());
-            sttm.setInt(7, p.getId());
-            return sttm.executeUpdate() > 0;
+            sttm.setDouble(3, p.getDiscount_price());
+            sttm.setString(4, p.getImage());
+            sttm.setBoolean(5, p.isStatus());
+            sttm.setInt(6, p.getId_category());
+            sttm.setInt(7, p.getId_brand());
+            sttm.setInt(8, p.getStock());
+            sttm.setInt(9, p.getId());
+            
+            int rowsAffected = sttm.executeUpdate();
+            System.out.println("Updating product ID: " + p.getId() + ", Rows affected: " + rowsAffected);
+            return rowsAffected > 0;
         } catch (SQLException ex) {
             ex.printStackTrace();
         }
@@ -236,5 +251,51 @@ public class ProductsImpl implements ProductsDao {
             Logger.getLogger(ProductsImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
         return null;
+    }
+
+    @Override
+    public boolean updateStock(int id, int quantity) {
+        String sql = "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?";
+        try (Connection con = MySQLDriver.getConnection();
+             PreparedStatement sttm = con.prepareStatement(sql)) {
+            sttm.setInt(1, quantity);
+            sttm.setInt(2, id);
+            sttm.setInt(3, quantity);
+            return sttm.executeUpdate() > 0;
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+        }
+        return false;
+    }
+
+    @Override
+    public boolean updateStatus(int id, boolean status) {
+        String sql = "UPDATE products SET status = ? WHERE id = ?";
+        try (Connection con = MySQLDriver.getConnection();
+             PreparedStatement sttm = con.prepareStatement(sql)) {
+            sttm.setInt(1, status ? 1 : 0);
+            sttm.setInt(2, id);
+            int rows = sttm.executeUpdate();
+            return rows > 0;
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+        }
+        return false;
+    }
+
+    @Override
+    public boolean setStock(int id, int stock) {
+        String sql = "UPDATE products SET stock = ? WHERE id = ?";
+        try (Connection con = MySQLDriver.getConnection();
+             PreparedStatement sttm = con.prepareStatement(sql)) {
+            sttm.setInt(1, stock);
+            sttm.setInt(2, id);
+            int rows = sttm.executeUpdate();
+            System.out.println("Setting stock ID: " + id + " to " + stock + ". Rows: " + rows);
+            return rows > 0;
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+        }
+        return false;
     }
 }

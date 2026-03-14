@@ -130,6 +130,11 @@
                                     </div>
 
                                     <div class="form-group-lux">
+                                        <i class="fas fa-map-marker-alt"></i>
+                                        <input type="text" name="address" class="form-control-lux w-100" placeholder="Địa chỉ giao hàng" required value="${address}">
+                                    </div>
+
+                                    <div class="form-group-lux">
                                         <i class="fas fa-lock"></i>
                                         <input type="password" name="password" class="form-control-lux w-100" placeholder="Mật khẩu" required>
                                     </div>

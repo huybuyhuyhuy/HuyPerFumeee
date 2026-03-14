@@ -111,6 +111,12 @@ public class RegisterServlet extends HttpServlet {
         }
         
         if (err){
+            // Lưu lại thông tin đã nhập để hiển thị lại (trừ mật khẩu)
+            request.getSession().setAttribute("name", name);
+            request.getSession().setAttribute("email", email);
+            request.getSession().setAttribute("phone", phone);
+            request.getSession().setAttribute("address", request.getParameter("address"));
+            
             response.sendRedirect("register");
             return; // Dừng nếu có lỗi định dạng
         }
@@ -133,12 +139,27 @@ public class RegisterServlet extends HttpServlet {
         }
 
         if(existError){
+            // Lưu lại thông tin đã nhập (trừ mật khẩu)
+            request.getSession().setAttribute("name", name);
+            request.getSession().setAttribute("email", email);
+            request.getSession().setAttribute("phone", phone);
+            request.getSession().setAttribute("address", request.getParameter("address"));
+            
             response.sendRedirect("register");
             return; // Dừng nếu email/phone đã tồn tại
         }
 
+        String address = request.getParameter("address");
+        if (address == null) address = "";
             
-        Database.getUsersDao().insertUser(name, email, phone, API.getMd5(password));
+        Database.getUsersDao().insertUser(name, email, phone, API.getMd5(password), address);
+        
+        // --- XÓA THÔNG TIN ĐÃ LƯU TRONG SESSION SAU KHI ĐĂNG KÝ THÀNH CÔNG ---
+        request.getSession().removeAttribute("name");
+        request.getSession().removeAttribute("email");
+        request.getSession().removeAttribute("phone");
+        request.getSession().removeAttribute("address");
+        // ------------------------------------------------------------------
         
         // ------------------ 4. LOGIN VÀ CHUYỂN HƯỚNG ------------------
         

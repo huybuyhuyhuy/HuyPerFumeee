@@ -23,22 +23,51 @@ import java.util.logging.Logger;
 public class CategoryImpl implements CategoryDao {
     public List<Category> findAll(){
         List<Category> listCategory = new ArrayList<>();
-        Connection con = MySQLDriver.getConnection();
         String str = "select * from categories";
-        try {
-            PreparedStatement sttm = con.prepareStatement(str);
-            ResultSet rs = sttm.executeQuery();
-            while(rs.next()){
-                int id = rs.getInt("id");
-                String name = rs.getString("name");
-                listCategory.add(new Category(id, name));
+        try (Connection con = MySQLDriver.getConnection()) {
+            if (con == null) return listCategory;
+            try (PreparedStatement sttm = con.prepareStatement(str);
+                 ResultSet rs = sttm.executeQuery()) {
+                while(rs.next()){
+                    int id = rs.getInt("id");
+                    String name = rs.getString("name");
+                    listCategory.add(new Category(id, name));
+                }
             }
         } catch (SQLException ex) {
             Logger.getLogger(CategoryImpl.class.getName()).log(Level.SEVERE, null, ex);
         }
         return listCategory;
     }
-    public void insert(String name){}
-    public void delete(int id){}
-    public void update(int id, String name, String newName){}
+    public void insert(String name){
+        String sql = "INSERT INTO categories (name) VALUES (?)";
+        try (Connection con = MySQLDriver.getConnection();
+             PreparedStatement sttm = con.prepareStatement(sql)) {
+            sttm.setString(1, name);
+            sttm.executeUpdate();
+        } catch (SQLException ex) {
+            Logger.getLogger(CategoryImpl.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    public void delete(int id){
+        String sql = "DELETE FROM categories WHERE id = ?";
+        try (Connection con = MySQLDriver.getConnection();
+             PreparedStatement sttm = con.prepareStatement(sql)) {
+            sttm.setInt(1, id);
+            sttm.executeUpdate();
+        } catch (SQLException ex) {
+            Logger.getLogger(CategoryImpl.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    public void update(int id, String name, String newName){
+        String sql = "UPDATE categories SET name = ? WHERE id = ?";
+        try (Connection con = MySQLDriver.getConnection();
+             PreparedStatement sttm = con.prepareStatement(sql)) {
+            sttm.setString(1, newName);
+            sttm.setInt(2, id);
+            sttm.executeUpdate();
+        } catch (SQLException ex) {
+            Logger.getLogger(CategoryImpl.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
 }

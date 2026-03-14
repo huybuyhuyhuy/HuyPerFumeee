@@ -36,7 +36,15 @@
                                         </div>
                                         <div class="col-md-3 col-lg-3 col-xl-4">
                                             <p class="lead fw-bold mb-2"><a href="detail?id=${p.id}" class="text-dark text-decoration-none">${p.name}</a></p>
-                                            <p class="text-muted small">Giá: <fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ</p>
+                                            <c:choose>
+                                                <c:when test="${p.discount_price > 0}">
+                                                    <p class="mb-0 text-danger fw-bold small">Khuyến mãi: <fmt:formatNumber value="${p.discount_price}" pattern="#,##0"/>đ</p>
+                                                    <p class="text-muted small text-decoration-line-through">Giá gốc: <fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ</p>
+                                                </c:when>
+                                                <c:otherwise>
+                                                    <p class="text-muted small">Giá: <fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ</p>
+                                                </c:otherwise>
+                                            </c:choose>
                                         </div>
                                         <div class="col-md-3 col-lg-3 col-xl-2 d-flex">
                                             <form action="cart" method="post" class="d-flex align-items-center">
@@ -46,7 +54,9 @@
                                             </form>
                                         </div>
                                         <div class="col-md-3 col-lg-2 col-xl-2 offset-lg-1">
-                                            <h5 class="mb-0 text-danger fw-bold"><fmt:formatNumber value="${p.price * p.quantity}" pattern="#,##0"/>đ</h5>
+                                            <h5 class="mb-0 text-danger fw-bold">
+                                                <fmt:formatNumber value="${(p.discount_price > 0 ? p.discount_price : p.price) * p.quantity}" pattern="#,##0"/>đ
+                                            </h5>
                                         </div>
                                         <div class="col-md-1 col-lg-1 col-xl-1 text-end">
                                             <form action="cart" method="post">
@@ -58,7 +68,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <c:set var="total" value="${total + (p.quantity * p.price)}"/>
+                            <c:set var="total" value="${total + (p.quantity * (p.discount_price > 0 ? p.discount_price : p.price))}"/>
                         </c:forEach>
 
                         <div class="card shadow-sm border-0 mb-4">
