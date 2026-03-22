@@ -409,7 +409,13 @@
         const timeElement = document.getElementById('salesPopupTime');
         const linkElement = document.getElementById('salesPopupLink');
         
-        if (imgElement) imgElement.src = '${pageContext.request.contextPath}/assets/images/' + randomProduct.image;
+        if (imgElement) {
+            if (randomProduct.image && (randomProduct.image.startsWith('http') || randomProduct.image.endsWith('.jpg') || randomProduct.image.endsWith('.png'))) {
+                imgElement.src = randomProduct.image.startsWith('http') ? randomProduct.image : '${pageContext.request.contextPath}/assets/images/' + randomProduct.image;
+            } else {
+                imgElement.src = 'https://loremflickr.com/100/100/perfume,bottle,' + encodeURIComponent(randomProduct.name) + '/all?lock=' + randomProduct.id;
+            }
+        }
         if (nameElement) nameElement.innerText = randomProduct.name;
         if (timeElement) timeElement.innerText = `Một khách hàng vừa đặt mua cách đây ${randomMinutes} phút`;
         if (linkElement) linkElement.href = '${pageContext.request.contextPath}/product-detail?id=' + randomProduct.id;

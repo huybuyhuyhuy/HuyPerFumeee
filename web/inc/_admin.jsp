@@ -235,7 +235,14 @@
                                     <tr>
                                         <td>
                                             <div class="d-flex align-items-center gap-3">
-                                                <img src="${pageContext.request.contextPath}/assets/images/${p.image}" width="40" height="40" class="rounded">
+                                                <c:choose>
+                                                    <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                                        <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" width="40" height="40" class="rounded">
+                                                    </c:when>
+                                                    <c:otherwise>
+                                                        <img src="https://loremflickr.com/100/100/perfume,bottle,${p.name}/all?lock=${p.id}" width="40" height="40" class="rounded">
+                                                    </c:otherwise>
+                                                </c:choose>
                                                 <span class="fw-600">${p.name}</span>
                                             </div>
                                         </td>
@@ -318,8 +325,15 @@
                             <c:forEach items="${listProducts}" var="p">
                                 <tr>
                                     <td>
-                                        <img src="${pageContext.request.contextPath}/assets/images/${p.image}" width="50" height="50" class="rounded border shadow-sm" style="object-fit: cover;">
-                                    </td>
+                                    <c:choose>
+                                        <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                            <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" width="50" height="50" class="rounded border shadow-sm" style="object-fit: cover;">
+                                        </c:when>
+                                        <c:otherwise>
+                                             <img src="https://loremflickr.com/100/100/perfume,bottle,${p.name}/all?lock=${p.id}" width="50" height="50" class="rounded border shadow-sm" style="object-fit: cover;">
+                                         </c:otherwise>
+                                    </c:choose>
+                                </td>
                                     <td>
                                         <div class="fw-bold text-dark">${p.name}</div>
                                         <div class="text-muted extra-small" style="font-size: 0.7rem;">ID: #HP-${p.id}</div>

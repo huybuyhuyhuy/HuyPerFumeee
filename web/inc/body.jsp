@@ -148,6 +148,67 @@
         width: 40px;
         border-radius: 10px;
     }
+
+    /* Category Banner Styles */
+    .category-banner {
+        width: 100%;
+        border-radius: 20px;
+        overflow: hidden;
+        margin-bottom: 40px;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        position: relative;
+        cursor: pointer;
+        transition: transform 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    }
+    .category-banner:hover {
+        transform: translateY(-10px);
+    }
+    .category-banner img {
+        width: 100%;
+        height: 400px;
+        object-fit: cover;
+        transition: transform 0.6s ease;
+    }
+    .category-banner:hover img {
+        transform: scale(1.05);
+    }
+    .category-banner-overlay {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: 40px;
+        color: white;
+    }
+    .category-banner-title {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+    }
+    .category-banner-link {
+        font-weight: 600;
+        color: #ffc107;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .category-header-strip {
+        background: #003D2E;
+        color: white;
+        padding: 12px 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 15px 15px 0 0;
+        margin-bottom: 0;
+    }
+    .category-header-strip h5 { margin: 0; font-weight: 700; font-size: 1rem; text-transform: uppercase; }
+    .category-header-strip span { font-size: 0.85rem; opacity: 0.9; }
+
     /* Nâng cấp hiệu ứng Product Card */
     .product-card-custom {
         position: relative; 
@@ -451,134 +512,265 @@
             </div>
         </div>
 
-        <!-- Product Grid -->
+        <!-- Main Content -->
         <div class="col-lg-9 col-md-8">
-            <header class="mb-5 d-flex justify-content-between align-items-center">
-                <h4 class="fw-800 m-0" style="letter-spacing: -0.5px;">${not empty pageTitle ? pageTitle : 'Sản phẩm'}</h4>
-                <div class="small text-muted">Hiển thị <span class="fw-bold text-dark">${listProducts.size()}</span> sản phẩm</div>
-            </header>
-
-            <div class="row g-4">
-                <c:choose>
-                    <c:when test="${not empty listProducts}">
-                        <c:forEach items="${listProducts}" var="p">
-                            <div class="col-lg-3 col-md-6 col-sm-6">
-                                <div class="product-card-custom ${!p.status ? 'sold-out' : ''}">
-                                    <div class="img-container">
-                                        <%-- Sold Out Badge --%>
-                                        <c:if test="${!p.status}">
-                                            <div class="sold-out-badge">HẾT HÀNG</div>
-                                        </c:if>
-
-                                        <%-- Wishlist Button --%>
-                                        <c:choose>
-                                            <c:when test="${sessionScope.user == null}">
-                                                <a href="${pageContext.request.contextPath}/login?target_id=${p.id}" class="btn-wishlist-abs">
-                                                    <i class="fa-regular fa-heart"></i>
-                                                </a>
-                                            </c:when>
-                                            <c:otherwise>
-                                                <c:set var="inWishlist" value="false"/>
-                                                <c:forEach items="${sessionScope.wishlist}" var="w">
-                                                    <c:if test="${w.id == p.id}"><c:set var="inWishlist" value="true"/></c:if>
-                                                </c:forEach>
-                                                <button class="btn-wishlist-abs ${inWishlist ? 'active' : ''}" onclick="addToWishlist(this, ${p.id})">
-                                                    <i class="${inWishlist ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
-                                                </button>
-                                            </c:otherwise>
-                                        </c:choose>
-
-                                        <img src="${pageContext.request.contextPath}/assets/images/${p.image}" 
-                                             alt="${p.name}"
-                                             style="aspect-ratio: 1/1; object-fit: cover;"/>
-
-                                        <div class="img-overlay">
+            <c:choose>
+                <%-- TRƯỜNG HỢP TRANG CHỦ: HIỂN THỊ THEO TỪNG PHẦN BANNER + SẢN PHẨM --%>
+                <c:when test="${isHomePage}">
+                    <!-- PHẦN 1: NƯỚC HOA NAM -->
+                    <div class="category-section mb-5">
+                        <div class="category-header-strip">
+                            <h5>Nước hoa Nam</h5>
+                            <span>Nước hoa Nam</span>
+                        </div>
+                        <div class="category-banner" onclick="location.href='${pageContext.request.contextPath}/home?id_category=1'">
+                            <img src="${pageContext.request.contextPath}/assets/images/men-perfume-banner.jpg" alt="Men Perfume Banner">
+                            <div class="category-banner-overlay">
+                                <h2 class="category-banner-title">Nước hoa Nam</h2>
+                                <div class="category-banner-link">Xem tất cả sản phẩm <i class="fas fa-arrow-right"></i></div>
+                            </div>
+                        </div>
+                        <div class="row g-4">
+                            <c:forEach items="${menProducts}" var="p" end="3">
+                                <div class="col-xl-3 col-lg-4 col-md-6">
+                                    <div class="product-card-custom ${!p.status ? 'sold-out' : ''}">
+                                        <div class="img-container">
+                                            <c:if test="${!p.status}"><div class="sold-out-badge">HẾT HÀNG</div></c:if>
                                             <c:choose>
-                                                <c:when test="${!p.status}">
-                                                    <button class="btn-overlay opacity-50 cursor-not-allowed" disabled>
-                                                        <i class="fas fa-ban me-2"></i> Tạm hết hàng
-                                                    </button>
-                                                </c:when>
-                                                <c:when test="${sessionScope.user == null}">
-                                                    <a href="${pageContext.request.contextPath}/login?target_id=${p.id}" class="btn-overlay">
-                                                        <i class="fas fa-shopping-cart me-2"></i> Mua ngay
-                                                    </a>
+                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                                    <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" alt="${p.name}" style="aspect-ratio: 1/1; object-fit: cover;"/>
                                                 </c:when>
                                                 <c:otherwise>
-                                                    <a href="${pageContext.request.contextPath}/home?add_to_cart=${p.id}&page=${currentPage}" 
-                                                       class="btn-overlay">
-                                                        <i class="fas fa-shopping-cart me-2"></i> Mua ngay
-                                                    </a>
+                                                    <%-- API lấy ảnh chính xác hơn bằng cách kết hợp nhiều từ khóa và lọc tên SP --%>
+                                                    <c:set var="cleanName" value="${p.name.replaceAll('(?i)(10ml|Fullbox|Chính hãng|Nước hoa|Perfume)', '').trim()}"/>
+                                                    <img src="https://loremflickr.com/400/400/fragrance,perfume,${cleanName.replaceAll(' ', ',')}/all?lock=${p.id}" alt="${p.name}" style="aspect-ratio: 1/1; object-fit: cover;"/>
                                                 </c:otherwise>
                                             </c:choose>
-                                            <a href="${pageContext.request.contextPath}/product-detail?id=${p.id}" class="btn-overlay bg-transparent text-white border-white" style="border: 1px solid white !important;">
-                                                <i class="fas fa-eye me-2"></i> Chi tiết
-                                            </a>
+                                            <div class="img-overlay">
+                                                <a href="${pageContext.request.contextPath}/product-detail?id=${p.id}" class="btn-overlay bg-transparent text-white border-white" style="border: 1px solid white !important;">
+                                                    <i class="fas fa-eye me-2"></i> Chi tiết
+                                                </a>
+                                                <c:if test="${p.status}">
+                                                    <a href="${pageContext.request.contextPath}/home?add_to_cart=${p.id}" class="btn-overlay"><i class="fas fa-shopping-cart me-2"></i> Mua ngay</a>
+                                                </c:if>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div class="product-info">
-                                        <h5 class="card-title">${p.name}</h5>
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <div class="product-info">
+                                            <h5 class="card-title">${p.name}</h5>
                                             <div class="price-container text-start">
                                                 <c:choose>
                                                     <c:when test="${p.discount_price > 0}">
-                                                        <div class="d-flex flex-column">
-                                                            <span class="badge bg-danger mb-1" style="width: fit-content; font-size: 0.65rem;">KHUYẾN MÃI</span>
-                                                            <p class="product-price mb-0 text-danger fw-800" style="font-size: 1.1rem;">
-                                                                <fmt:formatNumber value="${p.discount_price}" pattern="#,##0"/>đ
-                                                            </p>
-                                                            <p class="text-muted small text-decoration-line-through mb-0" style="font-size: 0.8rem; opacity: 0.7;">
-                                                                <fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ
-                                                            </p>
-                                                        </div>
+                                                        <span class="text-danger fw-800" style="font-size: 1.1rem;"><fmt:formatNumber value="${p.discount_price}" pattern="#,##0"/>đ</span>
+                                                        <span class="text-muted small text-decoration-line-through d-block"><fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ</span>
                                                     </c:when>
                                                     <c:otherwise>
-                                                        <p class="product-price mb-0 fw-800" style="font-size: 1.1rem;">
-                                                            <fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ
-                                                        </p>
+                                                        <p class="product-price mb-0 fw-800"><fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ</p>
                                                     </c:otherwise>
                                                 </c:choose>
                                             </div>
-                                            <span class="badge ${p.stock > 0 ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'} small border" style="font-size: 0.65rem;">
-                                                Kho: ${p.stock}
-                                            </span>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </c:forEach>
-                    </c:when>
-                    <c:otherwise>
-                        <div class="col-12 text-center py-5">
-                            <div class="mb-3 text-muted opacity-50"><i class="fas fa-search fa-4x"></i></div>
-                            <p class="text-muted fw-bold">Rất tiếc, chúng tôi không tìm thấy sản phẩm này.</p>
+                            </c:forEach>
                         </div>
-                    </c:otherwise>
-                </c:choose>
-            </div>
+                    </div>
 
-            <%-- Pagination --%>
-            <c:if test="${totalPages > 1}">
-                <nav class="mt-5 pt-4 border-top">
-                    <ul class="pagination justify-content-center">
-                        <li class="page-item ${currentPage == 1 ? 'disabled' : ''}">
-                            <a class="page-link border-0" href="home?page=${currentPage - 1}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}">
-                                <i class="fas fa-chevron-left"></i>
-                            </a>
-                        </li>
-                        <c:forEach begin="1" end="${totalPages}" var="i">
-                            <li class="page-item ${currentPage == i ? 'active' : ''}">
-                                <a class="page-link" href="home?page=${i}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}">${i}</a>
-                            </li>
-                        </c:forEach>
-                        <li class="page-item ${currentPage == totalPages ? 'disabled' : ''}">
-                            <a class="page-link border-0" href="home?page=${currentPage + 1}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}">
-                                <i class="fas fa-chevron-right"></i>
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
-            </c:if>
+                    <!-- PHẦN 2: NƯỚC HOA NỮ -->
+                    <div class="category-section mb-5">
+                        <div class="category-header-strip mt-4">
+                            <h5>Nước hoa Nữ</h5>
+                            <span>Nước hoa Nữ</span>
+                        </div>
+                        <div class="category-banner" onclick="location.href='${pageContext.request.contextPath}/home?id_category=2'">
+                            <img src="${pageContext.request.contextPath}/assets/images/women-perfume-banner.jpg" alt="Women Perfume Banner">
+                            <div class="category-banner-overlay">
+                                <h2 class="category-banner-title">Nước hoa Nữ</h2>
+                                <div class="category-banner-link">Xem tất cả sản phẩm <i class="fas fa-arrow-right"></i></div>
+                            </div>
+                        </div>
+                        <div class="row g-4">
+                            <c:forEach items="${womenProducts}" var="p" end="3">
+                                <div class="col-xl-3 col-lg-4 col-md-6">
+                                    <div class="product-card-custom ${!p.status ? 'sold-out' : ''}">
+                                        <div class="img-container">
+                                            <c:if test="${!p.status}"><div class="sold-out-badge">HẾT HÀNG</div></c:if>
+                                            <c:choose>
+                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                                    <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" alt="${p.name}" style="aspect-ratio: 1/1; object-fit: cover;"/>
+                                                </c:when>
+                                                <c:otherwise>
+                                                    <img src="https://loremflickr.com/400/400/perfume,bottle,${p.name}/all?lock=${p.id}" alt="${p.name}" style="aspect-ratio: 1/1; object-fit: cover;"/>
+                                                </c:otherwise>
+                                            </c:choose>
+                                            <div class="img-overlay">
+                                                <a href="${pageContext.request.contextPath}/product-detail?id=${p.id}" class="btn-overlay bg-transparent text-white border-white" style="border: 1px solid white !important;">
+                                                    <i class="fas fa-eye me-2"></i> Chi tiết
+                                                </a>
+                                                <c:if test="${p.status}">
+                                                    <a href="${pageContext.request.contextPath}/home?add_to_cart=${p.id}" class="btn-overlay"><i class="fas fa-shopping-cart me-2"></i> Mua ngay</a>
+                                                </c:if>
+                                            </div>
+                                        </div>
+                                        <div class="product-info">
+                                            <h5 class="card-title">${p.name}</h5>
+                                            <div class="price-container text-start">
+                                                <c:choose>
+                                                    <c:when test="${p.discount_price > 0}">
+                                                        <span class="text-danger fw-800" style="font-size: 1.1rem;"><fmt:formatNumber value="${p.discount_price}" pattern="#,##0"/>đ</span>
+                                                        <span class="text-muted small text-decoration-line-through d-block"><fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ</span>
+                                                    </c:when>
+                                                    <c:otherwise>
+                                                        <p class="product-price mb-0 fw-800"><fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ</p>
+                                                    </c:otherwise>
+                                                </c:choose>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </c:forEach>
+                        </div>
+                    </div>
+
+                    <!-- PHẦN 3: NƯỚC HOA UNISEX -->
+                    <div class="category-section mb-5">
+                        <div class="category-header-strip mt-4">
+                            <h5>Nước hoa Unisex</h5>
+                            <span>Nước hoa Unisex</span>
+                        </div>
+                        <div class="category-banner" onclick="location.href='${pageContext.request.contextPath}/home?id_category=3'">
+                            <img src="${pageContext.request.contextPath}/assets/images/unisex-perfume-banner.jpg" alt="Unisex Perfume Banner">
+                            <div class="category-banner-overlay">
+                                <h2 class="category-banner-title">Nước hoa Unisex</h2>
+                                <div class="category-banner-link">Xem tất cả sản phẩm <i class="fas fa-arrow-right"></i></div>
+                            </div>
+                        </div>
+                        <div class="row g-4">
+                            <c:forEach items="${unisexProducts}" var="p" end="3">
+                                <div class="col-xl-3 col-lg-4 col-md-6">
+                                    <div class="product-card-custom ${!p.status ? 'sold-out' : ''}">
+                                        <div class="img-container">
+                                            <c:if test="${!p.status}"><div class="sold-out-badge">HẾT HÀNG</div></c:if>
+                                            <c:choose>
+                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                                    <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" alt="${p.name}" style="aspect-ratio: 1/1; object-fit: cover;"/>
+                                                </c:when>
+                                                <c:otherwise>
+                                                    <img src="https://loremflickr.com/400/400/perfume,bottle,${p.name}/all?lock=${p.id}" alt="${p.name}" style="aspect-ratio: 1/1; object-fit: cover;"/>
+                                                </c:otherwise>
+                                            </c:choose>
+                                            <div class="img-overlay">
+                                                <a href="${pageContext.request.contextPath}/product-detail?id=${p.id}" class="btn-overlay bg-transparent text-white border-white" style="border: 1px solid white !important;">
+                                                    <i class="fas fa-eye me-2"></i> Chi tiết
+                                                </a>
+                                                <c:if test="${p.status}">
+                                                    <a href="${pageContext.request.contextPath}/home?add_to_cart=${p.id}" class="btn-overlay"><i class="fas fa-shopping-cart me-2"></i> Mua ngay</a>
+                                                </c:if>
+                                            </div>
+                                        </div>
+                                        <div class="product-info">
+                                            <h5 class="card-title">${p.name}</h5>
+                                            <div class="price-container text-start">
+                                                <c:choose>
+                                                    <c:when test="${p.discount_price > 0}">
+                                                        <span class="text-danger fw-800" style="font-size: 1.1rem;"><fmt:formatNumber value="${p.discount_price}" pattern="#,##0"/>đ</span>
+                                                        <span class="text-muted small text-decoration-line-through d-block"><fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ</span>
+                                                    </c:when>
+                                                    <c:otherwise>
+                                                        <p class="product-price mb-0 fw-800"><fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ</p>
+                                                    </c:otherwise>
+                                                </c:choose>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </c:forEach>
+                        </div>
+                    </div>
+                </c:when>
+
+                <%-- TRƯỜNG HỢP ĐANG LỌC: HIỂN THỊ DANH SÁCH BÌNH THƯỜNG --%>
+                <c:otherwise>
+                    <header class="mb-5 d-flex justify-content-between align-items-center">
+                        <h4 class="fw-800 m-0" style="letter-spacing: -0.5px;">${not empty pageTitle ? pageTitle : 'Sản phẩm'}</h4>
+                        <div class="small text-muted">Hiển thị <span class="fw-bold text-dark">${listProducts.size()}</span> sản phẩm</div>
+                    </header>
+
+                    <div class="row g-4">
+                        <c:choose>
+                            <c:when test="${not empty listProducts}">
+                                <c:forEach items="${listProducts}" var="p">
+                                    <div class="col-lg-3 col-md-6 col-sm-6">
+                                        <div class="product-card-custom ${!p.status ? 'sold-out' : ''}">
+                                            <div class="img-container">
+                                            <c:if test="${!p.status}"><div class="sold-out-badge">HẾT HÀNG</div></c:if>
+                                            <c:choose>
+                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                                    <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" alt="${p.name}" style="aspect-ratio: 1/1; object-fit: cover;"/>
+                                                </c:when>
+                                                <c:otherwise>
+                                                    <img src="https://loremflickr.com/400/400/perfume,bottle,${p.name}/all?lock=${p.id}" alt="${p.name}" style="aspect-ratio: 1/1; object-fit: cover;"/>
+                                                </c:otherwise>
+                                            </c:choose>
+                                            <div class="img-overlay">
+                                                    <a href="${pageContext.request.contextPath}/product-detail?id=${p.id}" class="btn-overlay bg-transparent text-white border-white" style="border: 1px solid white !important;">
+                                                        <i class="fas fa-eye me-2"></i> Chi tiết
+                                                    </a>
+                                                    <c:if test="${p.status}">
+                                                        <a href="${pageContext.request.contextPath}/home?add_to_cart=${p.id}&page=${currentPage}" class="btn-overlay"><i class="fas fa-shopping-cart me-2"></i> Mua ngay</a>
+                                                    </c:if>
+                                                </div>
+                                            </div>
+                                            <div class="product-info">
+                                                <h5 class="card-title">${p.name}</h5>
+                                                <div class="price-container text-start">
+                                                    <c:choose>
+                                                        <c:when test="${p.discount_price > 0}">
+                                                            <span class="text-danger fw-800" style="font-size: 1.1rem;"><fmt:formatNumber value="${p.discount_price}" pattern="#,##0"/>đ</span>
+                                                            <span class="text-muted small text-decoration-line-through d-block"><fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ</span>
+                                                        </c:when>
+                                                        <c:otherwise>
+                                                            <p class="product-price mb-0 fw-800"><fmt:formatNumber value="${p.price}" pattern="#,##0"/>đ</p>
+                                                        </c:otherwise>
+                                                    </c:choose>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </c:forEach>
+                            </c:when>
+                            <c:otherwise>
+                                <div class="col-12 text-center py-5">
+                                    <div class="mb-3 text-muted opacity-50"><i class="fas fa-search fa-4x"></i></div>
+                                    <p class="text-muted fw-bold">Rất tiếc, chúng tôi không tìm thấy sản phẩm nào.</p>
+                                </div>
+                            </c:otherwise>
+                        </c:choose>
+                    </div>
+
+                    <%-- Pagination --%>
+                    <c:if test="${totalPages > 1}">
+                        <nav class="mt-5 pt-4 border-top">
+                            <ul class="pagination justify-content-center">
+                                <li class="page-item ${currentPage == 1 ? 'disabled' : ''}">
+                                    <a class="page-link border-0" href="home?page=${currentPage - 1}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}">
+                                        <i class="fas fa-chevron-left"></i>
+                                    </a>
+                                </li>
+                                <c:forEach begin="1" end="${totalPages}" var="i">
+                                    <li class="page-item ${currentPage == i ? 'active' : ''}">
+                                        <a class="page-link" href="home?page=${i}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}">${i}</a>
+                                    </li>
+                                </c:forEach>
+                                <li class="page-item ${currentPage == totalPages ? 'disabled' : ''}">
+                                    <a class="page-link border-0" href="home?page=${currentPage + 1}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </c:if>
+                </c:otherwise>
+            </c:choose>
         </div>
     </div>
 </div>

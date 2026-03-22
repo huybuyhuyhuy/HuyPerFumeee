@@ -32,7 +32,14 @@
                                 <div class="card-body p-4">
                                     <div class="row d-flex justify-content-between align-items-center">
                                         <div class="col-md-2 col-lg-2 col-xl-2">
-                                            <img src="${pageContext.request.contextPath}/assets/images/${p.image}" class="img-fluid rounded-3 shadow-sm">
+                                            <c:choose>
+                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                                    <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" class="img-fluid rounded-3 shadow-sm" alt="${p.name}">
+                                                </c:when>
+                                                <c:otherwise>
+                                                    <img src="https://loremflickr.com/200/200/perfume,bottle,${p.name}/all?lock=${p.id}" class="img-fluid rounded-3 shadow-sm" alt="${p.name}">
+                                                </c:otherwise>
+                                            </c:choose>
                                         </div>
                                         <div class="col-md-3 col-lg-3 col-xl-4">
                                             <p class="lead fw-bold mb-2"><a href="detail?id=${p.id}" class="text-dark text-decoration-none">${p.name}</a></p>

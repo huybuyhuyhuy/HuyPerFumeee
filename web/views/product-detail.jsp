@@ -63,7 +63,14 @@
             <!-- Cột trái: Hình ảnh -->
             <div class="col-lg-6">
                 <div class="product-gallery">
-                    <img src="${pageContext.request.contextPath}/assets/images/${product.image}" class="product-main-img" alt="${product.name}">
+                    <c:choose>
+                        <c:when test="${not empty product.image && (product.image.startsWith('http') || product.image.endsWith('.jpg') || product.image.endsWith('.png'))}">
+                            <img src="${product.image.startsWith('http') ? product.image : pageContext.request.contextPath.concat('/assets/images/').concat(product.image)}" class="product-main-img" alt="${product.name}">
+                        </c:when>
+                        <c:otherwise>
+                            <img src="https://loremflickr.com/600/600/perfume,bottle,${product.name}/all?lock=${product.id}" class="product-main-img" alt="${product.name}">
+                        </c:otherwise>
+                    </c:choose>
                 </div>
             </div>
 

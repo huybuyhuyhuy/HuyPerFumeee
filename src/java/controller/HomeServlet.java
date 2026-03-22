@@ -1,5 +1,4 @@
 package controller;
-
 import data.dao.Database;
 import data.utils.CartUtils;
 import java.io.IOException;
@@ -121,7 +120,15 @@ public class HomeServlet extends HttpServlet {
         request.setAttribute("listCategory", Database.getCategoryDao().findAll());
         request.setAttribute("listBrands", Database.getBrandDao().getAllBrands());
 
-        // 5. ĐẨY DỮ LIỆU HIỂN THỊ SẢN PHẨM
+        // 5. LẤY DỮ LIỆU THEO TỪNG DANH MỤC CHO TRANG CHỦ
+        if (categoryIdParam == null && brandIdParam == null && txtSearch == null && priceRangeParam == null) {
+            request.setAttribute("menProducts", Database.getProductsDao().getProductsByCategoryId(1));
+            request.setAttribute("womenProducts", Database.getProductsDao().getProductsByCategoryId(2));
+            request.setAttribute("unisexProducts", Database.getProductsDao().getProductsByCategoryId(3));
+            request.setAttribute("isHomePage", true);
+        }
+
+        // 6. ĐẨY DỮ LIỆU HIỂN THỊ SẢN PHẨM
         request.setAttribute("listProducts", productList);
         request.setAttribute("pageTitle", pageTitle);
         request.setAttribute("totalPages", totalPages);
