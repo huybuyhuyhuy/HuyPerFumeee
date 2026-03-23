@@ -11,6 +11,11 @@
                     <i class="fas fa-exclamation-triangle me-2"></i> ${errorMsg}
                 </div>
             </c:if>
+            <c:if test="${param.momo == 'fail'}">
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle me-2"></i> Thanh toán MoMo chưa hoàn tất hoặc đã hủy. Bạn có thể đặt lại từ giỏ hàng.
+                </div>
+            </c:if>
             <%-- Import giỏ hàng vào trung tâm trang --%>
             <c:import url="/inc/_cart.jsp"/>
         </div>

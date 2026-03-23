@@ -154,28 +154,21 @@
 
                                 <!-- FORM MOMO (DÙNG API VIETQR TỰ ĐỘNG CHO MOMO) -->
                                 <div id="form-Momo" class="payment-form-container border rounded p-4 mb-3 text-center" style="display: none; background: #fff;">
-                                    <h5 class="fw-bold mb-2 text-danger"><i class="fas fa-mobile-alt me-2"></i>Thanh toán qua Ví MoMo</h5>
-                                    <p class="text-muted small mb-3">Quét mã QR MoMo bên dưới để thanh toán tự động số tiền đơn hàng.</p>
+                                    <h5 class="fw-bold mb-2 text-danger"><i class="fas fa-mobile-alt me-2"></i>Thanh toán qua MoMo (cổng chính thức)</h5>
+                                    <p class="text-muted small mb-3">
+                                        Bấm nút bên dưới: hệ thống tạo đơn hàng, sau đó <strong>chuyển sang trang thanh toán MoMo (sandbox)</strong> — giống demo Node, chạy hoàn toàn trên Tomcat, không cần mở Node.js.
+                                    </p>
                                     <form action="checkout" method="POST">
                                         <input type="hidden" name="paymentMethod" value="Momo">
-                                        <div class="qr-wrapper mb-3 p-3 border d-inline-block rounded bg-light shadow-sm">
-                                            <%-- 
-                                                SỬ DỤNG API VIETQR CHO MOMO:
-                                                - BankID cho MoMo: 970423
-                                                - Account: 0906530794 (Số điện thoại MoMo của bạn)
-                                            --%>
-                                            <img id="dynamic-qr-momo" 
-                                               src="https://img.vietqr.io/image/970418-5511019209-compact2.png?amount=${total}&addInfo=DH${orderId}&accountName= LE NGOC QUOC HUY "
-                                                 alt="MoMo QR" class="img-fluid" style="max-width: 250px;">
-                                            <div class="mt-2 small fw-bold text-danger">
-                                                Số tiền: <fmt:formatNumber value="${total}" pattern="#,##0"/>đ
-                                            </div>
-                                        </div>
-                                        <div class="alert alert-danger small mx-auto" style="max-width: 450px;">
-                                            <i class="fas fa-info-circle me-1"></i> Mở App MoMo, chọn "Quét mã" và quét mã QR ở trên.
+                                        <div class="alert alert-light border small text-start mx-auto" style="max-width: 520px;">
+                                            <i class="fas fa-shield-alt text-success me-1"></i>
+                                            Số tiền: <strong><fmt:formatNumber value="${total}" pattern="#,##0"/>đ</strong>
+                                            (sandbox tối thiểu 10.000đ nếu đơn nhỏ hơn).
                                         </div>
                                         <div class="text-center mt-3">
-                                            <button type="submit" class="btn btn-danger btn-lg px-5 fw-bold shadow">XÁC NHẬN ĐÃ THANH TOÁN MOMO</button>
+                                            <button type="submit" class="btn btn-danger btn-lg px-5 fw-bold shadow">
+                                                <i class="fas fa-external-link-alt me-2"></i>XÁC NHẬN VÀ THANH TOÁN MOMO
+                                            </button>
                                         </div>
                                     </form>
                                 </div>

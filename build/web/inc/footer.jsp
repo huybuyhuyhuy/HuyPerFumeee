@@ -309,11 +309,12 @@
         const track = document.getElementById('carouselTrack');
         const dots = document.querySelectorAll('.dot');
         const slides = document.querySelectorAll('.carousel-slide');
+        const slideCount = slides.length;
         
-        if (!track || slides.length === 0) return;
+        if (!track || slideCount === 0) return;
 
         function updateCarousel() {
-            track.style.transform = `translateX(-${currentSlide * 25}%)`;
+            currentSlide = ((currentSlide % slideCount) + slideCount) % slideCount;
             dots.forEach((dot, index) => dot.classList.toggle('active', index === currentSlide));
             slides.forEach((slide, index) => slide.classList.toggle('active', index === currentSlide));
         }
@@ -325,12 +326,12 @@
         };
 
         window.nextSlide = function() {
-            currentSlide = (currentSlide + 1) % 4;
+            currentSlide = (currentSlide + 1) % slideCount;
             updateCarousel();
         };
 
         window.prevSlide = function() {
-            currentSlide = (currentSlide - 1 + 4) % 4;
+            currentSlide = (currentSlide - 1 + slideCount) % slideCount;
             updateCarousel();
             resetAutoPlay();
         };
@@ -343,6 +344,7 @@
         }
 
         // Khởi tạo chạy tự động ngay lập tức
+        updateCarousel();
         resetAutoPlay();
 
         // Drag functionality

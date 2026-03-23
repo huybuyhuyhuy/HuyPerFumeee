@@ -15,20 +15,29 @@
         background: #000;
     }
     .carousel-track {
-        display: flex;
-        width: 400%; /* 4 images */
+        width: 100%;
         height: 100%;
-        transition: transform 1s cubic-bezier(0.7, 0, 0.3, 1);
         cursor: grab;
         position: relative;
         z-index: 1;
+        overflow: hidden;
     }
     .carousel-slide {
-        width: 25%;
+        width: 100%;
         height: 100%;
-        position: relative;
+        position: absolute;
+        inset: 0;
         overflow: hidden;
         cursor: pointer;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.9s ease;
+        z-index: 1;
+    }
+    .carousel-slide.active {
+        opacity: 1;
+        visibility: visible;
+        z-index: 2;
     }
     .carousel-slide img {
         width: 100%;
@@ -524,7 +533,7 @@
                             <span>Nước hoa Nam</span>
                         </div>
                         <div class="category-banner" onclick="location.href='${pageContext.request.contextPath}/home?id_category=1'">
-                            <img src="${pageContext.request.contextPath}/assets/images/men-perfume-banner.jpg" alt="Men Perfume Banner">
+                            <img src="${pageContext.request.contextPath}/assets/images/men-perfume-banner.png" alt="Men Perfume Banner">
                             <div class="category-banner-overlay">
                                 <h2 class="category-banner-title">Nước hoa Nam</h2>
                                 <div class="category-banner-link">Xem tất cả sản phẩm <i class="fas fa-arrow-right"></i></div>
@@ -582,7 +591,7 @@
                             <span>Nước hoa Nữ</span>
                         </div>
                         <div class="category-banner" onclick="location.href='${pageContext.request.contextPath}/home?id_category=2'">
-                            <img src="${pageContext.request.contextPath}/assets/images/women-perfume-banner.jpg" alt="Women Perfume Banner">
+                            <img src="${pageContext.request.contextPath}/assets/images/women-perfume-banner.png" alt="Women Perfume Banner">
                             <div class="category-banner-overlay">
                                 <h2 class="category-banner-title">Nước hoa Nữ</h2>
                                 <div class="category-banner-link">Xem tất cả sản phẩm <i class="fas fa-arrow-right"></i></div>
@@ -638,7 +647,7 @@
                             <span>Nước hoa Unisex</span>
                         </div>
                         <div class="category-banner" onclick="location.href='${pageContext.request.contextPath}/home?id_category=3'">
-                            <img src="${pageContext.request.contextPath}/assets/images/unisex-perfume-banner.jpg" alt="Unisex Perfume Banner">
+                            <img src="${pageContext.request.contextPath}/assets/images/unisex-perfume-banner.png" alt="Unisex Perfume Banner">
                             <div class="category-banner-overlay">
                                 <h2 class="category-banner-title">Nước hoa Unisex</h2>
                                 <div class="category-banner-link">Xem tất cả sản phẩm <i class="fas fa-arrow-right"></i></div>

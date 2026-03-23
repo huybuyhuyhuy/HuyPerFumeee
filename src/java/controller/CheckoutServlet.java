@@ -1,8 +1,11 @@
 package controller;
 
-import data.dao.Database;
 import data.driver.MySQLDriver;
+import data.utils.MomoConfig;
+import data.utils.MomoNodeClient;
+import data.utils.MomoPaymentHelper;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -89,6 +92,34 @@ public class CheckoutServlet extends HttpServlet {
 
                 con.commit();
                 session.removeAttribute("cart");
+
+                // --- MoMo: chuyển sang cổng thanh toán (API create – giống demo Node, không cần chạy Node) ---
+                if ("Momo".equals(paymentMethod)) {
+                    long amountVnd = Math.round(total);
+                    if (amountVnd < MomoConfig.MIN_AMOUNT_VND) {
+                        amountVnd = MomoConfig.MIN_AMOUNT_VND;
+                    }
+                    String momoOrderId = MomoConfig.PARTNER_CODE + System.currentTimeMillis();
+                    String orderInfo = "Thanh toan don hang #" + orderId;
+                    String base = request.getScheme() + "://" + request.getServerName()
+                            + ":" + request.getServerPort() + request.getContextPath();
+                    String redirectUrl = base + "/momo-return";
+                    String ipnUrl = base + "/momo-ipn";
+
+                    session.setAttribute("MOMO_PENDING_ORDER_ID", orderId);
+                    session.setAttribute("MOMO_PENDING_MOMO_ORDER_ID", momoOrderId);
+
+                    try {
+                        String payUrl = createMomoPayUrl(amountVnd, momoOrderId, orderInfo, redirectUrl, ipnUrl);
+                        response.sendRedirect(payUrl);
+                        return;
+                    } catch (Exception ex) {
+                        request.setAttribute("errorMsg", "Không tạo được link MoMo: " + ex.getMessage());
+                        request.getRequestDispatcher("/views/cart.jsp").forward(request, response);
+                        return;
+                    }
+                }
+
                 request.setAttribute("paymentMethod", paymentMethod);
                 request.getRequestDispatcher("/inc/success.jsp").forward(request, response);
 
@@ -102,5 +133,38 @@ public class CheckoutServlet extends HttpServlet {
         } catch (SQLException ex) {
             throw new ServletException(ex);
         }
+    }
+
+    /**
+     * Tạo link thanh toán MoMo: nếu bật Node mà chưa chạy (Connection refused) → gọi trực tiếp API từ Java.
+     */
+    private String createMomoPayUrl(long amountVnd, String momoOrderId, String orderInfo,
+            String redirectUrl, String ipnUrl) throws Exception {
+        if (!MomoConfig.USE_NODE_PROXY) {
+            return MomoPaymentHelper.createPayment(amountVnd, momoOrderId, orderInfo, redirectUrl, ipnUrl);
+        }
+        try {
+            return MomoNodeClient.createPayment(amountVnd, momoOrderId, orderInfo, redirectUrl, ipnUrl);
+        } catch (Exception e) {
+            if (isConnectionRefused(e)) {
+                System.err.println("[MoMo] Node không chạy (" + MomoConfig.NODE_PAYMENT_URL + "), dùng Java gọi trực tiếp MoMo.");
+                return MomoPaymentHelper.createPayment(amountVnd, momoOrderId, orderInfo, redirectUrl, ipnUrl);
+            }
+            throw e;
+        }
+    }
+
+    private static boolean isConnectionRefused(Throwable t) {
+        while (t != null) {
+            if (t instanceof ConnectException) {
+                return true;
+            }
+            String msg = t.getMessage();
+            if (msg != null && (msg.contains("Connection refused") || msg.contains("refused"))) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 }
