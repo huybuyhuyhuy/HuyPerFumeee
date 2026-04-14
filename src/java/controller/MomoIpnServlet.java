@@ -1,5 +1,8 @@
 package controller;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import data.utils.MomoPaymentHelper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -26,13 +29,24 @@ public class MomoIpnServlet extends HttpServlet {
                 sb.append(line);
             }
         }
-        // Có thể parse JSON, cập nhật trạng thái đơn theo orderId / transId
-        log("Momo IPN: " + sb);
+        try {
+            JsonObject body = JsonParser.parseString(sb.toString()).getAsJsonObject();
+            String receivedSignature = body.has("signature") ? body.get("signature").getAsString() : "";
+            String computedSignature = MomoPaymentHelper.computeIpnSignature(body);
+            if (receivedSignature.isBlank() || !receivedSignature.equals(computedSignature)) {
+            getServletContext().log("[MomoIpn] Invalid MoMo signature.");
+                response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid signature");
+                return;
+            }
+
+            // TODO: cập nhật trạng thái đơn hàng theo orderId/transId ở đây.
+            getServletContext().log("[MomoIpn] Verified Momo IPN: " + body);
+        } catch (Exception e) {
+            getServletContext().log("[MomoIpn] Parse/verify error", e);
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Malformed IPN body");
+            return;
+        }
 
         response.setStatus(HttpServletResponse.SC_NO_CONTENT);
-    }
-
-    public void log(String msg) {
-        System.out.println("[MomoIpn] " + msg);
     }
 }

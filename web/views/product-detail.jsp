@@ -64,7 +64,7 @@
             <div class="col-lg-6">
                 <div class="product-gallery">
                     <c:choose>
-                        <c:when test="${not empty product.image && (product.image.startsWith('http') || product.image.endsWith('.jpg') || product.image.endsWith('.png'))}">
+                        <c:when test="${not empty product.image && (product.image.startsWith('http') || product.image.endsWith('.jpg') || product.image.endsWith('.jpeg') || product.image.endsWith('.png') || product.image.endsWith('.webp') || product.image.endsWith('.gif'))}">
                             <img src="${product.image.startsWith('http') ? product.image : pageContext.request.contextPath.concat('/assets/images/').concat(product.image)}" class="product-main-img" alt="${product.name}">
                         </c:when>
                         <c:otherwise>

@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import model.Products;
 import model.User;
@@ -41,7 +42,12 @@ public class HomeServlet extends HttpServlet {
             // Xóa tham số add_to_cart khỏi URL để tránh refresh trang bị thêm liên tục
             String currentQuery = request.getQueryString();
             String cleanQuery = (currentQuery != null) ? currentQuery.replace("add_to_cart=" + cartParam, "").replaceAll("&+", "&").replaceAll("^&|&$", "") : "";
-            response.sendRedirect("home" + (cleanQuery.isEmpty() ? "" : "?" + cleanQuery));
+            if (!cleanQuery.isEmpty()) {
+                cleanQuery += "&cart=added";
+            } else {
+                cleanQuery = "cart=added";
+            }
+            response.sendRedirect("home?" + cleanQuery);
             return; 
         }
 
@@ -55,9 +61,17 @@ public class HomeServlet extends HttpServlet {
         int offset = (currentPage - 1) * pageSize;
 
         String txtSearch = request.getParameter("txtSearch");
+        String keyword = request.getParameter("keyword");
+        if ((txtSearch == null || txtSearch.isEmpty()) && keyword != null && !keyword.trim().isEmpty()) {
+            txtSearch = keyword.trim();
+        }
         String categoryIdParam = request.getParameter("id_category");
         String brandIdParam = request.getParameter("brand_id");
         String priceRangeParam = request.getParameter("price_range");
+        String sortParam = request.getParameter("sort");
+        if (sortParam == null || sortParam.isEmpty()) {
+            sortParam = "newest";
+        }
 
         List<Products> productList = new ArrayList<>();
         int totalProducts = 0;
@@ -70,6 +84,7 @@ public class HomeServlet extends HttpServlet {
                 totalProducts = productList.size();
                 pageTitle = "Kết quả cho: '" + txtSearch + "'";
                 request.setAttribute("txtSearch", txtSearch);
+                request.setAttribute("keyword", txtSearch);
             } 
             else if (categoryIdParam != null && !categoryIdParam.isEmpty() && brandIdParam != null && !brandIdParam.isEmpty()) {
                 // Lọc theo cả danh mục và thương hiệu
@@ -106,12 +121,13 @@ public class HomeServlet extends HttpServlet {
                 request.setAttribute("price_range", priceRangeParam);
             }
             else {
-                // Trang chủ mặc định có phân trang
-                productList = Database.getProductsDao().findProductsByPage(offset, pageSize);
+                // Trang chủ mặc định có phân trang + sắp xếp
+                productList = Database.getProductsDao().findProductsByPage(offset, pageSize, sortParam);
                 totalProducts = Database.getProductsDao().countAllProducts();
             }
+            productList = applySort(productList, sortParam);
         } catch (Exception e) {
-            e.printStackTrace();
+            getServletContext().log("Error while loading HomeServlet", e);
         }
 
         int totalPages = (int) Math.ceil((double) totalProducts / pageSize);
@@ -133,6 +149,7 @@ public class HomeServlet extends HttpServlet {
         request.setAttribute("pageTitle", pageTitle);
         request.setAttribute("totalPages", totalPages);
         request.setAttribute("currentPage", currentPage);
+        request.setAttribute("sort", sortParam);
 
         // 6. THÔNG BÁO THANH TOÁN
         String checkoutStatus = request.getParameter("checkout");
@@ -176,6 +193,27 @@ public class HomeServlet extends HttpServlet {
             }
         }
         return filtered;
+    }
+
+    private List<Products> applySort(List<Products> products, String sort) {
+        if (products == null || products.isEmpty() || sort == null) {
+            return products;
+        }
+        Comparator<Products> comparator;
+        switch (sort) {
+            case "price_asc":
+                comparator = Comparator.comparingDouble(p -> p.getDiscount_price() > 0 ? p.getDiscount_price() : p.getPrice());
+                break;
+            case "price_desc":
+                comparator = Comparator.comparingDouble((Products p) -> p.getDiscount_price() > 0 ? p.getDiscount_price() : p.getPrice()).reversed();
+                break;
+            case "newest":
+            default:
+                comparator = Comparator.comparingInt(Products::getId).reversed();
+                break;
+        }
+        products.sort(comparator);
+        return products;
     }
 
     @Override

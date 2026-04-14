@@ -3,5 +3,6 @@
     "java.project.sourcePaths": [
         "src/java",
         "build/web/WEB-INF/lib"
-    ]
+    ],
+    "html.autoClosingTags": false
 }

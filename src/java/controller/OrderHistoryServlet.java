@@ -35,42 +35,46 @@ public class OrderHistoryServlet extends HttpServlet {
         }
 
         List<Map<String, Object>> orders = new ArrayList<>();
-        String sql = "SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC";
+        String sql = "SELECT o.id, o.total, o.payment_method, o.created_at, "
+                + "oi.quantity, oi.price, p.name, p.image "
+                + "FROM orders o "
+                + "LEFT JOIN order_items oi ON o.id = oi.order_id "
+                + "LEFT JOIN products p ON p.id = oi.product_id "
+                + "WHERE o.user_id = ? "
+                + "ORDER BY o.id DESC, oi.id ASC";
         
         try (Connection con = MySQLDriver.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
             ps.setInt(1, user.getId());
             try (ResultSet rs = ps.executeQuery()) {
+                Map<Integer, Map<String, Object>> orderMap = new LinkedHashMap<>();
                 while (rs.next()) {
-                    Map<String, Object> order = new LinkedHashMap<>();
                     int orderId = rs.getInt("id");
-                    order.put("id", orderId);
-                    order.put("total", rs.getDouble("total"));
-                    order.put("payment_method", rs.getString("payment_method"));
-                    order.put("created_at", rs.getTimestamp("created_at"));
-                    
-                    List<Map<String, Object>> items = new ArrayList<>();
-                    String sqlItems = "SELECT oi.*, p.name, p.image FROM order_items oi " +
-                                     "JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?";
-                    try (PreparedStatement psItems = con.prepareStatement(sqlItems)) {
-                        psItems.setInt(1, orderId);
-                        try (ResultSet rsItems = psItems.executeQuery()) {
-                            while (rsItems.next()) {
-                                Map<String, Object> item = new LinkedHashMap<>();
-                                item.put("name", rsItems.getString("name"));
-                                item.put("image", rsItems.getString("image"));
-                                item.put("quantity", rsItems.getInt("quantity"));
-                                item.put("price", rsItems.getDouble("price"));
-                                items.add(item);
-                            }
-                        }
+                    Map<String, Object> order = orderMap.get(orderId);
+                    if (order == null) {
+                        order = new LinkedHashMap<>();
+                        order.put("id", orderId);
+                        order.put("total", rs.getDouble("total"));
+                        order.put("payment_method", rs.getString("payment_method"));
+                        order.put("created_at", rs.getTimestamp("created_at"));
+                        order.put("items", new ArrayList<Map<String, Object>>());
+                        orderMap.put(orderId, order);
                     }
-                    order.put("items", items);
-                    orders.add(order);
+                    if (rs.getString("name") != null) {
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> items = (List<Map<String, Object>>) order.get("items");
+                        Map<String, Object> item = new LinkedHashMap<>();
+                        item.put("name", rs.getString("name"));
+                        item.put("image", rs.getString("image"));
+                        item.put("quantity", rs.getInt("quantity"));
+                        item.put("price", rs.getDouble("price"));
+                        items.add(item);
+                    }
                 }
+                orders = new ArrayList<>(orderMap.values());
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            getServletContext().log("Error loading order history", e);
         }
 
         request.setAttribute("orders", orders);

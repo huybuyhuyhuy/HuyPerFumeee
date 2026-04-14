@@ -28,13 +28,10 @@ public class ProductDetailServlet extends HttpServlet {
             Products product = Database.getProductsDao().findProducts(id);
             
             if (product != null) {
-                // Lấy tên thương hiệu từ id_brand
                 String brandName = "Đang cập nhật";
-                for (Brand b : Database.getBrandDao().getAllBrands()) {
-                    if (b.getId() == product.getId_brand()) {
-                        brandName = b.getName();
-                        break;
-                    }
+                Brand brand = Database.getBrandDao().getBrandById(product.getId_brand());
+                if (brand != null) {
+                    brandName = brand.getName();
                 }
                 
                 request.setAttribute("product", product);

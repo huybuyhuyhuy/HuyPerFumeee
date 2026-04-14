@@ -13,7 +13,7 @@
                 <h4 class="mb-0">CẬP NHẬT SẢN PHẨM #${product.id}</h4>
             </div>
             <div class="card-body p-4">
-                <form action="${pageContext.request.contextPath}/admin/product/edit" method="POST">
+                <form action="${pageContext.request.contextPath}/admin/product/edit" method="POST" enctype="multipart/form-data">
                     <input type="hidden" name="id" value="${product.id}">
                     
                     <div class="mb-3">
@@ -34,8 +34,13 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Tên file ảnh</label>
+                        <label class="form-label fw-bold">Ảnh hiện tại</label>
                         <input type="text" name="image" class="form-control" value="${product.image}">
+                        <small class="text-muted">Giữ nguyên nếu không muốn đổi ảnh.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Upload ảnh mới</label>
+                        <input type="file" name="imageFile" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif">
                     </div>
 
                     <div class="mb-3">

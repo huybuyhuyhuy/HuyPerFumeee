@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @WebServlet(name = "AdminHomeServlet", urlPatterns = {"/admin"})
 public class AdminHomeServlet extends HttpServlet {
@@ -50,8 +51,29 @@ public class AdminHomeServlet extends HttpServlet {
             }
             request.setAttribute("listProducts", list);
         } else if ("orders".equals(type)) {
-            ordersList = getAllOrders();
+            int pageSize = 10;
+            int currentPage = 1;
+            String pageRaw = request.getParameter("page");
+            if (pageRaw != null && !pageRaw.isEmpty()) {
+                try {
+                    currentPage = Integer.parseInt(pageRaw);
+                } catch (NumberFormatException e) {
+                    currentPage = 1;
+                }
+            }
+            if (currentPage < 1) {
+                currentPage = 1;
+            }
+            int totalOrders = getTotalOrdersCount();
+            int totalPages = (int) Math.ceil((double) totalOrders / pageSize);
+            if (totalPages > 0 && currentPage > totalPages) {
+                currentPage = totalPages;
+            }
+
+            ordersList = getOrdersByPage(currentPage, pageSize);
             request.setAttribute("listOrders", ordersList);
+            request.setAttribute("currentOrderPage", currentPage);
+            request.setAttribute("totalOrderPages", totalPages);
         }
 
         // 4. Đưa tất cả dữ liệu chung sang JSP
@@ -66,17 +88,20 @@ public class AdminHomeServlet extends HttpServlet {
         request.setAttribute("totalUsers", getTotalUsers());
         request.setAttribute("orderStatusMap", getOrderStatusDistribution());
         request.setAttribute("topSellingProducts", getTopSellingProducts(5));
+        request.getSession().setAttribute("adminCsrfToken", UUID.randomUUID().toString());
 
         request.getRequestDispatcher("/inc/_admin.jsp").forward(request, response);
     }
 
-    private List<Map<String, Object>> getAllOrders() {
+    private List<Map<String, Object>> getOrdersByPage(int page, int pageSize) {
         List<Map<String, Object>> orders = new ArrayList<>();
-        String sql = "SELECT o.*, u.name as user_name FROM orders o LEFT JOIN users u ON o.user_id = u.id ORDER BY o.id DESC";
+        String sql = "SELECT o.*, u.name as user_name FROM orders o LEFT JOIN users u ON o.user_id = u.id ORDER BY o.id DESC LIMIT ? OFFSET ?";
         
         try (Connection con = MySQLDriver.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, pageSize);
+            ps.setInt(2, (page - 1) * pageSize);
+            try (ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 Map<String, Object> order = new LinkedHashMap<>();
                 order.put("id", rs.getInt("id"));
@@ -87,10 +112,25 @@ public class AdminHomeServlet extends HttpServlet {
                 order.put("created_at", rs.getTimestamp("created_at"));
                 orders.add(order);
             }
+            }
         } catch (SQLException e) {
-            e.printStackTrace();
+            getServletContext().log("Error loading paged orders", e);
         }
         return orders;
+    }
+
+    private int getTotalOrdersCount() {
+        String sql = "SELECT COUNT(*) FROM orders";
+        try (Connection con = MySQLDriver.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            getServletContext().log("Error counting orders", e);
+        }
+        return 0;
     }
 
     private double getTotalRevenue() {
@@ -100,7 +140,7 @@ public class AdminHomeServlet extends HttpServlet {
              PreparedStatement ps = con.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             if (rs.next()) return rs.getDouble(1);
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) { getServletContext().log("Error computing total revenue", e); }
         return 0;
     }
 
@@ -110,7 +150,7 @@ public class AdminHomeServlet extends HttpServlet {
              PreparedStatement ps = con.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             if (rs.next()) return rs.getInt(1);
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) { getServletContext().log("Error computing total orders", e); }
         return 0;
     }
 
@@ -121,7 +161,7 @@ public class AdminHomeServlet extends HttpServlet {
              PreparedStatement ps = con.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             if (rs.next()) return rs.getInt(1);
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) { getServletContext().log("Error computing total users", e); }
         return 0;
     }
 
@@ -154,7 +194,7 @@ public class AdminHomeServlet extends HttpServlet {
                     result.put("Chờ xác nhận", result.get("Chờ xác nhận") + rs.getInt("count"));
                 }
             }
-        } catch (SQLException e) { e.printStackTrace(); }
+        } catch (SQLException e) { getServletContext().log("Error computing order status distribution", e); }
         
         return result;
     }
@@ -193,7 +233,7 @@ public class AdminHomeServlet extends HttpServlet {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            getServletContext().log("Error computing sales by day", e);
         }
         return result;
     }
@@ -219,7 +259,7 @@ public class AdminHomeServlet extends HttpServlet {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            getServletContext().log("Error computing sales by week", e);
         }
         return result;
     }
@@ -243,7 +283,7 @@ public class AdminHomeServlet extends HttpServlet {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            getServletContext().log("Error computing sales by month", e);
         }
         return result;
     }
@@ -267,7 +307,7 @@ public class AdminHomeServlet extends HttpServlet {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            getServletContext().log("Error computing sales by year", e);
         }
         return result;
     }
@@ -286,7 +326,7 @@ public class AdminHomeServlet extends HttpServlet {
                 return rs.getInt("c");
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            getServletContext().log("Error computing today's user order count", e);
         }
         return 0;
     }

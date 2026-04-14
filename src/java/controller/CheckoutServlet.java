@@ -40,6 +40,15 @@ public class CheckoutServlet extends HttpServlet {
         User user = (User) session.getAttribute("user");
         int userId = (user != null) ? user.getId() : 0;
 
+        String shippingAddress = request.getParameter("shipping_address");
+        String shippingPhone = request.getParameter("phone");
+        if ((shippingAddress == null || shippingAddress.trim().isEmpty()) && user != null) {
+            shippingAddress = user.getAddress();
+        }
+        if ((shippingPhone == null || shippingPhone.trim().isEmpty()) && user != null) {
+            shippingPhone = user.getPhone();
+        }
+
         double total = 0;
         for (Products p : cart) {
             double actualPrice = (p.getDiscount_price() > 0) ? p.getDiscount_price() : p.getPrice();
@@ -51,12 +60,14 @@ public class CheckoutServlet extends HttpServlet {
             try {
                 // 1. Insert Order
                 int orderId = 0;
-                String sqlOrder = "INSERT INTO orders (user_id, total, payment_method, status, created_at) VALUES (?, ?, ?, ?, NOW())";
+                String sqlOrder = "INSERT INTO orders (user_id, total, shipping_address, phone, payment_method, status, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())";
                 try (PreparedStatement ps = con.prepareStatement(sqlOrder, Statement.RETURN_GENERATED_KEYS)) {
                     ps.setInt(1, userId);
                     ps.setDouble(2, total);
-                    ps.setString(3, paymentMethod);
-                    ps.setString(4, "Chờ xác nhận");
+                    ps.setString(3, shippingAddress);
+                    ps.setString(4, shippingPhone);
+                    ps.setString(5, paymentMethod);
+                    ps.setString(6, "Chờ xác nhận");
                     ps.executeUpdate();
                     try (ResultSet rs = ps.getGeneratedKeys()) {
                         if (rs.next()) orderId = rs.getInt(1);

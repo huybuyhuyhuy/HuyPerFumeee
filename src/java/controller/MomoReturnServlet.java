@@ -41,7 +41,7 @@ public class MomoReturnServlet extends HttpServlet {
                     }
                 }
             } catch (SQLException e) {
-                e.printStackTrace();
+                getServletContext().log("Failed to update MoMo payment status", e);
             }
             request.setAttribute("paymentMethod", "Momo");
             request.getRequestDispatcher("/inc/success.jsp").forward(request, response);

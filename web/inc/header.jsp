@@ -162,9 +162,41 @@
         .cart-icon-wrapper:hover {
             color: #ffc107; /* Màu vàng nhẹ khi hover giỏ hàng */
         }
+
+        .cart-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 2000;
+            background: #198754;
+            color: #fff;
+            border-radius: 10px;
+            padding: 12px 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transform: translateY(-8px);
+            transition: all 0.3s ease;
+        }
+        .cart-toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body>
+    <c:if test="${param.cart == 'added'}">
+        <div id="cart-toast" class="cart-toast">
+            <i class="fas fa-check-circle me-2"></i> Đã thêm sản phẩm vào giỏ hàng.
+        </div>
+        <script>
+            window.addEventListener('DOMContentLoaded', function () {
+                var toast = document.getElementById('cart-toast');
+                if (!toast) return;
+                setTimeout(function () { toast.classList.add('show'); }, 50);
+                setTimeout(function () { toast.classList.remove('show'); }, 2600);
+            });
+        </script>
+    </c:if>
     
     <div class="perfume-header">
         <div class="container">
@@ -221,7 +253,7 @@
                         <a href="${pageContext.request.contextPath}/wishlist" class="wishlist-icon-wrapper ms-3">
                             <i class="fa-solid fa-heart fa-lg"></i>
                             <span class="wishlist-badge" id="wishlist-count">
-                                ${not empty sessionScope.wishlist ? sessionScope.wishlist.size() : 0}
+                                ${not empty sessionScope.wishlistCount ? sessionScope.wishlistCount : (not empty sessionScope.wishlist ? sessionScope.wishlist.size() : 0)}
                             </span>
                         </a>
 

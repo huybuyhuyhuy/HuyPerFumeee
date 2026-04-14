@@ -22,20 +22,24 @@ public class CartUtils {
             List<Products> cart = (List<Products>) session.getAttribute("cart");
             if (cart == null) cart = new ArrayList<>();
             
+            Products dbProduct = Database.getProductsDao().findProducts(productId);
+            if (dbProduct == null || dbProduct.getStock() <= 0) {
+                return;
+            }
+
             boolean exists = false;
             for (Products p : cart) {
                 if (p.getId() == productId) {
-                    p.setQuantity(p.getQuantity() + 1);
+                    if (p.getQuantity() < dbProduct.getStock()) {
+                        p.setQuantity(p.getQuantity() + 1);
+                    }
                     exists = true;
                     break;
                 }
             }
             if (!exists) {
-                Products p = Database.getProductsDao().findProducts(productId);
-                if (p != null) {
-                    p.setQuantity(1);
-                    cart.add(p);
-                }
+                dbProduct.setQuantity(1);
+                cart.add(dbProduct);
             }
             session.setAttribute("cart", cart);
         } catch (Exception e) {

@@ -52,7 +52,7 @@ public class CartServlet extends HttpServlet {
                         break;
                 }
             } catch (NumberFormatException e) {
-                e.printStackTrace();
+                getServletContext().log("Invalid product id in cart action", e);
             }
         }
         
@@ -78,7 +78,7 @@ public class CartServlet extends HttpServlet {
                     }
                     session.setAttribute("cart", cart);
                 } catch (NumberFormatException e) {
-                    e.printStackTrace();
+                    getServletContext().log("Invalid quantity update in cart", e);
                 }
             }
         }

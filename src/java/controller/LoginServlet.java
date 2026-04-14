@@ -1,15 +1,17 @@
 package controller;
 
 import data.dao.Database;
-import data.utils.API;
 import data.utils.CartUtils;
+import data.utils.PasswordUtils;
 import java.io.IOException;
+import java.util.List;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import model.Products;
 import model.User;
 
 @WebServlet(name = "LoginServlet", urlPatterns = {"/login"})
@@ -36,7 +38,7 @@ public class LoginServlet extends HttpServlet {
         // Lấy target_id từ form ẩn (nếu có)
         String targetId = request.getParameter("target_id");
         
-        User user = Database.getUsersDao().findUser(emailphone, API.getMd5(password));
+        User user = Database.getUsersDao().findUser(emailphone, password);
         
         HttpSession session = request.getSession();
         
@@ -51,10 +53,22 @@ public class LoginServlet extends HttpServlet {
         } else {
             // Đăng nhập thành công
             session.removeAttribute("login_error");
+
+            // Nâng cấp mật khẩu cũ MD5 -> BCrypt sau lần đăng nhập thành công.
+            if (!PasswordUtils.isBcryptHash(user.getPassword())) {
+                try {
+                    Database.getUsersDao().updatePasswordByEmail(user.getEmail(), PasswordUtils.hash(password));
+                } catch (Exception e) {
+                    log("Cannot upgrade password hash for user " + user.getEmail() + ": " + e.getMessage());
+                }
+            }
             
             // Lưu thông tin vào Session với tên "user" để đồng bộ toàn hệ thống
             session.setAttribute("user", user);
             session.setAttribute("role", user.getRole()); 
+            List<Products> wishlist = Database.getWishlistDao().getWishlistProducts(user.getId());
+            session.setAttribute("wishlist", wishlist);
+            session.setAttribute("wishlistCount", wishlist.size());
             
             // --- LOGIC TỰ ĐỘNG THÊM GIỎ HÀNG SAU LOGIN ---
             if (targetId != null && !targetId.isEmpty()) {

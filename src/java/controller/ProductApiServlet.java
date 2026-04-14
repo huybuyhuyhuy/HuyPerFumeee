@@ -1,5 +1,6 @@
 package controller;
 
+import com.google.gson.Gson;
 import data.dao.Database;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -13,6 +14,7 @@ import model.Products;
 
 @WebServlet(name = "ProductApiServlet", urlPatterns = {"/api/products/random"})
 public class ProductApiServlet extends HttpServlet {
+    private static final Gson GSON = new Gson();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -23,17 +25,7 @@ public class ProductApiServlet extends HttpServlet {
         List<Products> list = Database.getProductsDao().findAll();
         
         PrintWriter out = response.getWriter();
-        out.print("[");
-        for (int i = 0; i < list.size(); i++) {
-            Products p = list.get(i);
-            out.print("{");
-            out.print("\"id\":" + p.getId() + ",");
-            out.print("\"name\":\"" + p.getName().replace("\"", "\\\"") + "\",");
-            out.print("\"image\":\"" + p.getImage() + "\"");
-            out.print("}");
-            if (i < list.size() - 1) out.print(",");
-        }
-        out.print("]");
+        out.print(GSON.toJson(list));
         out.flush();
     }
 }

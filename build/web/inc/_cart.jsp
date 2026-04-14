@@ -33,7 +33,7 @@
                                     <div class="row d-flex justify-content-between align-items-center">
                                         <div class="col-md-2 col-lg-2 col-xl-2">
                                             <c:choose>
-                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.jpeg') || p.image.endsWith('.png') || p.image.endsWith('.webp') || p.image.endsWith('.gif'))}">
                                                     <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" class="img-fluid rounded-3 shadow-sm" alt="${p.name}">
                                                 </c:when>
                                                 <c:otherwise>
@@ -158,7 +158,7 @@
                                     <p class="text-muted small mb-3">
                                         Bấm nút bên dưới: hệ thống tạo đơn hàng, sau đó <strong>chuyển sang trang thanh toán MoMo (sandbox)</strong> — giống demo Node, chạy hoàn toàn trên Tomcat, không cần mở Node.js.
                                     </p>
-                                    <form action="checkout" method="POST">
+                                    <form action="checkout" method="POST" class="momo-checkout-form">
                                         <input type="hidden" name="paymentMethod" value="Momo">
                                         <div class="alert alert-light border small text-start mx-auto" style="max-width: 520px;">
                                             <i class="fas fa-shield-alt text-success me-1"></i>
@@ -222,6 +222,16 @@
     </div>
 </section>
 
+<div id="momo-loading-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:2500; align-items:center; justify-content:center;">
+    <div class="text-center text-white">
+        <div class="spinner-border text-light mb-3" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <div class="fw-bold">Đang chuyển sang cổng thanh toán MoMo...</div>
+        <div class="small text-white-50">Vui lòng không bấm lại nhiều lần.</div>
+    </div>
+</div>
+
 <style>
     .cursor-pointer { cursor: pointer; transition: all 0.2s; }
     .payment-option-card { transition: all 0.3s; border: 2px solid #eee !important; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -258,6 +268,19 @@
             const targetForm = document.getElementById(targetFormId);
             if (targetForm) {
                 targetForm.style.display = 'block';
+            }
+        });
+    });
+
+    document.querySelectorAll('.momo-checkout-form').forEach((form) => {
+        form.addEventListener('submit', function () {
+            const overlay = document.getElementById('momo-loading-overlay');
+            if (overlay) {
+                overlay.style.display = 'flex';
+            }
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
             }
         });
     });

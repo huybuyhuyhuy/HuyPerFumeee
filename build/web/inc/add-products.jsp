@@ -13,7 +13,7 @@
                 <h4 class="mb-0 text-center">THÊM SẢN PHẨM MỚI</h4>
             </div>
             <div class="card-body p-4">
-                <form action="${pageContext.request.contextPath}/admin/product/add" method="POST">
+                <form action="${pageContext.request.contextPath}/admin/product/add" method="POST" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Tên sản phẩm</label>
                         <input type="text" name="name" class="form-control" required>
@@ -30,8 +30,13 @@
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Tên file ảnh (trong assets/images/)</label>
-                        <input type="text" name="image" class="form-control" placeholder="vi-du.png">
+                        <label class="form-label fw-bold">Ảnh sản phẩm (Upload file)</label>
+                        <input type="file" name="imageFile" class="form-control" accept=".jpg,.jpeg,.png,.webp,.gif">
+                        <small class="text-muted">Nếu upload ảnh, hệ thống sẽ tự lưu vào `assets/images`.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tên file ảnh / URL (tùy chọn)</label>
+                        <input type="text" name="image" class="form-control" placeholder="vi-du.png hoặc https://...">
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Số lượng tồn kho ban đầu</label>

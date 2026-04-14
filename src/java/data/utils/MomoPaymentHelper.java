@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import com.google.gson.JsonObject;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -115,7 +116,7 @@ public final class MomoPaymentHelper {
                 + "\"partnerName\":\"" + escapeJson(MomoConfig.PARTNER_NAME) + "\","
                 + "\"storeId\":\"" + MomoConfig.STORE_ID + "\","
                 + "\"requestId\":\"" + escapeJson(requestId) + "\","
-                + "\"amount\":\"" + amount + "\","
+                + "\"amount\":" + amount + ","
                 + "\"orderId\":\"" + escapeJson(orderId) + "\","
                 + "\"orderInfo\":\"" + escInfo + "\","
                 + "\"redirectUrl\":\"" + escRedirect + "\","
@@ -145,5 +146,27 @@ public final class MomoPaymentHelper {
             hex.append(h);
         }
         return hex.toString();
+    }
+
+    public static String computeIpnSignature(JsonObject body) throws Exception {
+        String rawSignature =
+                "accessKey=" + getAsString(body, "accessKey")
+                + "&amount=" + getAsString(body, "amount")
+                + "&extraData=" + getAsString(body, "extraData")
+                + "&message=" + getAsString(body, "message")
+                + "&orderId=" + getAsString(body, "orderId")
+                + "&orderInfo=" + getAsString(body, "orderInfo")
+                + "&orderType=" + getAsString(body, "orderType")
+                + "&partnerCode=" + getAsString(body, "partnerCode")
+                + "&payType=" + getAsString(body, "payType")
+                + "&requestId=" + getAsString(body, "requestId")
+                + "&responseTime=" + getAsString(body, "responseTime")
+                + "&resultCode=" + getAsString(body, "resultCode")
+                + "&transId=" + getAsString(body, "transId");
+        return hmacSha256(rawSignature, MomoConfig.SECRET_KEY);
+    }
+
+    private static String getAsString(JsonObject body, String key) {
+        return body.has(key) && !body.get(key).isJsonNull() ? body.get(key).getAsString() : "";
     }
 }

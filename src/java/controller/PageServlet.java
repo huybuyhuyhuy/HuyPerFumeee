@@ -8,7 +8,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-@WebServlet(name = "PageServlet", urlPatterns = {"/about", "/knowledge", "/blog", "/contact"})
+@WebServlet(name = "PageServlet", urlPatterns = {"/about", "/knowledge", "/blog", "/contact", "/knowledge-detail", "/blog-detail"})
 public class PageServlet extends HttpServlet {
 
     @Override
@@ -34,6 +34,14 @@ public class PageServlet extends HttpServlet {
             case "/contact":
                 pageTitle = "Liên hệ";
                 jspPath = "/views/contact.jsp";
+                break;
+            case "/knowledge-detail":
+                pageTitle = "Chi tiết kiến thức";
+                jspPath = "/views/knowledge-detail.jsp";
+                break;
+            case "/blog-detail":
+                pageTitle = "Chi tiết blog";
+                jspPath = "/views/blog-detail.jsp";
                 break;
         }
 

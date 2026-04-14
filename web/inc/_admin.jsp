@@ -155,9 +155,17 @@
             <div class="admin-header">
                 <h4 class="fw-800 m-0">${title}</h4>
                 <c:if test="${viewType == 'products'}">
-                    <a href="${pageContext.request.contextPath}/admin/product/add" class="btn btn-primary px-4 rounded-pill fw-bold shadow-sm">
-                        <i class="fas fa-plus me-2"></i> THÊM SẢN PHẨM
-                    </a>
+                    <div class="d-flex gap-2">
+                        <form action="${pageContext.request.contextPath}/admin/product/reset-stock" method="POST" onsubmit="return confirm('Reset toàn bộ kho về trạng thái mặc định?')">
+                            <input type="hidden" name="csrfToken" value="${sessionScope.adminCsrfToken}">
+                            <button type="submit" class="btn btn-outline-danger rounded-pill fw-bold">
+                                <i class="fas fa-undo me-2"></i> RESET KHO
+                            </button>
+                        </form>
+                        <a href="${pageContext.request.contextPath}/admin/product/add" class="btn btn-primary px-4 rounded-pill fw-bold shadow-sm">
+                            <i class="fas fa-plus me-2"></i> THÊM SẢN PHẨM
+                        </a>
+                    </div>
                 </c:if>
             </div>
 
@@ -236,7 +244,7 @@
                                         <td>
                                             <div class="d-flex align-items-center gap-3">
                                                 <c:choose>
-                                                    <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                                    <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.jpeg') || p.image.endsWith('.png') || p.image.endsWith('.webp') || p.image.endsWith('.gif'))}">
                                                         <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" width="40" height="40" class="rounded">
                                                     </c:when>
                                                     <c:otherwise>
@@ -304,6 +312,23 @@
                         </tbody>
                     </table>
                 </div>
+                <c:if test="${totalOrderPages > 1}">
+                    <nav class="mt-3 d-flex justify-content-center" aria-label="Order pagination">
+                        <ul class="pagination">
+                            <li class="page-item ${currentOrderPage <= 1 ? 'disabled' : ''}">
+                                <a class="page-link" href="${pageContext.request.contextPath}/admin?type=orders&page=${currentOrderPage - 1}">Trước</a>
+                            </li>
+                            <c:forEach begin="1" end="${totalOrderPages}" var="i">
+                                <li class="page-item ${i == currentOrderPage ? 'active' : ''}">
+                                    <a class="page-link" href="${pageContext.request.contextPath}/admin?type=orders&page=${i}">${i}</a>
+                                </li>
+                            </c:forEach>
+                            <li class="page-item ${currentOrderPage >= totalOrderPages ? 'disabled' : ''}">
+                                <a class="page-link" href="${pageContext.request.contextPath}/admin?type=orders&page=${currentOrderPage + 1}">Sau</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </c:if>
             </c:if>
 
             <!-- Product Management Section -->
@@ -326,7 +351,7 @@
                                 <tr>
                                     <td>
                                     <c:choose>
-                                        <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                        <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.jpeg') || p.image.endsWith('.png') || p.image.endsWith('.webp') || p.image.endsWith('.gif'))}">
                                             <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" width="50" height="50" class="rounded border shadow-sm" style="object-fit: cover;">
                                         </c:when>
                                         <c:otherwise>
@@ -374,9 +399,13 @@
                                             <a href="${pageContext.request.contextPath}/admin/product/edit?id=${p.id}" class="btn btn-sm btn-light border" title="Chỉnh sửa">
                                                 <i class="fas fa-edit text-warning"></i>
                                             </a>
-                                            <a href="${pageContext.request.contextPath}/admin/product/delete?id=${p.id}" class="btn btn-sm btn-light border" title="Xóa" onclick="return confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')">
-                                                <i class="fas fa-trash-alt text-danger"></i>
-                                            </a>
+                                            <form action="${pageContext.request.contextPath}/admin/product/delete" method="POST" class="d-inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')">
+                                                <input type="hidden" name="id" value="${p.id}">
+                                                <input type="hidden" name="csrfToken" value="${sessionScope.adminCsrfToken}">
+                                                <button type="submit" class="btn btn-sm btn-light border" title="Xóa">
+                                                    <i class="fas fa-trash-alt text-danger"></i>
+                                                </button>
+                                            </form>
                                         </div>
                                     </td>
                                 </tr>

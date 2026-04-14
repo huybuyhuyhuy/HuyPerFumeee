@@ -81,8 +81,8 @@
             <div class="row">
         <c:choose>
             <%-- 2. Kiểm tra danh sách trong Session --%>
-            <c:when test="${not empty sessionScope.wishlist}">
-                <c:forEach items="${sessionScope.wishlist}" var="p">
+            <c:when test="${not empty wishlistItems}">
+                <c:forEach items="${wishlistItems}" var="p">
                     <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
                         <div class="card wishlist-card shadow-sm h-100">
                             <%-- Hiển thị ảnh sản phẩm --%>

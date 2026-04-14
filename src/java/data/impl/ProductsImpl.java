@@ -143,8 +143,20 @@ public class ProductsImpl implements ProductsDao {
     //lọc trang
     @Override
     public List<Products> findProductsByPage(int offset, int limit) {
+        return findProductsByPage(offset, limit, "newest");
+    }
+
+    @Override
+    public List<Products> findProductsByPage(int offset, int limit, String sort) {
         List<Products> listProducts = new ArrayList<>();
-        String sql = "SELECT * FROM products LIMIT ?, ?"; 
+        String orderBy = "id DESC";
+        if ("price_asc".equals(sort)) {
+            orderBy = "COALESCE(NULLIF(discount_price, 0), price) ASC";
+        } else if ("price_desc".equals(sort)) {
+            orderBy = "COALESCE(NULLIF(discount_price, 0), price) DESC";
+        }
+
+        String sql = "SELECT * FROM products WHERE status = 1 ORDER BY " + orderBy + " LIMIT ?, ?";
         try (Connection con = MySQLDriver.getConnection();
              PreparedStatement sttm = con.prepareStatement(sql)) {
             sttm.setInt(1, offset);
@@ -162,7 +174,7 @@ public class ProductsImpl implements ProductsDao {
 
     @Override //đếm tên sản phẩm
     public int countAllProducts() {
-        String sql = "SELECT COUNT(*) FROM products";
+        String sql = "SELECT COUNT(*) FROM products WHERE status = 1";
         try (Connection con = MySQLDriver.getConnection();
              PreparedStatement sttm = con.prepareStatement(sql);
              ResultSet rs = sttm.executeQuery()) {
@@ -214,7 +226,6 @@ public class ProductsImpl implements ProductsDao {
             sttm.setInt(9, p.getId());
             
             int rowsAffected = sttm.executeUpdate();
-            System.out.println("Updating product ID: " + p.getId() + ", Rows affected: " + rowsAffected);
             return rowsAffected > 0;
         } catch (SQLException ex) {
             ex.printStackTrace();
@@ -291,7 +302,6 @@ public class ProductsImpl implements ProductsDao {
             sttm.setInt(1, stock);
             sttm.setInt(2, id);
             int rows = sttm.executeUpdate();
-            System.out.println("Setting stock ID: " + id + " to " + stock + ". Rows: " + rows);
             return rows > 0;
         } catch (SQLException ex) {
             ex.printStackTrace();

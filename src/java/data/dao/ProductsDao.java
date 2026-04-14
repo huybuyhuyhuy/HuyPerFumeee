@@ -21,6 +21,7 @@ public interface ProductsDao {
     
     //phân trang
     List<Products> findProductsByPage(int offset, int limit);
+    List<Products> findProductsByPage(int offset, int limit, String sort);
     int countAllProducts();
     boolean insert(Products p);
     boolean update(Products p);

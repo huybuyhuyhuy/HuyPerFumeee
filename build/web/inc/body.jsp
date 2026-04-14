@@ -546,7 +546,7 @@
                                         <div class="img-container">
                                             <c:if test="${!p.status}"><div class="sold-out-badge">HẾT HÀNG</div></c:if>
                                             <c:choose>
-                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.jpeg') || p.image.endsWith('.png') || p.image.endsWith('.webp') || p.image.endsWith('.gif'))}">
                                                     <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" alt="${p.name}" style="aspect-ratio: 1/1; object-fit: cover;"/>
                                                 </c:when>
                                                 <c:otherwise>
@@ -604,7 +604,7 @@
                                         <div class="img-container">
                                             <c:if test="${!p.status}"><div class="sold-out-badge">HẾT HÀNG</div></c:if>
                                             <c:choose>
-                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.jpeg') || p.image.endsWith('.png') || p.image.endsWith('.webp') || p.image.endsWith('.gif'))}">
                                                     <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" alt="${p.name}" style="aspect-ratio: 1/1; object-fit: cover;"/>
                                                 </c:when>
                                                 <c:otherwise>
@@ -660,7 +660,7 @@
                                         <div class="img-container">
                                             <c:if test="${!p.status}"><div class="sold-out-badge">HẾT HÀNG</div></c:if>
                                             <c:choose>
-                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.jpeg') || p.image.endsWith('.png') || p.image.endsWith('.webp') || p.image.endsWith('.gif'))}">
                                                     <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" alt="${p.name}" style="aspect-ratio: 1/1; object-fit: cover;"/>
                                                 </c:when>
                                                 <c:otherwise>
@@ -701,7 +701,22 @@
                 <c:otherwise>
                     <header class="mb-5 d-flex justify-content-between align-items-center">
                         <h4 class="fw-800 m-0" style="letter-spacing: -0.5px;">${not empty pageTitle ? pageTitle : 'Sản phẩm'}</h4>
-                        <div class="small text-muted">Hiển thị <span class="fw-bold text-dark">${listProducts.size()}</span> sản phẩm</div>
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="small text-muted">Hiển thị <span class="fw-bold text-dark">${listProducts.size()}</span> sản phẩm</div>
+                            <form action="${pageContext.request.contextPath}/home" method="GET" class="d-flex align-items-center gap-2">
+                                <input type="hidden" name="txtSearch" value="${param.txtSearch}">
+                                <input type="hidden" name="keyword" value="${param.keyword}">
+                                <input type="hidden" name="id_category" value="${param.id_category}">
+                                <input type="hidden" name="brand_id" value="${param.brand_id}">
+                                <input type="hidden" name="price_range" value="${param.price_range}">
+                                <label class="small text-muted mb-0">Sắp xếp:</label>
+                                <select name="sort" class="form-select form-select-sm" onchange="this.form.submit()">
+                                    <option value="newest" ${param.sort == 'newest' || empty param.sort ? 'selected' : ''}>Mới nhất</option>
+                                    <option value="price_asc" ${param.sort == 'price_asc' ? 'selected' : ''}>Giá tăng dần</option>
+                                    <option value="price_desc" ${param.sort == 'price_desc' ? 'selected' : ''}>Giá giảm dần</option>
+                                </select>
+                            </form>
+                        </div>
                     </header>
 
                     <div class="row g-4">
@@ -713,7 +728,7 @@
                                             <div class="img-container">
                                             <c:if test="${!p.status}"><div class="sold-out-badge">HẾT HÀNG</div></c:if>
                                             <c:choose>
-                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.png'))}">
+                                                <c:when test="${not empty p.image && (p.image.startsWith('http') || p.image.endsWith('.jpg') || p.image.endsWith('.jpeg') || p.image.endsWith('.png') || p.image.endsWith('.webp') || p.image.endsWith('.gif'))}">
                                                     <img src="${p.image.startsWith('http') ? p.image : pageContext.request.contextPath.concat('/assets/images/').concat(p.image)}" alt="${p.name}" style="aspect-ratio: 1/1; object-fit: cover;"/>
                                                 </c:when>
                                                 <c:otherwise>
@@ -725,7 +740,7 @@
                                                         <i class="fas fa-eye me-2"></i> Chi tiết
                                                     </a>
                                                     <c:if test="${p.status}">
-                                                        <a href="${pageContext.request.contextPath}/home?add_to_cart=${p.id}&page=${currentPage}" class="btn-overlay"><i class="fas fa-shopping-cart me-2"></i> Mua ngay</a>
+                                                        <a href="${pageContext.request.contextPath}/home?add_to_cart=${p.id}&page=${currentPage}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.keyword ? '&keyword='.concat(param.keyword) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}${not empty param.price_range ? '&price_range='.concat(param.price_range) : ''}${not empty param.sort ? '&sort='.concat(param.sort) : ''}" class="btn-overlay"><i class="fas fa-shopping-cart me-2"></i> Mua ngay</a>
                                                     </c:if>
                                                 </div>
                                             </div>
@@ -761,17 +776,17 @@
                         <nav class="mt-5 pt-4 border-top">
                             <ul class="pagination justify-content-center">
                                 <li class="page-item ${currentPage == 1 ? 'disabled' : ''}">
-                                    <a class="page-link border-0" href="home?page=${currentPage - 1}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}">
+                                    <a class="page-link border-0" href="home?page=${currentPage - 1}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.keyword ? '&keyword='.concat(param.keyword) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}${not empty param.price_range ? '&price_range='.concat(param.price_range) : ''}${not empty param.sort ? '&sort='.concat(param.sort) : ''}">
                                         <i class="fas fa-chevron-left"></i>
                                     </a>
                                 </li>
                                 <c:forEach begin="1" end="${totalPages}" var="i">
                                     <li class="page-item ${currentPage == i ? 'active' : ''}">
-                                        <a class="page-link" href="home?page=${i}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}">${i}</a>
+                                        <a class="page-link" href="home?page=${i}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.keyword ? '&keyword='.concat(param.keyword) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}${not empty param.price_range ? '&price_range='.concat(param.price_range) : ''}${not empty param.sort ? '&sort='.concat(param.sort) : ''}">${i}</a>
                                     </li>
                                 </c:forEach>
                                 <li class="page-item ${currentPage == totalPages ? 'disabled' : ''}">
-                                    <a class="page-link border-0" href="home?page=${currentPage + 1}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}">
+                                    <a class="page-link border-0" href="home?page=${currentPage + 1}${not empty param.txtSearch ? '&txtSearch='.concat(param.txtSearch) : ''}${not empty param.keyword ? '&keyword='.concat(param.keyword) : ''}${not empty param.id_category ? '&id_category='.concat(param.id_category) : ''}${not empty param.brand_id ? '&brand_id='.concat(param.brand_id) : ''}${not empty param.price_range ? '&price_range='.concat(param.price_range) : ''}${not empty param.sort ? '&sort='.concat(param.sort) : ''}">
                                         <i class="fas fa-chevron-right"></i>
                                     </a>
                                 </li>

@@ -56,7 +56,7 @@ public class ProfileServlet extends HttpServlet {
             session.setAttribute("user", user);
             request.setAttribute("successMsg", "Cập nhật thông tin thành công!");
         } catch (Exception e) {
-            e.printStackTrace();
+            getServletContext().log("Error updating user profile", e);
             request.setAttribute("errorMsg", "Có lỗi xảy ra khi cập nhật!");
         }
         

@@ -39,4 +39,22 @@ public class BrandImpl implements BrandDAO {
         }
         return listBrands;
     }
+
+    @Override
+    public Brand getBrandById(int id) {
+        String sql = "SELECT id, name FROM brand WHERE id = ? LIMIT 1";
+        try (Connection con = MySQLDriver.getConnection();
+             PreparedStatement sttm = con.prepareStatement(sql)) {
+            if (con == null) return null;
+            sttm.setInt(1, id);
+            try (ResultSet rs = sttm.executeQuery()) {
+                if (rs.next()) {
+                    return new Brand(rs.getInt("id"), rs.getString("name"));
+                }
+            }
+        } catch (SQLException ex) {
+            Logger.getLogger(BrandImpl.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return null;
+    }
 }

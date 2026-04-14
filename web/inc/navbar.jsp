@@ -122,6 +122,12 @@
         .nav-main .nav-link { padding: 10px 20px !important; }
         .nav-main .nav-link::after { display: none; }
     }
+
+    .nav-search {
+        border-top: 1px solid #f0f0f0;
+        background: #fff;
+        padding: 12px 0;
+    }
 </style>
 
 <nav class="navbar navbar-expand-lg nav-main">
@@ -247,3 +253,17 @@
         </div>
     </div>
 </nav>
+
+<div class="nav-search">
+    <div class="container">
+        <form action="${pageContext.request.contextPath}/home" method="get" class="d-flex gap-2">
+            <input
+                type="text"
+                name="keyword"
+                class="form-control"
+                placeholder="Tìm kiếm sản phẩm..."
+                value="${not empty param.keyword ? param.keyword : param.txtSearch}">
+            <button type="submit" class="btn btn-dark px-4">Tìm</button>
+        </form>
+    </div>
+</div>

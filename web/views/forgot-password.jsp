@@ -107,11 +107,24 @@
                     <i class="fas fa-exclamation-circle me-2"></i> ${errorMsg}
                 </div>
             </c:if>
-            
-            <form action="forgot-password" method="post">
-                <input type="email" name="email" class="form-control-lux" placeholder="Nhập địa chỉ Email của bạn" required value="${email}">
-                <button type="submit" class="btn-forgot">Gửi yêu cầu</button>
-            </form>
+
+            <c:choose>
+                <c:when test="${showResetForm}">
+                    <form action="${pageContext.request.contextPath}/forgot-password" method="post">
+                        <input type="hidden" name="step" value="reset"/>
+                        <p class="forgot-text text-start mb-2"><strong>Email:</strong> ${email}</p>
+                        <input type="password" name="newPassword" class="form-control-lux" placeholder="Mật khẩu mới (tối thiểu 6 ký tự)" required minlength="6" autocomplete="new-password">
+                        <input type="password" name="confirmPassword" class="form-control-lux" placeholder="Nhập lại mật khẩu" required minlength="6" autocomplete="new-password">
+                        <button type="submit" class="btn-forgot">Cập nhật mật khẩu</button>
+                    </form>
+                </c:when>
+                <c:otherwise>
+                    <form action="${pageContext.request.contextPath}/forgot-password" method="post">
+                        <input type="email" name="email" class="form-control-lux" placeholder="Nhập địa chỉ Email của bạn" required value="${email}">
+                        <button type="submit" class="btn-forgot">Tiếp tục</button>
+                    </form>
+                </c:otherwise>
+            </c:choose>
             
             <a href="${pageContext.request.contextPath}/login" class="back-to-login">
                 <i class="fas fa-arrow-left me-2"></i> Quay lại Đăng nhập

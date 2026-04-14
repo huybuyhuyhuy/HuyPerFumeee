@@ -1,24 +1,23 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/JSP_Servlet/Servlet.java to edit this template
- */
 package controller;
 
 import data.dao.Database;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.annotation.MultipartConfig;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.Part;
+import java.util.UUID;
 import model.Products;
-
-/**
- *
- * @author huyle
- */
 @WebServlet(name = "EditProductServlet", urlPatterns = {"/admin/product/edit"})
+@MultipartConfig
 public class EditProductServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
@@ -29,45 +28,35 @@ public class EditProductServlet extends HttpServlet {
         request.getRequestDispatcher("/inc/edit-products.jsp").forward(request, response);
     }
     @Override
-protected void doPost(HttpServletRequest request, HttpServletResponse response)
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
         throws ServletException, IOException {
-    request.setCharacterEncoding("UTF-8");
-    try {
-        String idStr = request.getParameter("id");
-        String action = request.getParameter("action");
-        System.out.println("Received request: action=" + action + ", id=" + idStr);
+        request.setCharacterEncoding("UTF-8");
+        try {
+            String idStr = request.getParameter("id");
+            String action = request.getParameter("action");
 
-        if (idStr == null || idStr.isEmpty()) {
-            throw new Exception("Missing product ID");
-        }
-
-        int id = Integer.parseInt(idStr);
-
-        // Tham số "action" xác định form nào đã được gửi đi
-        if ("toggle_status".equals(action)) {
-            // Hành động này đến từ công tắc bật/tắt
-            String statusStr = request.getParameter("status");
-            System.out.println("Toggling status: status=" + statusStr);
-            // Quan trọng: Nếu checkbox không được check, statusStr sẽ là null
-            boolean newStatus = (statusStr != null && statusStr.equals("on"));
-            Database.getProductsDao().updateStatus(id, newStatus);
-        } else if ("update_stock".equals(action)) {
-            // Hành động này đến từ form nhập số lượng tồn kho nhỏ
-            String stockStr = request.getParameter("stock");
-            System.out.println("Updating stock: stock=" + stockStr);
-            if (stockStr != null && !stockStr.isEmpty()) {
-                int newStock = Integer.parseInt(stockStr);
-                Database.getProductsDao().setStock(id, newStock);
-                // Nếu số lượng tồn kho được cập nhật lớn hơn 0, đảm bảo trạng thái là BẬT
-                if (newStock > 0) {
-                    Database.getProductsDao().updateStatus(id, true);
-                }
+            if (idStr == null || idStr.isEmpty()) {
+                throw new Exception("Missing product ID");
             }
-        } else {
-            // Đây là hành động mặc định, dành cho trang chỉnh sửa đầy đủ (Edit Form)
-            System.out.println("Full edit action");
-            Products p = Database.getProductsDao().findProducts(id);
-            if (p == null) throw new Exception("Sản phẩm không tồn tại");
+
+            int id = Integer.parseInt(idStr);
+
+            if ("toggle_status".equals(action)) {
+                String statusStr = request.getParameter("status");
+                boolean newStatus = (statusStr != null && statusStr.equals("on"));
+                Database.getProductsDao().updateStatus(id, newStatus);
+            } else if ("update_stock".equals(action)) {
+                String stockStr = request.getParameter("stock");
+                if (stockStr != null && !stockStr.isEmpty()) {
+                    int newStock = Integer.parseInt(stockStr);
+                    Database.getProductsDao().setStock(id, newStock);
+                    if (newStock > 0) {
+                        Database.getProductsDao().updateStatus(id, true);
+                    }
+                }
+            } else {
+                Products p = Database.getProductsDao().findProducts(id);
+                if (p == null) throw new Exception("Sản phẩm không tồn tại");
 
             String name = request.getParameter("name");
             if (name != null) p.setName(name);
@@ -83,7 +72,13 @@ protected void doPost(HttpServletRequest request, HttpServletResponse response)
             }
 
             String image = request.getParameter("image");
-            if (image != null) p.setImage(image);
+            Part imagePart = request.getPart("imageFile");
+            String uploadedImage = saveImageFile(request, imagePart);
+            if (uploadedImage != null) {
+                p.setImage(uploadedImage);
+            } else if (image != null && !image.trim().isEmpty()) {
+                p.setImage(image.trim());
+            }
 
             String catIdStr = request.getParameter("categoryId");
             if (catIdStr != null) p.setId_category(Integer.parseInt(catIdStr));
@@ -94,23 +89,45 @@ protected void doPost(HttpServletRequest request, HttpServletResponse response)
             String stockStr = request.getParameter("stock");
             if (stockStr != null) p.setStock(Integer.parseInt(stockStr));
 
-            String statusStr = request.getParameter("status");
-            // Đối với form đầy đủ, checkbox 'status' không được gửi đi có nghĩa là 'off'
-            p.setStatus(statusStr != null && statusStr.equals("on"));
+                String statusStr = request.getParameter("status");
+                p.setStatus(statusStr != null && statusStr.equals("on"));
+                Database.getProductsDao().update(p);
+            }
 
-            // Lưu đối tượng sản phẩm đã cập nhật vào cơ sở dữ liệu
-            boolean success = Database.getProductsDao().update(p);
-            System.out.println("Full update success: " + success);
+            response.sendRedirect(request.getContextPath() + "/admin");
+        } catch (Exception e) {
+            getServletContext().log("Error in EditProductServlet", e);
+            response.sendRedirect(request.getContextPath() + "/admin?error=update_failed");
         }
-
-        // Chuyển hướng trở lại trang quản trị
-        response.sendRedirect(request.getContextPath() + "/admin");
-
-    } catch (Exception e) {
-        System.err.println("Error in EditProductServlet: " + e.getMessage());
-        e.printStackTrace();
-        // Chuyển hướng với một cờ lỗi để phản hồi cho người dùng
-        response.sendRedirect(request.getContextPath() + "/admin?error=update_failed");
     }
+
+private String saveImageFile(HttpServletRequest request, Part imagePart) throws IOException {
+    if (imagePart == null || imagePart.getSize() <= 0) {
+        return null;
+    }
+    String submitted = Paths.get(imagePart.getSubmittedFileName()).getFileName().toString();
+    if (submitted == null || submitted.trim().isEmpty()) {
+        return null;
+    }
+
+    String ext = "";
+    int dotIdx = submitted.lastIndexOf('.');
+    if (dotIdx > -1) {
+        ext = submitted.substring(dotIdx).toLowerCase();
+    }
+    if (!".jpg".equals(ext) && !".jpeg".equals(ext) && !".png".equals(ext) && !".webp".equals(ext) && !".gif".equals(ext)) {
+        throw new IOException("Định dạng ảnh không hợp lệ. Chỉ hỗ trợ jpg, jpeg, png, webp, gif.");
+    }
+
+    String fileName = UUID.randomUUID().toString().replace("-", "") + ext;
+    String uploadDir = request.getServletContext().getRealPath("/assets/images");
+    Path uploadPath = Paths.get(uploadDir);
+    Files.createDirectories(uploadPath);
+
+    Path target = uploadPath.resolve(fileName);
+    try (InputStream in = imagePart.getInputStream()) {
+        Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+    }
+    return fileName;
 }
 }

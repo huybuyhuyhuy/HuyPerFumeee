@@ -111,38 +111,45 @@
                                 <h2 class="reg-title">Tạo tài khoản</h2>
                                 <p class="reg-subtitle">Tham gia cộng đồng yêu nước hoa cùng Huy Perfume</p>
 
-                                <form action="register" method="post">
+                                <c:if test="${not empty requestScope.exist_user}">
+                                    <div class="alert alert-danger small mb-3" role="alert">${requestScope.exist_user}</div>
+                                </c:if>
+
+                                <c:set var="path" value="${pageContext.request.contextPath}" />
+                                <form action="${path}/register" method="post">
                                     <div class="form-group-lux">
                                         <i class="fas fa-user"></i>
-                                        <input type="text" name="name" class="form-control-lux w-100" placeholder="Họ và tên" required value="${name}">
+                                        <input type="text" name="name" class="form-control-lux w-100" placeholder="Họ và tên" required value="${sessionScope.name}">
+                                        <span class="err-text">${sessionScope.err_name}</span>
                                     </div>
 
                                     <div class="form-group-lux">
                                         <i class="fas fa-envelope"></i>
-                                        <input type="email" name="email" class="form-control-lux w-100" placeholder="Địa chỉ Email" required value="${email}">
-                                        <span class="err-text">${err_email}${err_exist_email}</span>
+                                        <input type="email" name="email" class="form-control-lux w-100" placeholder="Địa chỉ Email" required value="${sessionScope.email}">
+                                        <span class="err-text">${sessionScope.err_email}${sessionScope.err_exist_email}</span>
                                     </div>
 
                                     <div class="form-group-lux">
                                         <i class="fas fa-phone"></i>
-                                        <input type="text" name="phone" class="form-control-lux w-100" placeholder="Số điện thoại" required value="${phone}">
-                                        <span class="err-text">${err_phone}${err_exist_phone}</span>
+                                        <input type="text" name="phone" class="form-control-lux w-100" placeholder="Số điện thoại" required value="${sessionScope.phone}">
+                                        <span class="err-text">${sessionScope.err_phone}${sessionScope.err_exist_phone}</span>
                                     </div>
 
                                     <div class="form-group-lux">
                                         <i class="fas fa-map-marker-alt"></i>
-                                        <input type="text" name="address" class="form-control-lux w-100" placeholder="Địa chỉ giao hàng" required value="${address}">
+                                        <input type="text" name="address" class="form-control-lux w-100" placeholder="Địa chỉ giao hàng" required value="${sessionScope.address}">
                                     </div>
 
                                     <div class="form-group-lux">
                                         <i class="fas fa-lock"></i>
-                                        <input type="password" name="password" class="form-control-lux w-100" placeholder="Mật khẩu" required>
+                                        <input type="password" name="password" class="form-control-lux w-100" placeholder="Mật khẩu (tối thiểu 6 ký tự)" required minlength="6">
+                                        <span class="err-text">${sessionScope.err_pass}</span>
                                     </div>
 
                                     <div class="form-group-lux">
                                         <i class="fas fa-check-circle"></i>
                                         <input type="password" name="repassword" class="form-control-lux w-100" placeholder="Nhập lại mật khẩu" required>
-                                        <span class="err-text">${err_repass}</span>
+                                        <span class="err-text">${sessionScope.err_repass}</span>
                                     </div>
 
                                     <div class="form-check mb-4 small">
@@ -155,7 +162,7 @@
                                     <button type="submit" class="btn-reg-lux">Đăng ký ngay</button>
 
                                     <div class="login-link">
-                                        Đã có tài khoản? <a href="${pageContext.request.contextPath}/login">Đăng nhập tại đây</a>
+                                        Đã có tài khoản? <a href="${path}/login">Đăng nhập tại đây</a>
                                     </div>
                                 </form>
                             </div>

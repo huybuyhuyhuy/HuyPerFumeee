@@ -31,7 +31,7 @@ public class UpdateOrderStatusServlet extends HttpServlet {
                 ps.setInt(2, orderId);
                 ps.executeUpdate();
             } catch (SQLException e) {
-                e.printStackTrace();
+                getServletContext().log("Failed to update order status", e);
             }
         }
         
