@@ -1,0 +1,11 @@
+:root {
+  color-scheme: light;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.app-main {
+  min-height: 70vh;
+}

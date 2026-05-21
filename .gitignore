@@ -1,0 +1,19 @@
+# Build outputs
+**/build/
+**/dist/
+**/target/
+**/WEB-INF/classes/
+*.class
+
+# Dependency folders
+**/node_modules/
+
+# Local environment files
+**/.env
+!.env.example
+!**/.env.example
+
+# OS / editor noise
+*.log
+.DS_Store
+Thumbs.db

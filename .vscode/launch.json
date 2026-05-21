@@ -1,0 +1,38 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "name": "Debug Express API",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/server",
+      "runtimeExecutable": "npm.cmd",
+      "runtimeArgs": ["run", "dev"],
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "type": "pwa-chrome",
+      "name": "Debug React User Frontend",
+      "request": "launch",
+      "url": "http://localhost:5177",
+      "webRoot": "${workspaceFolder}/frontend/src",
+      "preLaunchTask": "Start React User Frontend"
+    },
+    {
+      "type": "pwa-chrome",
+      "name": "Debug React Admin Frontend",
+      "request": "launch",
+      "url": "http://localhost:5178",
+      "webRoot": "${workspaceFolder}/frontend/src",
+      "preLaunchTask": "Start React Admin Frontend"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Start Full App (F5)",
+      "configurations": ["Debug Express API", "Debug React User Frontend", "Debug React Admin Frontend"],
+      "stopAll": true
+    }
+  ]
+}
