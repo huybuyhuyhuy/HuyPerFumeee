@@ -5,6 +5,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const target = env.VITE_API_PROXY_TARGET || 'http://localhost:4000';
   const isAdminApp = mode === 'admin';
+  const isProduction = mode === 'production';
 
   return {
     plugins: [react()],
@@ -13,11 +14,26 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: isAdminApp ? 5178 : 5177,
-      strictPort: false,
+      strictPort: true,
       proxy: {
         '/api': {
           target,
           changeOrigin: true,
+        },
+      },
+    },
+    build: {
+      outDir: 'dist',
+      sourcemap: !isProduction,
+      chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            react: ['react', 'react-dom'],
+            router: ['react-router-dom'],
+            bootstrap: ['bootstrap'],
+            axios: ['axios'],
+          },
         },
       },
     },

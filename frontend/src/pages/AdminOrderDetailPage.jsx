@@ -37,7 +37,7 @@ export function AdminOrderDetailPage() {
     <div className="container py-4">
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h3 className="mb-0">Admin - Chi tiết đơn #{id}</h3>
-        <Link to="/orders" className="btn btn-outline-dark btn-sm">Quay lại</Link>
+        <Link to="/admin/orders" className="btn btn-outline-dark btn-sm">Quay lại</Link>
       </div>
       {error && <div className="alert alert-danger">{error}</div>}
       <div className="table-responsive">

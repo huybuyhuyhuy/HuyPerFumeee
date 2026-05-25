@@ -7,28 +7,33 @@ interface AuthContextValue {
   isLoggedIn: boolean;
   isAdmin: boolean;
   setUser: (user: User | null) => void;
-  login: (emailPhone: string, password: string) => Promise<AuthPayload>;
+  login: (emailPhone: string, password: string, captcha?: CaptchaProof) => Promise<AuthPayload>;
   register: (form: Record<string, string>) => Promise<AuthPayload>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 const TOKEN_KEY = 'token';
+const REFRESH_TOKEN_KEY = 'refreshToken';
 const USER_KEY = 'user';
 const AUTH_TRANSFER_KEY = 'huyperfume-auth-transfer';
 
-type AuthPayload = { token: string; user: User };
+type AuthPayload = { token: string; accessToken?: string; refreshToken?: string; user: User };
+type CaptchaProof = { captchaToken: string; captchaAnswer: string };
 
 function clearPersistedAuth() {
   sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(REFRESH_TOKEN_KEY);
   sessionStorage.removeItem(USER_KEY);
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
 }
 
 function readStoredUser(): User | null {
   try {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     const transferredUser = readTransferredUser();
     if (transferredUser) return transferredUser;
@@ -50,14 +55,15 @@ function readTransferredUser(): User | null {
 
     if (
       payload?.type !== AUTH_TRANSFER_KEY ||
-      !payload?.token ||
+      !(payload?.token || payload?.accessToken) ||
       !payload?.user ||
       Number(payload?.expiresAt || 0) < Date.now()
     ) {
       return null;
     }
 
-    sessionStorage.setItem(TOKEN_KEY, payload.token);
+    sessionStorage.setItem(TOKEN_KEY, payload.token || payload.accessToken);
+    if (payload.refreshToken) sessionStorage.setItem(REFRESH_TOKEN_KEY, payload.refreshToken);
     sessionStorage.setItem(USER_KEY, JSON.stringify(payload.user));
     return payload.user;
   } catch {
@@ -68,10 +74,11 @@ function readTransferredUser(): User | null {
 
 function getAuthPayload(responseData: any): AuthPayload {
   const payload = responseData?.data ?? responseData;
-  if (!payload?.token || !payload?.user) {
+  const token = payload?.token || payload?.accessToken;
+  if (!token || !payload?.user) {
     throw new Error('Phản hồi đăng nhập không hợp lệ.');
   }
-  return payload;
+  return { ...payload, token };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -87,29 +94,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const login = async (emailPhone: string, password: string) => {
-    const { data } = await api.post('/auth/login', { emailPhone, password });
-    const { token, user } = getAuthPayload(data);
+  const login = async (emailPhone: string, password: string, captcha?: CaptchaProof) => {
+    const { data } = await api.post('/auth/login', { emailPhone, password, ...captcha });
+    const { token, refreshToken, user } = getAuthPayload(data);
     sessionStorage.setItem(TOKEN_KEY, token);
+    if (refreshToken) sessionStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     setUserState(user);
     sessionStorage.setItem(USER_KEY, JSON.stringify(user));
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     return { token, user };
   };
 
   const register = async (form: Record<string, string>) => {
     const { data } = await api.post('/auth/register', form);
-    const { token, user } = getAuthPayload(data);
+    const { token, refreshToken, user } = getAuthPayload(data);
     sessionStorage.setItem(TOKEN_KEY, token);
+    if (refreshToken) sessionStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
     setUserState(user);
     sessionStorage.setItem(USER_KEY, JSON.stringify(user));
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     return { token, user };
   };
 
-  const logout = () => setUser(null);
+  const logout = () => {
+    const refreshToken = sessionStorage.getItem(REFRESH_TOKEN_KEY);
+    if (refreshToken) {
+      api.post('/auth/logout', { refreshToken }).catch(() => {});
+    }
+    setUser(null);
+  };
 
   const value = useMemo(
     () => ({

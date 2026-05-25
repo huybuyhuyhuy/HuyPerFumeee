@@ -1,5 +1,6 @@
 import { query } from '../config/database.js';
 import { getProductById } from './productModel.js';
+import { deleteCacheByPattern } from '../modules/products/product.cache.js';
 
 function toWishlistItem(row, product = null) {
   return {
@@ -51,6 +52,7 @@ export async function addWishlistItem(userId, productId) {
   const row = inserted[0];
   const product = await getProductById(productId);
   const items = await listWishlist(userId);
+  await deleteCacheByPattern('huyperfume:product:recommendations:personalized:*');
 
   return {
     alreadyExists: false,
@@ -60,10 +62,20 @@ export async function addWishlistItem(userId, productId) {
 }
 
 export async function removeWishlistItem(userId, productId) {
-  const deleted = await query(
-    'DELETE FROM wishlist WHERE user_id = ? AND product_id = ?',
+  const existing = await query(
+    'SELECT TOP 1 id FROM wishlist WHERE user_id = ? AND product_id = ?',
     [userId, productId]
   );
 
-  return { deletedCount: deleted?.rowsAffected?.[0] || 0 };
+  if (!existing.length) {
+    return { deletedCount: 0 };
+  }
+
+  await query(
+    'DELETE FROM wishlist WHERE user_id = ? AND product_id = ?',
+    [userId, productId]
+  );
+  await deleteCacheByPattern('huyperfume:product:recommendations:personalized:*');
+
+  return { deletedCount: 1 };
 }

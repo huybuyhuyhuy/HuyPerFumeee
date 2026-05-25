@@ -1,3 +1,26 @@
+export interface ProductVariant {
+  id: number | string;
+  variantId?: number | string;
+  productId?: number;
+  sku: string;
+  barcode?: string;
+  label?: string;
+  name?: string;
+  volume?: string;
+  volumeMl?: number | null;
+  type?: string;
+  price: number;
+  salePrice?: number | null;
+  discountPrice?: number | null;
+  originalPrice: number;
+  discountPercent?: number;
+  stockQuantity: number;
+  stock: number;
+  image: string;
+  status: boolean;
+  isAvailable: boolean;
+}
+
 export interface User {
   id: number;
   name: string;
@@ -6,25 +29,62 @@ export interface User {
   role: string;
   address: string;
   dob: string | null;
+  status?: string;
+  emailVerifiedAt?: string | null;
+  lastLoginAt?: string | null;
+  createdAt?: string | null;
 }
 
 export interface Product {
   id: number;
+  variantId?: number | string | null;
   sku: string;
   batchCode: string;
   name: string;
   price: number;
+  salePrice?: number | null;
+  effectivePrice?: number | null;
   discountPrice: number;
+  originalPrice: number;
+  discountPercent: number;
   image: string;
   images?: string[];
   description: string;
   scentNotes: string;
+  scentGroup?: string;
+  gender?: string;
+  concentration?: string;
   isDecant: boolean;
   status: boolean;
+  stockQuantity?: number;
   stock: number;
+  hasVariants?: boolean;
   volumeMl: number;
+  rating: number;
+  reviewCount: number;
+  soldCount: number;
+  badgeLabel: string;
+  isFavorite?: boolean;
+  isInStock?: boolean;
+  isPurchasable?: boolean;
+  thumbnailImage?: string | null;
+  selectedVariant?: ProductVariant | null;
+  variants?: ProductVariant[];
   category: { id: number; name: string } | null;
   brand: { id: number; name: string } | null;
+}
+
+export interface ProductReview {
+  id: number;
+  productId: number;
+  userId: number;
+  rating: number;
+  title: string;
+  comment: string;
+  status: string;
+  user?: { id: number; name: string } | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface CartItem {
@@ -41,6 +101,7 @@ export interface CartSummary {
 export interface OrderItemInfo {
   id: number;
   productId: number;
+  variantId?: number | null;
   productName: string;
   productImage: string;
   quantity: number;
@@ -92,11 +153,19 @@ export interface RegisterRequest {
 
 export interface JwtResponse {
   token: string;
-  type: string;
-  id: number;
-  name: string;
-  email: string;
-  role: string;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenType?: string;
+  expiresIn?: number;
+  refreshExpiresAt?: string;
+  permissions?: string[];
+  user: User;
+  emailVerification?: {
+    required: boolean;
+    delivery?: string;
+    token?: string;
+    expiresAt: string;
+  };
 }
 
 export interface Category {

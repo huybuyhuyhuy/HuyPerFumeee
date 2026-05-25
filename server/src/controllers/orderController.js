@@ -33,6 +33,7 @@ export async function checkout(req, res) {
     shippingAddress: data.shippingAddress,
     phone: data.phone,
     paymentMethod: data.paymentMethod,
+    idempotencyKey: req.headers['idempotency-key'] || req.body?.idempotencyKey,
   });
 
   if (result.code) {

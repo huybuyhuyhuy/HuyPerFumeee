@@ -14,7 +14,7 @@ const DEFAULT_META: RouteMetaConfig = {
 };
 
 function getRouteMeta(pathname: string): RouteMetaConfig {
-  if (pathname === '/') {
+  if (pathname === '/' || pathname === '/home') {
     return {
       title: 'Huy Perfume - Nước Hoa Chính Hãng',
       description: 'Khám phá bộ sưu tập nước hoa chính hãng cho nam, nữ và unisex tại Huy Perfume.',

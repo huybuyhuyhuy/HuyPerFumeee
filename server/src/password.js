@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { env } from './config/env.js';
 
 export function md5Hex(input) {
   return crypto.createHash('md5').update(input, 'utf8').digest('hex');
@@ -17,5 +18,5 @@ export async function verifyPassword(raw, stored) {
 }
 
 export function hashPasswordBcrypt(raw) {
-  return bcrypt.hash(raw, 10);
+  return bcrypt.hash(raw, Math.max(10, Math.min(14, Number(env.bcryptRounds || 12))));
 }

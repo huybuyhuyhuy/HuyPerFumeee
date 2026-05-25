@@ -1,8 +1,14 @@
-import type { CartSummary, OrderResponse, Product } from '../types';
+import type { CartSummary, OrderResponse, Product, ProductVariant } from '../types';
 
 function asNumber(value: unknown, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function asNullableNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function asString(value: unknown, fallback = '') {
@@ -35,7 +41,37 @@ function normalizeRef(raw: any, idKey: string, nameKey: string) {
   };
 }
 
+function normalizeProductVariant(raw: any): ProductVariant {
+  const salePrice = asNullableNumber(raw?.salePrice ?? raw?.discountPrice ?? raw?.discount_price);
+  const originalPrice = asNumber(raw?.originalPrice ?? raw?.original_price ?? raw?.price);
+  const stockQuantity = asNumber(raw?.stockQuantity ?? raw?.stock_quantity ?? raw?.stock);
+
+  return {
+    id: raw?.id ?? raw?.variantId,
+    variantId: raw?.variantId ?? raw?.id,
+    productId: asNumber(raw?.productId ?? raw?.product_id),
+    sku: asString(raw?.sku),
+    barcode: asString(raw?.barcode),
+    label: asString(raw?.label ?? raw?.name),
+    name: asString(raw?.name ?? raw?.label),
+    volume: asString(raw?.volume ?? raw?.volumeLabel ?? raw?.volume_label),
+    volumeMl: asNullableNumber(raw?.volumeMl ?? raw?.volume_ml),
+    type: asString(raw?.type ?? raw?.variantType ?? raw?.variant_type),
+    price: asNumber(raw?.price ?? originalPrice),
+    salePrice,
+    discountPrice: salePrice,
+    originalPrice,
+    discountPercent: asNumber(raw?.discountPercent ?? raw?.discount_percent),
+    stockQuantity,
+    stock: stockQuantity,
+    image: asString(raw?.image ?? raw?.productImage ?? raw?.product_image),
+    status: asBoolean(raw?.status, true),
+    isAvailable: asBoolean(raw?.isAvailable ?? raw?.is_available, stockQuantity > 0),
+  };
+}
+
 export function normalizeProduct(raw: any): Product {
+  raw = raw?.product && typeof raw.product === 'object' ? raw.product : raw;
   const category = raw?.category
     ? { id: asNumber(raw.category.id), name: asString(raw.category.name) }
     : normalizeRef(raw, 'id_category', 'categoryName');
@@ -43,22 +79,44 @@ export function normalizeProduct(raw: any): Product {
   const brand = raw?.brand
     ? { id: asNumber(raw.brand.id), name: asString(raw.brand.name) }
     : normalizeRef(raw, 'id_brand', 'brandName');
+  const salePrice = asNullableNumber(raw?.salePrice ?? raw?.discountPrice ?? raw?.discount_price);
+  const stockQuantity = asNumber(raw?.stockQuantity ?? raw?.stock_quantity ?? raw?.stock ?? raw?.quantity);
 
   return {
     id: asNumber(raw?.id ?? raw?.productId),
+    variantId: raw?.variantId ?? raw?.productVariantId ?? raw?.product_variant_id ?? null,
     sku: asString(raw?.sku),
     batchCode: asString(raw?.batchCode ?? raw?.batch_code),
     name: asString(raw?.name ?? raw?.productName),
     price: asNumber(raw?.price),
-    discountPrice: asNumber(raw?.discountPrice ?? raw?.discount_price),
+    salePrice,
+    effectivePrice: asNullableNumber(raw?.effectivePrice ?? raw?.effective_price),
+    discountPrice: asNumber(salePrice),
+    originalPrice: asNumber(raw?.originalPrice ?? raw?.original_price ?? raw?.price),
+    discountPercent: asNumber(raw?.discountPercent ?? raw?.discount_percent),
     image: asString(raw?.image ?? raw?.productImage),
-    images: Array.isArray(raw?.images) ? raw.images.map((image: unknown) => asString(image)).filter(Boolean) : [],
+    images: Array.isArray(raw?.images) ? Array.from(new Set(raw.images.map((image: unknown) => asString(image)).filter(Boolean))) : [],
     description: asString(raw?.description),
     scentNotes: asString(raw?.scentNotes ?? raw?.scent_notes),
+    scentGroup: asString(raw?.scentGroup ?? raw?.scent_group ?? raw?.scentFamily ?? raw?.scent_family),
+    gender: asString(raw?.gender ?? raw?.targetGender ?? raw?.target_gender),
+    concentration: asString(raw?.concentration ?? raw?.perfumeConcentration ?? raw?.perfume_concentration),
     isDecant: asBoolean(raw?.isDecant ?? raw?.is_decant),
     status: asBoolean(raw?.status, true),
-    stock: asNumber(raw?.stock ?? raw?.quantity),
+    stockQuantity,
+    stock: stockQuantity,
+    hasVariants: asBoolean(raw?.hasVariants ?? raw?.has_variants),
     volumeMl: asNumber(raw?.volumeMl ?? raw?.volume_ml),
+    rating: asNumber(raw?.rating),
+    reviewCount: asNumber(raw?.reviewCount ?? raw?.review_count),
+    soldCount: asNumber(raw?.soldCount ?? raw?.sold_count),
+    badgeLabel: asString(raw?.badgeLabel ?? raw?.badge_label),
+    isFavorite: asBoolean(raw?.isFavorite ?? raw?.is_favorite),
+    isInStock: asBoolean(raw?.isInStock ?? raw?.is_in_stock, stockQuantity > 0),
+    isPurchasable: asBoolean(raw?.isPurchasable ?? raw?.is_purchasable, stockQuantity > 0),
+    thumbnailImage: raw?.thumbnailImage ?? raw?.thumbnail_image ?? null,
+    selectedVariant: raw?.selectedVariant ? normalizeProductVariant(raw.selectedVariant) : null,
+    variants: Array.isArray(raw?.variants) ? raw.variants.map(normalizeProductVariant) : [],
     category,
     brand,
   };
@@ -110,6 +168,7 @@ export function normalizeOrder(raw: any): OrderResponse {
     ? raw.items.map((item: any) => ({
       id: asNumber(item.id ?? item.itemId ?? item.item_id),
       productId: asNumber(item.productId ?? item.product_id),
+      variantId: asNullableNumber(item.variantId ?? item.product_variant_id),
       productName: asString(item.productName ?? item.name ?? item.product_name),
       productImage: asString(item.productImage ?? item.image ?? item.product_image),
       quantity: asNumber(item.quantity),

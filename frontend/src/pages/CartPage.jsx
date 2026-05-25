@@ -54,7 +54,7 @@ export function CartPage() {
       <div className="row g-4">
         <div className="col-lg-8">
           {cart.items.map((item) => (
-            <div key={item.product.id} className="card luxury-card mb-3">
+            <div key={`${item.product.id}-${item.product.variantId || 'default'}`} className="card luxury-card mb-3">
               <div className="row g-0 align-items-center p-3">
                 <div className="col-4 col-md-2">
                   <img
@@ -70,19 +70,24 @@ export function CartPage() {
                   <h6 className="mb-1">
                     <Link to={`/products/${item.product.id}`} className="text-decoration-none text-dark">{item.product.name}</Link>
                   </h6>
+                  {item.product.selectedVariant && (
+                    <p className="luxury-muted small mb-1">
+                      {item.product.selectedVariant.volume || item.product.selectedVariant.label || item.product.selectedVariant.sku}
+                    </p>
+                  )}
                   <p className="luxury-price mb-0">
                     {(item.product.discountPrice > 0 ? item.product.discountPrice : item.product.price).toLocaleString('vi-VN')}₫
                   </p>
                 </div>
                 <div className="col-6 col-md-2 mt-3 mt-md-0">
                   <div className="input-group input-group-sm">
-                    <button className="btn btn-outline-secondary" onClick={() => updateQuantity(item.product.id, item.quantity - 1)}>-</button>
+                    <button className="btn btn-outline-secondary" onClick={() => updateQuantity(item.product.id, item.quantity - 1, item.product.variantId)}>-</button>
                     <span className="input-group-text bg-white">{item.quantity}</span>
-                    <button className="btn btn-outline-secondary" onClick={() => updateQuantity(item.product.id, item.quantity + 1)}>+</button>
+                    <button className="btn btn-outline-secondary" onClick={() => updateQuantity(item.product.id, item.quantity + 1, item.product.variantId)}>+</button>
                   </div>
                 </div>
                 <div className="col-6 col-md-2 text-end mt-3 mt-md-0">
-                  <button className="btn btn-outline-danger btn-sm" onClick={() => removeItem(item.product.id)}>
+                  <button className="btn btn-outline-danger btn-sm" onClick={() => removeItem(item.product.id, item.product.variantId)}>
                     Xóa
                   </button>
                 </div>

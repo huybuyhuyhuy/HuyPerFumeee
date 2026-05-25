@@ -28,11 +28,12 @@ export async function addCart(req, res) {
 
   const productId = Number(req.body?.productId);
   const quantity = req.body?.quantity ?? 1;
+  const variantId = req.body?.variantId ?? req.body?.productVariantId ?? null;
   if (!productId) {
     return errorResponse(res, 400, 'productId không hợp lệ');
   }
 
-  const result = await addToCart(scope, productId, quantity);
+  const result = await addToCart(scope, productId, quantity, variantId);
   if (result.code) {
     return errorResponse(res, result.code, result.message);
   }
@@ -47,11 +48,12 @@ export async function updateCart(req, res) {
 
   const productId = Number(req.body?.productId);
   const quantity = req.body?.quantity;
+  const variantId = req.body?.variantId ?? req.body?.productVariantId ?? null;
   if (!productId) {
     return errorResponse(res, 400, 'productId không hợp lệ');
   }
 
-  const result = await updateCartItem(scope, productId, quantity);
+  const result = await updateCartItem(scope, productId, quantity, variantId);
   if (result.code) {
     return errorResponse(res, result.code, result.message);
   }
@@ -69,7 +71,8 @@ export async function removeCart(req, res) {
     return errorResponse(res, 400, 'productId không hợp lệ');
   }
 
-  const result = await removeCartItem(scope, productId);
+  const variantId = req.query?.variantId ?? req.body?.variantId ?? null;
+  const result = await removeCartItem(scope, productId, variantId);
   return successResponse(res, 'Xóa sản phẩm khỏi giỏ hàng thành công', result);
 }
 

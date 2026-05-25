@@ -140,6 +140,58 @@ public class ProductsImpl implements ProductsDao {
         return listProducts;
     }
 
+    @Override
+    public List<String> getPerfumeNamesByScentOrKeyword(String scent, String keyword, int limit) {
+        List<String> perfumeNames = new ArrayList<>();
+        if (limit <= 0) {
+            return perfumeNames;
+        }
+
+        String safeScent = scent == null ? "" : scent.trim();
+        String safeKeyword = keyword == null ? "" : keyword.trim();
+        if (safeScent.isEmpty() && safeKeyword.isEmpty()) {
+            return perfumeNames;
+        }
+
+        StringBuilder sql = new StringBuilder("SELECT name FROM products WHERE status = 1 AND (");
+        List<String> params = new ArrayList<>();
+        if (!safeScent.isEmpty()) {
+            sql.append("scent_notes LIKE ?");
+            params.add("%" + safeScent + "%");
+        }
+        if (!safeKeyword.isEmpty()) {
+            if (!params.isEmpty()) {
+                sql.append(" OR ");
+            }
+            sql.append("description LIKE ?");
+            params.add("%" + safeKeyword + "%");
+        }
+        sql.append(") ORDER BY id DESC");
+
+        try (Connection con = MySQLDriver.getConnection()) {
+            if (con == null) return perfumeNames;
+            try (PreparedStatement sttm = con.prepareStatement(sql.toString())) {
+                sttm.setMaxRows(limit);
+                for (int i = 0; i < params.size(); i++) {
+                    sttm.setString(i + 1, params.get(i));
+                }
+                try (ResultSet rs = sttm.executeQuery()) {
+                    while (rs.next()) {
+                        perfumeNames.add(rs.getString("name"));
+                    }
+                }
+            }
+        } catch (SQLException ex) {
+            Logger.getLogger(ProductsImpl.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return perfumeNames;
+    }
+
+    @Override
+    public List<String> getLightScentPerfumes() {
+        return getPerfumeNamesByScentOrKeyword("Floral", "nh\u1EB9 nh\u00E0ng", 3);
+    }
+
     //lọc trang
     @Override
     public List<Products> findProductsByPage(int offset, int limit) {

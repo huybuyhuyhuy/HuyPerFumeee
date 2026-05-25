@@ -1,0 +1,88 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: huyperfume-api
+    ports:
+      - "${API_PORT:-4000}:4000"
+    env_file:
+      - ./server/.env
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=sqlserver
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./server/src:/app/src
+      - ./server/server.js:/app/server.js
+      - ./server/app.js:/app/app.js
+      - ./server/migrations:/app/migrations
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - huyperfume-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: huyperfume-frontend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - huyperfume-net
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: huyperfume-db
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${DB_PASSWORD:-HuyPerfume@2024!}
+      - MSSQL_PID=Express
+    ports:
+      - "${DB_PORT:-1433}:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$${MSSQL_SA_PASSWORD}" -C -Q "SELECT 1" || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - huyperfume-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: huyperfume-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --save 900 1 --save 300 10 --save 60 10000
+    healthcheck:
+      test: redis-cli ping
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - huyperfume-net
+
+volumes:
+  sqlserver-data:
+  redis-data:
+
+networks:
+  huyperfume-net:
+    driver: bridge

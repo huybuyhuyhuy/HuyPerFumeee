@@ -1,0 +1,31 @@
+export const PRODUCT_DETAIL_RESPONSE_FIELDS = [
+  'id',
+  'name',
+  'slug',
+  'price',
+  'salePrice',
+  'originalPrice',
+  'discountPercent',
+  'images',
+  'description',
+  'brand',
+  'category',
+  'gender',
+  'stockQuantity',
+  'ratingAverage',
+  'reviewCount',
+  'isFavorite',
+  'variants',
+];
+
+export const PRODUCT_VARIANT_RESPONSE_FIELDS = [
+  'id',
+  'sku',
+  'barcode',
+  'volume',
+  'type',
+  'price',
+  'salePrice',
+  'stockQuantity',
+  'image',
+];

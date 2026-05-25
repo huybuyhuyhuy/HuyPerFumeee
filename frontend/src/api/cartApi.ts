@@ -7,18 +7,22 @@ export async function getCart() {
   return normalizeCartSummary(unwrapApiData(data));
 }
 
-export async function addCartItem(productId: number, quantity = 1) {
-  const { data } = await apiClient.post('/cart/add', { productId, quantity });
+export async function addCartItem(productId: number, quantity = 1, variantId?: number | string | null) {
+  const body = variantId ? { productId, quantity, variantId } : { productId, quantity };
+  const { data } = await apiClient.post('/cart/add', body);
   return normalizeCartSummary(unwrapApiData(data));
 }
 
-export async function updateCartItem(productId: number, quantity: number) {
-  const { data } = await apiClient.put('/cart/update', { productId, quantity });
+export async function updateCartItem(productId: number, quantity: number, variantId?: number | string | null) {
+  const body = variantId ? { productId, quantity, variantId } : { productId, quantity };
+  const { data } = await apiClient.put('/cart/update', body);
   return normalizeCartSummary(unwrapApiData(data));
 }
 
-export async function removeCartItem(productId: number) {
-  const { data } = await apiClient.delete(`/cart/remove/${productId}`);
+export async function removeCartItem(productId: number, variantId?: number | string | null) {
+  const { data } = await apiClient.delete(`/cart/remove/${productId}`, {
+    params: variantId ? { variantId } : undefined,
+  });
   return normalizeCartSummary(unwrapApiData(data));
 }
 

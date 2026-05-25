@@ -1,0 +1,74 @@
+name: Run Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  migrate:
+    name: Run Database Migrations
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Run migrations
+        working-directory: server
+        env:
+          DB_HOST: ${{ vars.DB_HOST }}
+          DB_PORT: ${{ vars.DB_PORT }}
+          DB_NAME: ${{ vars.DB_NAME }}
+          DB_USER: ${{ vars.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const { query } = require('./src/config/database.js');
+
+            (async () => {
+              await query(\`
+                IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = '_migrations')
+                  CREATE TABLE _migrations (
+                    id INT IDENTITY PRIMARY KEY,
+                    filename NVARCHAR(500) NOT NULL UNIQUE,
+                    executed_at DATETIME2 DEFAULT GETDATE()
+                  )
+              \`);
+
+              const dir = path.join(process.cwd(), 'migrations');
+              const files = fs.readdirSync(dir).filter(f => f.endsWith('.sql')).sort();
+
+              for (const file of files) {
+                const applied = await query('SELECT TOP 1 id FROM _migrations WHERE filename = ?', [file]);
+                if (applied.length) {
+                  console.log('[skip]', file);
+                  continue;
+                }
+                const sql = fs.readFileSync(path.join(dir, file), 'utf8');
+                console.log('[run]', file);
+                await query(sql);
+                await query('INSERT INTO _migrations (filename) VALUES (?)', [file]);
+                console.log('[ok]', file);
+              }
+              console.log('Migrations complete.');
+              process.exit(0);
+            })().catch(err => { console.error(err); process.exit(1); });
+          "

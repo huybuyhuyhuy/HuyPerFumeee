@@ -1,60 +1,139 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
-import type { Product } from '../../types';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveProductImage } from '../../utils/image';
 
-function getGalleryImages(product: Product) {
-  const apiImages = Array.isArray(product.images) ? product.images : [];
-  const rawImages = [product.image, ...apiImages].filter(Boolean);
-  const uniqueImages = [...new Set(rawImages.map((image) => resolveProductImage(image)))];
-  return uniqueImages.length ? uniqueImages : ['/assets/images/1.png'];
+type ProductGalleryProps = {
+  product: {
+    name?: string;
+    image?: string;
+    images?: string[];
+  };
+};
+
+function getTouchPoint(event: React.TouchEvent) {
+  return event.touches[0]?.clientX ?? 0;
 }
 
-export function ProductGallery({ product }: { product: Product }) {
-  const images = useMemo(() => getGalleryImages(product), [product]);
-  const [activeImage, setActiveImage] = useState(images[0]);
-  const [zoomOrigin, setZoomOrigin] = useState('50% 50%');
+export function ProductGallery({ product }: ProductGalleryProps) {
+  const gallery = useMemo(() => {
+    const items = [product.image, ...(product.images || [])]
+      .map((image) => resolveProductImage(image))
+      .filter((image, index, arr) => Boolean(image) && arr.indexOf(image) === index);
+
+    return items.length > 0 ? items : [resolveProductImage(null)];
+  }, [product.image, product.images]);
+
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [zooming, setZooming] = useState(false);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const activeImage = gallery[activeIndex] || gallery[0];
 
   useEffect(() => {
-    setActiveImage(images[0]);
-  }, [images]);
+    setActiveIndex(0);
+    setIsLoaded(false);
+    setOffset({ x: 0, y: 0 });
+  }, [gallery.join('|')]);
 
-  const handleMouseMove = (event: MouseEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * 100;
-    const y = ((event.clientY - rect.top) / rect.height) * 100;
-    setZoomOrigin(`${x}% ${y}%`);
+  const goTo = (index: number) => {
+    const next = (index + gallery.length) % gallery.length;
+    setActiveIndex(next);
+    setIsLoaded(false);
+    setOffset({ x: 0, y: 0 });
+  };
+
+  const handleMove = (clientX: number, clientY: number) => {
+    if (!zooming || !frameRef.current) return;
+    const rect = frameRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+    setOffset({ x: (x - 0.5) * 8, y: (y - 0.5) * 8 });
   };
 
   return (
-    <div className="luxury-surface p-3 p-lg-4">
+    <section className="luxury-surface product-gallery-shell product-gallery-premium">
       <div
-        className="product-gallery-stage"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setZoomOrigin('50% 50%')}
+        ref={frameRef}
+        className={`product-gallery-main ${isLoaded ? 'is-loaded' : 'is-loading'} ${isFullscreen ? 'is-fullscreen' : ''}`}
+        onMouseEnter={() => setZooming(true)}
+        onMouseLeave={() => {
+          setZooming(false);
+          setOffset({ x: 0, y: 0 });
+        }}
+        onMouseMove={(event) => handleMove(event.clientX, event.clientY)}
+        onTouchStart={(event) => setTouchStartX(getTouchPoint(event))}
+        onTouchMove={(event) => {
+          const currentX = getTouchPoint(event);
+          if (touchStartX === null) return;
+          const diff = currentX - touchStartX;
+          if (Math.abs(diff) > 48) {
+            goTo(activeIndex + (diff < 0 ? 1 : -1));
+            setTouchStartX(currentX);
+          }
+        }}
+        onTouchEnd={() => setTouchStartX(null)}
+        onClick={() => setIsFullscreen((value) => !value)}
       >
+        <div className="product-gallery-shimmer" aria-hidden="true" />
         <img
           src={activeImage}
-          alt={product.name}
+          alt={product.name || 'Hình ảnh sản phẩm'}
           className="product-gallery-image"
           loading="eager"
-          decoding="async"
           fetchPriority="high"
-          style={{ transformOrigin: zoomOrigin }}
+          decoding="async"
+          onLoad={() => setIsLoaded(true)}
+          style={{ transform: `scale(${zooming ? 1.08 : 1}) translate(${offset.x}px, ${offset.y}px)` }}
         />
+
+        <div className="product-gallery-hero-copy">
+          <span>Immersive preview</span>
+          <strong>{product.name || 'Luxury fragrance'}</strong>
+        </div>
+
+        <button type="button" className="product-gallery-fullscreen-btn" onClick={(event) => { event.stopPropagation(); setIsFullscreen(true); }}>
+          Xem fullscreen
+        </button>
       </div>
-      <div className="product-gallery-thumbs mt-3">
-        {images.map((image) => (
-          <button
-            type="button"
-            key={image}
-            className={`product-gallery-thumb ${image === activeImage ? 'active' : ''}`}
-            onClick={() => setActiveImage(image)}
-            aria-label={`Xem ảnh ${product.name}`}
-          >
-            <img src={image} alt="" loading="lazy" decoding="async" />
+
+      <div className="product-gallery-controls">
+        <button type="button" className="product-gallery-nav" onClick={() => goTo(activeIndex - 1)} aria-label="Ảnh trước">
+          ←
+        </button>
+        <div className="product-gallery-counter">
+          {String(activeIndex + 1).padStart(2, '0')} / {String(gallery.length).padStart(2, '0')}
+        </div>
+        <button type="button" className="product-gallery-nav" onClick={() => goTo(activeIndex + 1)} aria-label="Ảnh tiếp theo">
+          →
+        </button>
+      </div>
+
+      {gallery.length > 1 && (
+        <div className="product-gallery-thumbs" role="list" aria-label="Thư viện hình ảnh sản phẩm">
+          {gallery.map((image, index) => (
+            <button
+              key={image}
+              type="button"
+              className={`product-gallery-thumb ${index === activeIndex ? 'active' : ''}`}
+              onClick={() => goTo(index)}
+              aria-label={`Xem ảnh ${index + 1}`}
+            >
+              <img src={image} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isFullscreen && (
+        <div className="product-gallery-modal" role="dialog" aria-modal="true" onClick={() => setIsFullscreen(false)}>
+          <button type="button" className="product-gallery-modal-close" onClick={() => setIsFullscreen(false)}>
+            Đóng
           </button>
-        ))}
-      </div>
-    </div>
+          <img src={activeImage} alt={product.name || 'Hình ảnh sản phẩm'} className="product-gallery-modal-image" />
+        </div>
+      )}
+    </section>
   );
 }

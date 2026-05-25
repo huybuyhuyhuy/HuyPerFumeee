@@ -1,12 +1,13 @@
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 const links = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/products', label: 'Sản phẩm' },
-  { to: '/orders', label: 'Đơn hàng' },
-  { to: '/users', label: 'Người dùng' },
+  { to: '/admin', label: 'Dashboard', description: 'Tổng quan hệ thống' },
+  { to: '/admin/products', label: 'Sản phẩm', description: 'Quản lý catalog' },
+  { to: '/admin/orders', label: 'Đơn hàng', description: 'Theo dõi xử lý' },
+  { to: '/admin/users', label: 'Người dùng', description: 'Tài khoản khách hàng' },
 ];
+const USER_APP_URL = (import.meta.env.VITE_USER_APP_URL || 'http://localhost:5177').replace(/\/+$/, '');
 
 export function AdminLayout() {
   const { logout, user } = useAuth();
@@ -18,26 +19,46 @@ export function AdminLayout() {
   };
 
   return (
-    <div className="container py-4">
-      <div className="luxury-surface p-4 p-lg-5 mb-4">
-        <div className="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
-          <div>
-            <p className="text-uppercase luxury-muted small mb-1">Admin panel</p>
-            <h3 className="mb-0">Quản trị HuyPerfume</h3>
-            {user?.name && <small className="luxury-muted">Đang đăng nhập: {user.name}</small>}
-          </div>
-          <div className="d-flex flex-wrap gap-2 justify-content-lg-end">
-            {links.map((item) => (
-              <Link key={item.to} to={item.to} className="btn btn-outline-dark">
-                {item.label}
-              </Link>
-            ))}
-            <button type="button" className="btn luxury-primary-btn" onClick={handleLogout}>
-              Đăng xuất
-            </button>
-          </div>
+    <div className="admin-shell">
+      <aside className="admin-sidebar">
+        <div className="admin-sidebar-brand">
+          <span className="admin-eyebrow">Admin panel</span>
+          <h2>HuyPerfume</h2>
+          {user?.name && <small>Xin chào, {user.name}</small>}
         </div>
-        <Outlet />
+
+        <nav className="admin-sidebar-nav" aria-label="Điều hướng quản trị">
+          {links.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/admin'}
+              className={({ isActive }) => `admin-sidebar-link${isActive ? ' active' : ''}`}
+            >
+              <span>{item.label}</span>
+              <small>{item.description}</small>
+            </NavLink>
+          ))}
+        </nav>
+
+        <a className="admin-storefront-link" href={`${USER_APP_URL}/home`}>
+          Về trang cửa hàng
+        </a>
+        <button type="button" className="btn luxury-primary-btn admin-logout-btn mt-auto" onClick={handleLogout}>
+          Đăng xuất
+        </button>
+      </aside>
+
+      <div className="admin-shell-content">
+        <header className="admin-shell-topbar">
+          <div>
+            <span className="admin-eyebrow">Admin workspace</span>
+            <h1>Điều khiển hệ thống</h1>
+          </div>
+        </header>
+        <main className="admin-workspace-main">
+          <Outlet />
+        </main>
       </div>
     </div>
   );

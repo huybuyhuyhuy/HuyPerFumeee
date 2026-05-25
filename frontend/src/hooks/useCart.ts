@@ -17,17 +17,18 @@ export function useCart() {
     }
   }, []);
 
-  const updateQuantity = async (productId: number, quantity: number) => {
+  const updateQuantity = async (productId: number, quantity: number, variantId?: number | string | null) => {
     if (quantity < 1) {
-      await api.delete(`/cart/remove/${productId}`);
+      await api.delete(`/cart/remove/${productId}`, { params: variantId ? { variantId } : undefined });
     } else {
-      await api.put('/cart/update', { productId, quantity });
+      const body = variantId ? { productId, quantity, variantId } : { productId, quantity };
+      await api.put('/cart/update', body);
     }
     await fetchCart();
   };
 
-  const removeItem = async (productId: number) => {
-    await api.delete(`/cart/remove/${productId}`);
+  const removeItem = async (productId: number, variantId?: number | string | null) => {
+    await api.delete(`/cart/remove/${productId}`, { params: variantId ? { variantId } : undefined });
     await fetchCart();
   };
 

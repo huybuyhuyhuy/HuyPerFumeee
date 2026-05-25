@@ -14,6 +14,10 @@ public interface ProductsDao {
     public List<Products> getProductsByBrandIds(List<Integer> brandIds);
 
     public List<Products> findByName(String txtSearch);
+
+    public List<String> getPerfumeNamesByScentOrKeyword(String scent, String keyword, int limit);
+
+    public List<String> getLightScentPerfumes();
     
     public List<Products> getProductsByBrandId(int brandId);
     

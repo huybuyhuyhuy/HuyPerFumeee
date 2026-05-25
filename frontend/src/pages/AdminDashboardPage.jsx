@@ -9,7 +9,7 @@ function unwrapApiData(payload) {
 }
 
 function formatCurrency(value) {
-  return `${Number(value || 0).toLocaleString('vi-VN')}₫`;
+  return `${Math.round(Number(value || 0)).toLocaleString('vi-VN')}₫`;
 }
 
 function monthKey(value) {
@@ -145,9 +145,9 @@ export function AdminDashboardPage() {
             <p className="mb-0 luxury-muted">Tổng hợp vận hành, doanh thu và tăng trưởng người dùng trong 6 tháng gần nhất.</p>
           </div>
           <div className="d-flex gap-2 flex-wrap">
-            <Link to="/products" className="btn btn-outline-dark btn-sm">Sản phẩm</Link>
-            <Link to="/users" className="btn btn-outline-dark btn-sm">Người dùng</Link>
-            <Link to="/orders" className="btn btn-outline-dark btn-sm">Đơn hàng</Link>
+            <Link to="/admin/products" className="btn btn-outline-dark btn-sm">Sản phẩm</Link>
+            <Link to="/admin/users" className="btn btn-outline-dark btn-sm">Người dùng</Link>
+            <Link to="/admin/orders" className="btn btn-outline-dark btn-sm">Đơn hàng</Link>
           </div>
         </div>
       </div>
@@ -209,7 +209,7 @@ export function AdminDashboardPage() {
                 <p className="text-uppercase luxury-muted small mb-1">Products</p>
                 <h5 className="mb-0">Top sản phẩm bán chạy</h5>
               </div>
-              <Link to="/products" className="btn btn-outline-dark btn-sm">Quản lý</Link>
+              <Link to="/admin/products" className="btn btn-outline-dark btn-sm">Quản lý</Link>
             </div>
             {stats.topProducts?.length > 0 ? (
               <div className="admin-top-products">

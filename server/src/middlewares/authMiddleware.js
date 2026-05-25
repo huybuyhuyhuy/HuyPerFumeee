@@ -1,5 +1,6 @@
 import { verifyToken } from '../jwt.js';
 import { errorResponse } from '../utils/response.js';
+import { getPermissionsForRole, hasPermission, hasRole } from '../modules/auth/rbac.js';
 
 export function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization || '';
@@ -11,10 +12,14 @@ export function authMiddleware(req, res, next) {
 
   try {
     const payload = verifyToken(token);
+    if (payload.tokenType && payload.tokenType !== 'access') {
+      return errorResponse(res, 401, 'Token khong hop le');
+    }
     req.user = {
       id: Number(payload.sub),
       email: payload.email,
       role: payload.role,
+      permissions: Array.isArray(payload.permissions) ? payload.permissions : getPermissionsForRole(payload.role),
     };
     return next();
   } catch {
@@ -29,13 +34,32 @@ authMiddleware.optional = function optionalAuth(req, _res, next) {
 
   try {
     const payload = verifyToken(token);
+    if (payload.tokenType && payload.tokenType !== 'access') return next();
     req.user = {
       id: Number(payload.sub),
       email: payload.email,
       role: payload.role,
+      permissions: Array.isArray(payload.permissions) ? payload.permissions : getPermissionsForRole(payload.role),
     };
   } catch {
     // Ignore invalid optional token and treat as guest
   }
   return next();
+};
+
+authMiddleware.requireRoles = function requireRoles(roles = []) {
+  return function roleGuard(req, res, next) {
+    if (!req.user) return errorResponse(res, 401, 'Vui long dang nhap de tiep tuc');
+    if (!hasRole(req.user, roles)) return errorResponse(res, 403, 'Khong co quyen truy cap');
+    return next();
+  };
+};
+
+authMiddleware.requirePermissions = function requirePermissions(permissions = []) {
+  return function permissionGuard(req, res, next) {
+    if (!req.user) return errorResponse(res, 401, 'Vui long dang nhap de tiep tuc');
+    const allowed = permissions.every((permission) => hasPermission(req.user, permission));
+    if (!allowed) return errorResponse(res, 403, 'Khong co quyen truy cap');
+    return next();
+  };
 };

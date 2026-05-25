@@ -1,5 +1,6 @@
 ﻿import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { useEffect } from 'react';
 import { RouteMeta } from './components/Seo/RouteMeta';
 import { MainLayout } from './components/Layout/MainLayout';
 import { AdminLayout } from './components/Layout/AdminLayout';
@@ -23,8 +24,13 @@ const AdminProductsPage = lazy(() => import('./pages/AdminProductsPage').then((m
 const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage').then((module) => ({ default: module.AdminOrdersPage })));
 const AdminOrderDetailPage = lazy(() => import('./pages/AdminOrderDetailPage').then((module) => ({ default: module.AdminOrderDetailPage })));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then((module) => ({ default: module.AdminUsersPage })));
+const AdminProductAddPage = lazy(() => import('./pages/AdminProductAddPage').then((module) => ({ default: module.AdminProductAddPage })));
+const AdminProductEditPage = lazy(() => import('./pages/AdminProductEditPage').then((module) => ({ default: module.AdminProductEditPage })));
+const AdminProductManagementPage = lazy(() => import('./pages/AdminProductManagementPage').then((module) => ({ default: module.AdminProductManagementPage })));
 
 const appMode = typeof __HUY_PERFUME_APP__ === 'undefined' ? 'user' : __HUY_PERFUME_APP__;
+const userHomeUrl = `${(import.meta.env.VITE_USER_APP_URL || 'http://localhost:5177').replace(/\/+$/, '')}/home`;
+const adminHomeUrl = `${(import.meta.env.VITE_ADMIN_APP_URL || 'http://localhost:5178').replace(/\/+$/, '')}/admin`;
 
 function Loading() {
   return (
@@ -36,19 +42,34 @@ function Loading() {
   );
 }
 
+function ExternalRedirect({ to }: { to: string }) {
+  useEffect(() => {
+    window.location.replace(to);
+  }, [to]);
+
+  return <Loading />;
+}
+
 function AdminRoutes() {
   return (
     <Routes>
-      <Route element={<ProtectedRoute adminOnly unauthorizedTo="/login"><AdminLayout /></ProtectedRoute>}>
+      <Route path="/admin" element={<ProtectedRoute adminOnly unauthorizedTo="/login"><AdminLayout /></ProtectedRoute>}>
         <Route index element={<AdminDashboardPage />} />
         <Route path="products" element={<AdminProductsPage />} />
         <Route path="orders" element={<AdminOrdersPage />} />
         <Route path="orders/:id" element={<AdminOrderDetailPage />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="products/add" element={<AdminProductAddPage />} />
+        <Route path="products/:id/edit" element={<AdminProductEditPage />} />
+        <Route path="products/manage" element={<AdminProductManagementPage />} />
       </Route>
 
       <Route path="/login" element={<LoginPage />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/home" element={<ExternalRedirect to={userHomeUrl} />} />
+      <Route path="/products" element={<Navigate to="/admin/products" replace />} />
+      <Route path="/orders" element={<Navigate to="/admin/orders" replace />} />
+      <Route path="/users" element={<Navigate to="/admin/users" replace />} />
+      <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
   );
 }
@@ -57,7 +78,8 @@ function UserRoutes() {
   return (
     <Routes>
       <Route element={<MainLayout />}>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/home" element={<HomePage />} />
         <Route path="/products" element={<ProductListPage />} />
         <Route path="/products/:id" element={<ProductDetailPage />} />
         <Route path="/cart" element={<CartPage />} />
@@ -70,8 +92,8 @@ function UserRoutes() {
         <Route path="/wishlist" element={<ProtectedRoute><WishlistPage /></ProtectedRoute>} />
       </Route>
 
-      <Route path="/admin/*" element={<Navigate to="/" replace />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/admin/*" element={<ExternalRedirect to={adminHomeUrl} />} />
+      <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
   );
 }

@@ -8,7 +8,9 @@ import adminRoutes from './routes/admin.js';
 import paymentRoutes from './routes/payment.js';
 import aiRoutes from './routes/ai.js';
 import productRoutes from './routes/products.js';
+import reviewRoutes from './routes/reviews.js';
 import wishlistRoutes from './routes/wishlist.js';
+import contactRoutes from './routes/contact.js';
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -26,21 +28,23 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/reviews', reviewRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/contact', contactRoutes);
 
-app.use((err, _req, res, _next) => {
+app.use((err, req, res, _next) => {
   console.error(err);
 
   res.status(500).json({
     status: 500,
     error: 'Internal Server Error',
     message: 'Lỗi hệ thống: ' + err.message,
-    path: _req.originalUrl,
+    path: req.originalUrl,
     timestamp: new Date().toISOString(),
   });
 });

@@ -12,25 +12,36 @@
       "skipFiles": ["<node_internals>/**"]
     },
     {
-      "type": "pwa-chrome",
+      "type": "chrome",
       "name": "Debug React User Frontend",
       "request": "launch",
-      "url": "http://localhost:5177",
+      "url": "http://localhost:5177/home",
       "webRoot": "${workspaceFolder}/frontend/src",
-      "preLaunchTask": "Start React User Frontend"
+      "preLaunchTask": "Start React User Frontend",
+      "userDataDir": true,
+      "runtimeArgs": [],
+      "timeout": 30000
     },
     {
-      "type": "pwa-chrome",
+      "type": "chrome",
       "name": "Debug React Admin Frontend",
       "request": "launch",
       "url": "http://localhost:5178",
       "webRoot": "${workspaceFolder}/frontend/src",
-      "preLaunchTask": "Start React Admin Frontend"
+      "preLaunchTask": "Start React Admin Frontend",
+      "userDataDir": true,
+      "runtimeArgs": [],
+      "timeout": 30000
     }
   ],
   "compounds": [
     {
       "name": "Start Full App (F5)",
+      "configurations": ["Debug Express API", "Debug React User Frontend"],
+      "stopAll": true
+    },
+    {
+      "name": "Start Full App + Admin (F6)",
       "configurations": ["Debug Express API", "Debug React User Frontend", "Debug React Admin Frontend"],
       "stopAll": true
     }
