@@ -6,7 +6,7 @@ function getGalleryImages(product: Product) {
   const apiImages = Array.isArray(product.images) ? product.images : [];
   const rawImages = [product.image, ...apiImages].filter(Boolean);
   const uniqueImages = [...new Set(rawImages.map((image) => resolveProductImage(image)))];
-  return uniqueImages.length ? uniqueImages : ['/assets/images/1.png'];
+  return uniqueImages.length ? uniqueImages : [resolveProductImage(null)];
 }
 
 export function ProductGallery({ product }: { product: Product }) {

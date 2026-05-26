@@ -1,4 +1,12 @@
-const DEFAULT_PRODUCT_IMAGE = '/assets/images/1.png';
+const DEFAULT_PRODUCT_IMAGE = '/assets/images/1.webp';
+
+function preferOptimizedProductAsset(value: string) {
+  if (/^\/assets\/images\/\d+\.png(?:[?#].*)?$/i.test(value)) {
+    return value.replace(/\.png(?=([?#]|$))/i, '.webp');
+  }
+
+  return value;
+}
 
 function getBackendBaseUrl() {
   const raw = String(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
@@ -14,7 +22,7 @@ export function resolveProductImage(image?: string | null) {
   }
 
   if (value.startsWith('/assets/') || value.startsWith('/images/') || value.startsWith('/icon/')) {
-    return value;
+    return preferOptimizedProductAsset(value);
   }
 
   if (value.startsWith('/upload') || value.startsWith('/uploads')) {
@@ -29,5 +37,5 @@ export function resolveProductImage(image?: string | null) {
     return value;
   }
 
-  return `/assets/images/${value}`;
+  return preferOptimizedProductAsset(`/assets/images/${value}`);
 }
