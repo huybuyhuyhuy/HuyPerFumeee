@@ -6,34 +6,34 @@ export function ProductDiscoveryTabs({ product, reviews = [] }) {
   const tabs = useMemo(() => ([
     {
       id: 'description',
-      label: 'Description',
+      label: 'Mô tả',
       content: (
         <div className="story-copy">
           <p>{product?.description || 'Mô tả sản phẩm đang được cập nhật. Hương thơm này được tuyển chọn để giữ cảm giác sang trọng, dễ đeo và giàu tính biểu cảm.'}</p>
           <div className="occasion-chips mt-3">
-            <span className="occasion-chip">Daytime elegance</span>
-            <span className="occasion-chip">Evening signature</span>
-            <span className="occasion-chip">Gift-ready</span>
+            <span className="occasion-chip">Thanh lịch ban ngày</span>
+            <span className="occasion-chip">Dấu ấn buổi tối</span>
+            <span className="occasion-chip">Phù hợp làm quà</span>
           </div>
         </div>
       ),
     },
     {
       id: 'specs',
-      label: 'Specifications',
+      label: 'Thông số',
       content: (
         <div className="scent-pyramid">
-          <div><strong>Brand</strong><span>{product?.brand?.name || '—'}</span></div>
-          <div><strong>Gender</strong><span>{product?.gender || '—'}</span></div>
-          <div><strong>Family</strong><span>{product?.scentNotes || '—'}</span></div>
-          <div><strong>Volume</strong><span>{product?.volumeMl ? `${product.volumeMl}ml` : '—'}</span></div>
-          <div><strong>Concentration</strong><span>{product?.concentration || '—'}</span></div>
+          <div><strong>Thương hiệu</strong><span>{product?.brand?.name || '—'}</span></div>
+          <div><strong>Giới tính</strong><span>{product?.gender || '—'}</span></div>
+          <div><strong>Tầng hương</strong><span>{product?.scentNotes ? String(product.scentNotes).replaceAll('|', ' · ') : '—'}</span></div>
+          <div><strong>Dung tích</strong><span>{product?.volumeMl ? `${product.volumeMl}ml` : '—'}</span></div>
+          <div><strong>Nồng độ</strong><span>{product?.concentration || '—'}</span></div>
         </div>
       ),
     },
     {
       id: 'reviews',
-      label: 'Reviews',
+      label: 'Đánh giá',
       content: (
         <div className="story-copy">
           <p className="mb-2">{product?.reviewCount || 0} đánh giá và {product?.soldCount || 0} lượt bán cho thấy đây là lựa chọn được tin tưởng.</p>
@@ -58,7 +58,7 @@ export function ProductDiscoveryTabs({ product, reviews = [] }) {
     },
     {
       id: 'policy',
-      label: 'Return Policy',
+      label: 'Đổi trả',
       content: (
         <div className="story-copy">
           <p>Cam kết đổi trả minh bạch, đóng gói kỹ lưỡng và hỗ trợ nếu phát hiện lỗi sản phẩm.</p>
@@ -83,6 +83,8 @@ export function ProductDiscoveryTabs({ product, reviews = [] }) {
             key={tab.id}
             type="button"
             role="tab"
+            id={`product-tab-${tab.id}`}
+            aria-controls={`product-panel-${tab.id}`}
             aria-selected={activeTab === tab.id}
             className={`product-tab ${activeTab === tab.id ? 'active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
@@ -98,7 +100,7 @@ export function ProductDiscoveryTabs({ product, reviews = [] }) {
         ))}
         <span className="product-tab-indicator" style={{ transform: `translateX(${activeIndex * 100}%)` }} />
       </div>
-      <div className="product-tab-panel" role="tabpanel">
+      <div id={`product-panel-${activeTab}`} className="product-tab-panel" role="tabpanel" aria-labelledby={`product-tab-${activeTab}`}>
         {tabs.find((tab) => tab.id === activeTab)?.content}
       </div>
     </section>

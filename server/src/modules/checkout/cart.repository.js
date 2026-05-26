@@ -1,5 +1,4 @@
-import sql from 'mssql';
-import { getDbPool, query } from '../../config/database.js';
+import { getDbPool, query, sql } from '../../config/database.js';
 import { getCheckoutStorageCapabilities } from './checkout.storage.js';
 
 function positiveNumber(value) {

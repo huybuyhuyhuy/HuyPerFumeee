@@ -17,3 +17,6 @@
 *.log
 .DS_Store
 Thumbs.db
+
+# Local runtime state and startup logs
+.runtime/

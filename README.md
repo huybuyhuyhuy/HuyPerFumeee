@@ -35,6 +35,44 @@ Mặc định:
 - Trang admin: `http://localhost:5178/`
 - Express API: `http://localhost:4000`
 
+## Luu du lieu va tu khoi dong tren Windows
+
+Duong chay local dung SQL Server trong `server/.env`. Du lieu san pham, tai
+khoan, don hang, gio hang va lien he nam trong database `huyperfume`, khong nam
+trong tien trinh Node. Khong chay lai `database_setup.sql` khi may khoi dong
+hoac khi da co du lieu, vi day la script tao/seed ban dau.
+
+Chay migration xac thuc mot lan de refresh token va cac du lieu tai khoan mo
+rong duoc luu trong SQL Server thay vi RAM:
+
+```powershell
+cd server
+npm.cmd run db:migrate:auth
+```
+
+Cai dat tu dong nap backend va ca hai frontend sau khi dang nhap Windows:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\scripts\windows\install-huyperfume-startup.ps1 -StartNow
+```
+
+Script tu khoi dong chi mo API va frontend, khong seed/xoa database. SQL Server
+can de service o che do `Automatic`. Log chay local duoc luu trong
+`.runtime\logs`.
+
+Quan ly che do tu khoi dong:
+
+```powershell
+# Kiem tra
+powershell.exe -ExecutionPolicy Bypass -File .\scripts\windows\install-huyperfume-startup.ps1 -Action Status
+
+# Tat tien trinh do script da mo
+powershell.exe -ExecutionPolicy Bypass -File .\scripts\windows\stop-huyperfume.ps1
+
+# Go tu khoi dong
+powershell.exe -ExecutionPolicy Bypass -File .\scripts\windows\install-huyperfume-startup.ps1 -Action Remove
+```
+
 Tài khoản admin mẫu:
 
 - Email: `admin@huyperfume.com`

@@ -20,8 +20,11 @@ export function ProductCard({
   const badgeLabel = safeProduct.isDecant ? 'Mini size' : safeProduct.discountPrice > 0 ? 'Ưu đãi' : safeProduct.stock > 10 ? 'Bán chạy' : 'Cao cấp';
   const { pushToast } = useToast();
   const { isWishlisted, toggleWishlist } = useWishlist();
+  const productId = Number(safeProduct.id);
+  const hasValidId = Number.isInteger(productId) && productId > 0;
   const saved = isWishlisted(safeProduct.id);
   const quickViewLabel = safeProduct.stock > 0 ? 'Quick view' : 'Hết hàng';
+  const detailPath = hasValidId ? `/products/${productId}` : '/products';
 
   const handleWishlistToggle = () => {
     const nextSaved = toggleWishlist(safeProduct);
@@ -29,7 +32,7 @@ export function ProductCard({
   };
 
   return (
-    <div className="col">
+    <div className="col scroll-reveal-item">
       <article className="luxury-featured-card h-100 luxury-product-card">
         <span className="luxury-product-badge">{badgeLabel}</span>
         <button
@@ -40,7 +43,7 @@ export function ProductCard({
         >
           {saved ? '♥' : '♡'}
         </button>
-        <Link to={`/products/${safeProduct.id}`} className="luxury-featured-media text-decoration-none">
+        <Link to={detailPath} className="luxury-featured-media text-decoration-none">
           <img
             src={resolveProductImage(safeProduct.image)}
             alt={safeProduct.name}
@@ -51,7 +54,7 @@ export function ProductCard({
         <div className="luxury-featured-body d-flex flex-column">
           <p className="luxury-product-brand mb-2">{brandName}</p>
           <h3 className="luxury-product-name mb-2">
-            <Link to={`/products/${safeProduct.id}`} className="text-decoration-none text-reset">
+            <Link to={detailPath} className="text-decoration-none text-reset">
               {safeProduct.name}
             </Link>
           </h3>
@@ -66,13 +69,13 @@ export function ProductCard({
             <span>{product.soldCount || 0} sold</span>
           </div>
           <div className="luxury-card-actions mt-auto d-flex gap-2">
-            <Link to={`/products/${safeProduct.id}`} className="btn luxury-secondary-btn btn-sm flex-fill">
+            <Link to={detailPath} className="btn luxury-secondary-btn btn-sm flex-fill">
               {quickViewLabel}
             </Link>
             <button
               type="button"
               className="btn luxury-primary-btn btn-sm flex-fill"
-              onClick={() => onAddToCart?.(product.id)}
+              onClick={() => onAddToCart?.(productId)}
               disabled={safeProduct.stock <= 0}
             >
               {safeProduct.stock <= 0 ? 'Hết hàng' : 'Thêm vào giỏ'}

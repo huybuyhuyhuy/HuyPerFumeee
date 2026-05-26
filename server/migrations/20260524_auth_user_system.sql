@@ -2,6 +2,11 @@
 -- Run after backing up the database.
 
 UPDATE dbo.users
+SET role = N'USER'
+WHERE role IS NULL OR LTRIM(RTRIM(role)) = N'';
+GO
+
+UPDATE dbo.users
 SET role = UPPER(role)
 WHERE role IS NOT NULL AND role COLLATE Latin1_General_CS_AS <> UPPER(role);
 GO

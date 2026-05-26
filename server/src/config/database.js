@@ -2,6 +2,7 @@ import { env } from './env.js';
 
 const useSqlAuthentication = Boolean(env.dbUser.trim());
 const { default: sql } = await import(useSqlAuthentication ? 'mssql' : 'mssql/msnodesqlv8.js');
+export { sql };
 
 const config = {
   server: env.dbHost,
@@ -64,4 +65,4 @@ export async function query(sqlText, params = []) {
   return result.recordset || [];
 }
 
-export default { getDbPool, query };
+export default { getDbPool, query, sql };

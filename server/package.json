@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "db:migrate:auth": "node scripts/run-sql-migration.js migrations/20260524_auth_user_system.sql"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

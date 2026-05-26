@@ -4,6 +4,7 @@ import { productService } from '../services/productService';
 import { cartService } from '../services/cartService';
 import { useAuth } from '../hooks/useAuth';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { useScrollReveal } from '../hooks/useScrollReveal';
 import { ProductCard } from '../components/Product/ProductCard.jsx';
 import { useToast } from '../store/ToastContext';
 
@@ -322,6 +323,7 @@ export function ProductListPage() {
   const { isLoggedIn } = useAuth();
   const { pushToast } = useToast();
   const debouncedSearch = useDebouncedValue(draftSearch, 350);
+  const productGridRef = useScrollReveal('.scroll-reveal-item', !loading && products.length > 0);
 
   const categoryId = searchParams.get('categoryId') || undefined;
   const brandId = searchParams.get('brandId') || undefined;
@@ -600,7 +602,7 @@ export function ProductListPage() {
               <EmptyState onClearFilters={clearFilters} hasFilters={hasActiveFilters} />
             ) : (
               <>
-                <div className="luxury-product-grid">
+                <div className="luxury-product-grid" ref={productGridRef}>
                   {displayProducts.map((product) => (
                     <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />
                   ))}

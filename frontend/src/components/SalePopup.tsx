@@ -6,7 +6,7 @@ import { resolveProductImage } from '../utils/image';
 
 const salePopupConfig = {
   delayMs: 2800,
-  visibleDurationMs: 3000,
+  visibleDurationMs: 7000,
   rotationMs: 30000,
   storageKey: 'huyperfume.salePopup.dismissed.v3',
   purchaseMinuteOptions: [2, 3, 5, 7, 9, 12],
@@ -87,7 +87,8 @@ export function SalePopup() {
   };
 
   useEffect(() => {
-    if (location.pathname !== '/') {
+    const isEligibleSurface = location.pathname === '/' || location.pathname === '/home';
+    if (!isEligibleSurface) {
       clearTimers();
       setVisible(false);
       return;

@@ -1,6 +1,5 @@
-import sql from 'mssql';
 import { randomUUID } from 'crypto';
-import { getDbPool, query } from '../../config/database.js';
+import { getDbPool, query, sql } from '../../config/database.js';
 import { env } from '../../config/env.js';
 import { generateSecureToken, sha256Hex } from '../../jwt.js';
 import { getAuthStorageCapabilities } from './auth.storage.js';

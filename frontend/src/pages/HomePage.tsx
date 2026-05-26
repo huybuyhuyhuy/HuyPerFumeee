@@ -7,6 +7,7 @@ import { ProductCard } from '../components/Product/ProductCard.tsx';
 import { ProductGridSkeleton } from '../components/Feedback/ProductSkeletons';
 import type { Product } from '../types';
 import { useToast } from '../store/ToastContext';
+import { useScrollReveal } from '../hooks/useScrollReveal';
 import { resolveProductImage } from '../utils/image';
 
 const collectionSections = [
@@ -51,6 +52,40 @@ type ContactFormState = {
   message: string;
 };
 
+type ContactFormErrors = Partial<Record<keyof ContactFormState, string>>;
+
+type ContactFeedback = {
+  tone: 'success' | 'error';
+  message: string;
+} | null;
+
+const emptyContactForm: ContactFormState = {
+  name: '',
+  phone: '',
+  email: '',
+  need: '',
+  message: '',
+};
+
+const contactChannels = [
+  { icon: 'headset', label: 'Hotline tư vấn', value: '0900 000 000', note: '8:00 - 21:00 mỗi ngày', href: 'tel:0900000000' },
+  { icon: 'mail', label: 'Email hỗ trợ', value: 'support@huyperfume.vn', note: 'Phản hồi trong ngày', href: 'mailto:support@huyperfume.vn' },
+];
+
+const consultationSteps = [
+  { title: 'Chia sẻ nhu cầu', description: 'Cho chúng tôi biết dịp dùng, gu hương hoặc ngân sách.' },
+  { title: 'Nhận gợi ý riêng', description: 'Chuyên viên đề xuất lựa chọn phù hợp, dễ so sánh.' },
+  { title: 'Tự tin chọn mùi', description: 'Chốt sản phẩm và nhận hỗ trợ đặt hàng tận tâm.' },
+];
+
+const contactNeedOptions = [
+  { value: 'daily', label: 'Nước hoa dùng hằng ngày' },
+  { value: 'gift', label: 'Quà tặng cao cấp' },
+  { value: 'office', label: 'Mùi hương đi làm' },
+  { value: 'party', label: 'Mùi hương dự tiệc' },
+  { value: 'signature', label: 'Tìm mùi hương signature' },
+];
+
 const fallbackHeroSlides: HeroSlide[] = [
   {
     id: 'signature',
@@ -92,6 +127,35 @@ const serviceCommitments = [
 
 const formatCurrency = (value: number) => `${Number(value || 0).toLocaleString('vi-VN')}₫`;
 
+function validateContactForm(form: ContactFormState) {
+  const errors: ContactFormErrors = {};
+  const name = form.name.trim();
+  const phone = form.phone.trim();
+  const email = form.email.trim();
+
+  if (!name) {
+    errors.name = 'Vui lòng nhập họ tên.';
+  } else if (name.length < 2) {
+    errors.name = 'Họ tên cần ít nhất 2 ký tự.';
+  }
+
+  if (!phone) {
+    errors.phone = 'Vui lòng nhập số điện thoại.';
+  } else if (!/^[0-9+\-\s().]{8,20}$/.test(phone)) {
+    errors.phone = 'Nhập số điện thoại hợp lệ từ 8 đến 20 ký tự.';
+  }
+
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = 'Địa chỉ email chưa hợp lệ.';
+  }
+
+  if (!form.need) {
+    errors.need = 'Chọn nhu cầu để tư vấn chính xác hơn.';
+  }
+
+  return errors;
+}
+
 function SmallIcon({ name }: { name: string }) {
   const commonProps = {
     className: 'luxury-line-icon',
@@ -107,6 +171,7 @@ function SmallIcon({ name }: { name: string }) {
   if (name === 'truck') return <svg {...commonProps}><rect x="3" y="7" width="11" height="10" /><path d="M14 10h4l3 3v4h-7z" /><circle cx="7" cy="19" r="2" /><circle cx="17" cy="19" r="2" /></svg>;
   if (name === 'gift') return <svg {...commonProps}><rect x="4" y="10" width="16" height="10" /><rect x="4" y="6" width="16" height="4" /><path d="M12 6v14" /><path d="M9 6c-2 0-3-1-3-2s1-2 2.2-2C10 2 12 6 12 6" /><path d="M15 6c2 0 3-1 3-2s-1-2-2.2-2C14 2 12 6 12 6" /></svg>;
   if (name === 'headset') return <svg {...commonProps}><path d="M4 13v-1a8 8 0 0 1 16 0v1" /><rect x="4" y="13" width="4" height="6" /><rect x="16" y="13" width="4" height="6" /><path d="M16 20h-3" /></svg>;
+  if (name === 'mail') return <svg {...commonProps}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>;
   if (name === 'refresh') return <svg {...commonProps}><path d="M20 7v5h-5" /><path d="M4 17v-5h5" /><path d="M18 9a7 7 0 0 0-11.5-2.5L4 9" /><path d="M6 15a7 7 0 0 0 11.5 2.5L20 15" /></svg>;
   if (name === 'award') return <svg {...commonProps}><circle cx="12" cy="9" r="6" /><path d="m9 14-1 7 4-2 4 2-1-7" /></svg>;
   return <svg {...commonProps}><path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6z" /><path d="m9 12 2 2 4-5" /></svg>;
@@ -116,9 +181,13 @@ export function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [heroIndex, setHeroIndex] = useState(0);
-  const [contactForm, setContactForm] = useState<ContactFormState>({ name: '', phone: '', email: '', need: '', message: '' });
+  const [contactForm, setContactForm] = useState<ContactFormState>(emptyContactForm);
+  const [contactErrors, setContactErrors] = useState<ContactFormErrors>({});
+  const [contactFeedback, setContactFeedback] = useState<ContactFeedback>(null);
   const [contactSubmitting, setContactSubmitting] = useState(false);
   const { pushToast } = useToast();
+  const sectionRevealRef = useScrollReveal('.luxury-scroll-reveal');
+  const featuredRevealRef = useScrollReveal('.scroll-reveal-item', !loading && products.length > 0);
 
   useEffect(() => {
     productService.getProducts({ page: 1, size: 4, sort: 'best_seller' })
@@ -161,13 +230,28 @@ export function HomePage() {
     }
   };
 
-  const updateContactField = (field: keyof ContactFormState, value: string) => setContactForm((current) => ({ ...current, [field]: value }));
+  const updateContactField = (field: keyof ContactFormState, value: string) => {
+    setContactForm((current) => ({ ...current, [field]: value }));
+    setContactErrors((current) => ({ ...current, [field]: undefined }));
+    setContactFeedback(null);
+  };
 
   const handleContactSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!contactForm.name.trim() || !contactForm.phone.trim()) { pushToast('Vui lòng nhập họ tên và số điện thoại.', 'info'); return; }
+    const validationErrors = validateContactForm(contactForm);
+    const firstInvalidField = Object.keys(validationErrors)[0] as keyof ContactFormState | undefined;
+
+    if (firstInvalidField) {
+      setContactErrors(validationErrors);
+      setContactFeedback({ tone: 'error', message: 'Vui lòng kiểm tra lại các thông tin cần thiết.' });
+      const field = event.currentTarget.elements.namedItem(firstInvalidField);
+      if (field instanceof HTMLElement) field.focus();
+      return;
+    }
+
     try {
       setContactSubmitting(true);
+      setContactFeedback(null);
       await contactService.createContact({
         name: contactForm.name.trim(),
         phone: contactForm.phone.trim(),
@@ -176,16 +260,20 @@ export function HomePage() {
         message: contactForm.message.trim() || undefined,
       });
       pushToast('Đã gửi yêu cầu tư vấn. HuyPerfume sẽ liên hệ sớm.', 'success');
-      setContactForm({ name: '', phone: '', email: '', need: '', message: '' });
+      setContactForm(emptyContactForm);
+      setContactErrors({});
+      setContactFeedback({ tone: 'success', message: 'Yêu cầu đã được gửi. Chuyên viên sẽ liên hệ với bạn sớm nhất.' });
     } catch (err: any) {
-      pushToast(err?.message || 'Không gửi được yêu cầu tư vấn.', 'error');
+      const message = err?.message || 'Không gửi được yêu cầu tư vấn. Vui lòng thử lại hoặc gọi hotline.';
+      setContactFeedback({ tone: 'error', message });
+      pushToast(message, 'error');
     } finally {
       setContactSubmitting(false);
     }
   };
 
   return (
-    <div className="luxury-home">
+    <div className="luxury-home" ref={sectionRevealRef}>
       <section className="luxury-hero-cinematic">
         <div className="luxury-hero-cinematic-bg" aria-hidden="true">
           <div className="luxury-hero-orb luxury-hero-orb-a" />
@@ -255,9 +343,9 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="luxury-section luxury-featured-section luxury-scroll-reveal">
-        <div className="container">
-          <div className="luxury-featured-heading">
+      <section className="luxury-section luxury-featured-section">
+        <div className="container" ref={featuredRevealRef}>
+          <div className="luxury-featured-heading scroll-reveal-item">
             <div><p className="section-eyebrow">Sản phẩm nổi bật</p><h2 className="section-title">Được yêu thích nhất</h2></div>
             <Link to="/products" className="btn luxury-link-btn">Xem tất cả</Link>
           </div>
@@ -360,36 +448,85 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="luxury-section luxury-cta-section" id="contact">
+      <section className="luxury-section luxury-cta-section luxury-scroll-reveal" id="contact" aria-labelledby="contact-title">
         <div className="container">
           <div className="luxury-cta-shell">
             <div className="luxury-cta-copy">
-              <p className="section-eyebrow">Liên hệ ngay</p>
-              <h2 className="section-title">Cần tư vấn?<span> HuyPerfume sẵn sàng hỗ trợ</span></h2>
-              <p className="luxury-muted">Chọn nhanh theo nhóm mùi, dịp sử dụng hoặc ngân sách. Đội ngũ HuyPerfume sẽ giúp bạn rút ngắn hành trình tìm mùi hương phù hợp.</p>
+              <p className="section-eyebrow">Tư vấn cá nhân</p>
+              <h2 className="section-title" id="contact-title">Tìm mùi hương thật sự hợp với bạn</h2>
+              <p className="luxury-contact-intro">Chia sẻ phong cách, dịp sử dụng hoặc ngân sách. Chuyên viên HuyPerfume sẽ chọn lọc những gợi ý vừa đủ để bạn quyết định dễ dàng.</p>
               <div className="luxury-contact-grid">
-                <a href="tel:0900000000" className="luxury-contact-card"><span>Hotline</span><strong>0900 000 000</strong></a>
-                <a href="mailto:support@huyperfume.vn" className="luxury-contact-card"><span>Email hỗ trợ</span><strong>support@huyperfume.vn</strong></a>
+                {contactChannels.map((channel) => (
+                  <a href={channel.href} className="luxury-contact-card" key={channel.label}>
+                    <span className="luxury-contact-icon"><SmallIcon name={channel.icon} /></span>
+                    <span className="luxury-contact-card-copy">
+                      <small>{channel.label}</small>
+                      <strong>{channel.value}</strong>
+                      <em>{channel.note}</em>
+                    </span>
+                    <span className="luxury-contact-arrow" aria-hidden="true">→</span>
+                  </a>
+                ))}
               </div>
-              <div className="luxury-cta-actions">
-                <Link to="/products" className="btn luxury-primary-btn btn-lg">Xem sản phẩm</Link>
-                <a href="mailto:support@huyperfume.vn" className="btn luxury-secondary-btn btn-lg">Tư vấn chọn mùi</a>
-              </div>
+              <ol className="luxury-contact-steps" aria-label="Quy trình tư vấn">
+                {consultationSteps.map((step, index) => (
+                  <li key={step.title}>
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <div><strong>{step.title}</strong><p>{step.description}</p></div>
+                  </li>
+                ))}
+              </ol>
             </div>
             <div className="luxury-cta-panel">
-              <form className="luxury-contact-form" onSubmit={handleContactSubmit}>
-                <span className="luxury-form-eyebrow">Gửi yêu cầu tư vấn</span>
-                <h3>Nhận gợi ý mùi hương</h3>
-                <label>Họ tên<input name="name" type="text" placeholder="Tên của bạn" value={contactForm.name} onChange={(event) => updateContactField('name', event.target.value)} required /></label>
-                <label>Số điện thoại<input name="phone" type="tel" placeholder="0900 000 000" value={contactForm.phone} onChange={(event) => updateContactField('phone', event.target.value)} required /></label>
-                <label>Email<input name="email" type="email" placeholder="support@huyperfume.vn" value={contactForm.email} onChange={(event) => updateContactField('email', event.target.value)} /></label>
-                <label>Nhu cầu<select name="need" value={contactForm.need} onChange={(event) => updateContactField('need', event.target.value)}><option value="" disabled>Chọn nhu cầu</option><option value="daily">Nước hoa dùng hằng ngày</option><option value="gift">Quà tặng cao cấp</option><option value="office">Mùi hương đi làm</option><option value="party">Mùi hương dự tiệc</option></select></label>
-                <label>Ghi chú<textarea name="message" rows={3} placeholder="Ví dụ: thích hương gỗ, ngân sách 2 triệu..." value={contactForm.message} onChange={(event) => updateContactField('message', event.target.value)} /></label>
-                <button type="submit" disabled={contactSubmitting}>{contactSubmitting ? 'Đang gửi...' : 'Gửi yêu cầu'}</button>
+              <div className="luxury-contact-panel-header">
+                <span className="luxury-form-eyebrow">Yêu cầu tư vấn</span>
+                <h3>Nhận gợi ý trong ngày</h3>
+                <p>Điền thông tin bên dưới, đội ngũ tư vấn sẽ chủ động liên hệ.</p>
+              </div>
+              <form className="luxury-contact-form" onSubmit={handleContactSubmit} noValidate>
+                <div className="luxury-contact-form-row">
+                  <label className={contactErrors.name ? 'has-error' : ''} htmlFor="contact-name">
+                    <span className="luxury-field-label">Họ tên <b>*</b></span>
+                    <input id="contact-name" name="name" type="text" maxLength={120} autoComplete="name" placeholder="Nguyễn Minh Anh" value={contactForm.name} onChange={(event) => updateContactField('name', event.target.value)} aria-invalid={Boolean(contactErrors.name)} aria-describedby={contactErrors.name ? 'contact-name-error' : undefined} />
+                    {contactErrors.name && <small className="luxury-field-error" id="contact-name-error">{contactErrors.name}</small>}
+                  </label>
+                  <label className={contactErrors.phone ? 'has-error' : ''} htmlFor="contact-phone">
+                    <span className="luxury-field-label">Số điện thoại <b>*</b></span>
+                    <input id="contact-phone" name="phone" type="tel" inputMode="tel" maxLength={20} autoComplete="tel" placeholder="0900 000 000" value={contactForm.phone} onChange={(event) => updateContactField('phone', event.target.value)} aria-invalid={Boolean(contactErrors.phone)} aria-describedby={contactErrors.phone ? 'contact-phone-error' : undefined} />
+                    {contactErrors.phone && <small className="luxury-field-error" id="contact-phone-error">{contactErrors.phone}</small>}
+                  </label>
+                </div>
+                <label className={contactErrors.email ? 'has-error' : ''} htmlFor="contact-email">
+                  <span className="luxury-field-label">Email <small>Không bắt buộc</small></span>
+                  <input id="contact-email" name="email" type="email" maxLength={160} autoComplete="email" placeholder="email@cuaban.vn" value={contactForm.email} onChange={(event) => updateContactField('email', event.target.value)} aria-invalid={Boolean(contactErrors.email)} aria-describedby={contactErrors.email ? 'contact-email-error' : undefined} />
+                  {contactErrors.email && <small className="luxury-field-error" id="contact-email-error">{contactErrors.email}</small>}
+                </label>
+                <label className={contactErrors.need ? 'has-error' : ''} htmlFor="contact-need">
+                  <span className="luxury-field-label">Bạn đang tìm gì? <b>*</b></span>
+                  <select id="contact-need" name="need" value={contactForm.need} onChange={(event) => updateContactField('need', event.target.value)} aria-invalid={Boolean(contactErrors.need)} aria-describedby={contactErrors.need ? 'contact-need-error' : undefined}>
+                    <option value="" disabled>Chọn nhu cầu tư vấn</option>
+                    {contactNeedOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                  {contactErrors.need && <small className="luxury-field-error" id="contact-need-error">{contactErrors.need}</small>}
+                </label>
+                <label htmlFor="contact-message">
+                  <span className="luxury-field-label">Ghi chú <small>{contactForm.message.length}/1000</small></span>
+                  <textarea id="contact-message" name="message" rows={4} maxLength={1000} placeholder="Ví dụ: thích hương gỗ, dùng đi làm, ngân sách khoảng 2 triệu..." value={contactForm.message} onChange={(event) => updateContactField('message', event.target.value)} />
+                </label>
+                {contactFeedback && (
+                  <p className={`luxury-contact-feedback is-${contactFeedback.tone}`} role={contactFeedback.tone === 'error' ? 'alert' : 'status'}>
+                    {contactFeedback.message}
+                  </p>
+                )}
+                <button type="submit" className="btn luxury-primary-btn luxury-contact-submit" disabled={contactSubmitting}>
+                  {contactSubmitting ? 'Đang gửi yêu cầu...' : 'Gửi yêu cầu tư vấn'}
+                </button>
+                <p className="luxury-contact-privacy">Thông tin của bạn chỉ được dùng để hỗ trợ tư vấn, không chia sẻ cho bên thứ ba.</p>
               </form>
-              <div><span>Giá tham khảo</span><strong>{bestPrice}</strong><p>Tùy sản phẩm và dung tích</p></div>
-              <div><span>Thời gian hỗ trợ</span><strong>8:00 - 21:00</strong><p>Phản hồi nhanh trong ngày</p></div>
-              <div><span>Giao hàng</span><strong>1 - 3 ngày</strong><p>Áp dụng toàn quốc</p></div>
+              <div className="luxury-contact-assurance">
+                <div><span>Sản phẩm nổi bật từ</span><strong>{bestPrice}</strong></div>
+                <div><span>Thời gian hỗ trợ</span><strong>8:00 - 21:00</strong></div>
+              </div>
             </div>
           </div>
         </div>

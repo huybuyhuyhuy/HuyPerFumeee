@@ -108,72 +108,71 @@ export function LoginPage() {
   };
 
   return (
-    <div className="container-fluid luxury-page py-4 py-lg-5">
-      <div className="row g-4 justify-content-center align-items-center min-vh-100">
-        <div className="col-12 col-lg-5 d-none d-lg-block">
-          <div className="luxury-surface p-5 h-100 shadow-sm d-flex flex-column justify-content-between" style={{ minHeight: 720 }}>
-            <div>
-              <p className="text-uppercase luxury-muted small mb-3">The Perfume Shop</p>
-              <h1 className="display-6 fw-semibold mb-3">Trải nghiệm đăng nhập sang trọng và nhanh chóng</h1>
-              <p className="luxury-muted mb-0">
-                Quản lý tài khoản an toàn, chuyển hướng thông minh giữa trang khách hàng và quản trị.
-              </p>
+    <main className="luxury-page auth-page-shell">
+      <div className="container auth-page-container">
+        <div className="auth-page-grid">
+          <section className="auth-hero-panel luxury-surface">
+            <p className="auth-eyebrow">The Perfume Shop</p>
+            <h1>Đăng nhập gọn gàng, sang hơn và không vỡ form</h1>
+            <p className="auth-hero-copy">
+              Một layout rõ ràng, dễ đọc, tối ưu cho cả màn hình lớn lẫn mobile để người dùng đăng nhập nhanh và an toàn.
+            </p>
+
+            <div className="auth-benefit-grid">
+              <article>
+                <strong>Bảo mật</strong>
+                <span>Đăng nhập an toàn, hỗ trợ CAPTCHA khi cần.</span>
+              </article>
+              <article>
+                <strong>Đúng vai trò</strong>
+                <span>Tự điều hướng giữa khách hàng và quản trị.</span>
+              </article>
             </div>
 
-            <div className="row g-3 mt-4">
-              <div className="col-6">
-                <div className="rounded-4 border p-3 bg-white bg-opacity-75 h-100">
-                  <div className="fw-semibold mb-1">Bảo mật</div>
-                  <div className="small text-muted">Xác thực nhanh, trải nghiệm mượt mà.</div>
-                </div>
-              </div>
-              <div className="col-6">
-                <div className="rounded-4 border p-3 bg-white bg-opacity-75 h-100">
-                  <div className="fw-semibold mb-1">Đồng bộ</div>
-                  <div className="small text-muted">Tự động điều hướng đúng vai trò.</div>
-                </div>
-              </div>
+            <div className="auth-trust-strip">
+              <span>HTTPS ready</span>
+              <span>Responsive</span>
+              <span>Accessible</span>
             </div>
-          </div>
-        </div>
+          </section>
 
-        <div className="col-12 col-lg-5 col-xl-4">
-          <div className="luxury-surface p-4 p-lg-5 shadow-sm">
-            <div className="mb-4">
-              <p className="text-uppercase luxury-muted small mb-2">Welcome back</p>
-              <h2 className="mb-2 fw-semibold">Đăng nhập</h2>
-              <p className="text-muted mb-0">Sử dụng email hoặc số điện thoại cùng mật khẩu để tiếp tục.</p>
+          <section className="auth-form-panel luxury-surface">
+            <div className="auth-form-header">
+              <p className="auth-eyebrow">Welcome back</p>
+              <h2>Đăng nhập</h2>
+              <p>Sử dụng email hoặc số điện thoại cùng mật khẩu để tiếp tục.</p>
             </div>
 
-            {error && <div className="alert alert-danger border-0 rounded-4">{error}</div>}
+            {error && <div className="auth-alert" role="alert">{error}</div>}
 
-            <form onSubmit={handleSubmit}>
-              <div className="mb-3">
-                <label className="form-label">Email hoặc số điện thoại</label>
+            <form className="auth-form" onSubmit={handleSubmit}>
+              <label>
+                <span>Email hoặc số điện thoại</span>
                 <input
-                  className="form-control form-control-lg rounded-4"
+                  type="text"
                   value={emailPhone}
                   onChange={(e) => setEmailPhone(e.target.value)}
                   placeholder="Nhập email hoặc số điện thoại"
                   autoComplete="username"
                   required
                 />
-              </div>
-              <div className="mb-3">
-                <label className="form-label">Mật khẩu</label>
+              </label>
+
+              <label>
+                <span>Mật khẩu</span>
                 <input
                   type="password"
-                  className="form-control form-control-lg rounded-4"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Nhập mật khẩu"
                   autoComplete="current-password"
                   required
                 />
-              </div>
+              </label>
+
               {captchaRequired && (
-                <>
-                  <div className="auth-captcha-notice mb-3">
+                <div className="auth-captcha-wrap">
+                  <div className="auth-captcha-notice">
                     Bạn đã nhập sai thông tin đăng nhập từ 3 lần. Vui lòng nhập mã xác nhận để tiếp tục.
                   </div>
                   <CaptchaChallenge
@@ -182,34 +181,28 @@ export function LoginPage() {
                     onChange={updateCaptchaProof}
                     refreshKey={captchaRefreshKey}
                   />
-                </>
+                </div>
               )}
-              <div className="d-flex justify-content-between align-items-center mb-4 small text-muted">
-                <span>Chúng tôi sẽ tự điều hướng theo quyền của bạn.</span>
-              </div>
+
+              <div className="auth-form-footnote">Chúng tôi sẽ tự điều hướng theo quyền của bạn.</div>
+
               <button className="btn btn-dark btn-lg w-100 rounded-4" disabled={loading || (captchaRequired && !captchaProof.captchaToken)}>
                 {loading ? 'Đang xử lý...' : 'Đăng nhập'}
               </button>
             </form>
 
-            <div className="text-center mt-3">
-              <Link to="/register" className="text-decoration-none fw-medium">
-                Chưa có tài khoản? Đăng ký ngay
-              </Link>
+            <div className="auth-register-link">
+              <Link to="/register">Chưa có tài khoản? Đăng ký ngay</Link>
             </div>
 
-            {appMode === 'admin' ? (
-              <p className="luxury-muted small text-center mt-3 mb-0">
-                Tài khoản khách hàng sẽ được chuyển về trang mua hàng.
-              </p>
-            ) : (
-              <p className="luxury-muted small text-center mt-3 mb-0">
-                Tài khoản admin sẽ được chuyển thẳng vào trang quản trị.
-              </p>
-            )}
-          </div>
+            <p className="auth-role-note">
+              {appMode === 'admin'
+                ? 'Tài khoản khách hàng sẽ được chuyển về trang mua hàng.'
+                : 'Tài khoản admin sẽ được chuyển thẳng vào trang quản trị.'}
+            </p>
+          </section>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

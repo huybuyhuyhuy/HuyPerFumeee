@@ -1,36 +1,12 @@
 import app, { env } from './app.js';
 import { getDbPool } from './src/config/database.js';
 import logger from './src/config/logger.js';
-import { execSync } from 'child_process';
 
 let server = null;
-
-/**
- * On Windows, forcefully release the configured port when a previous instance
- * didn't shut down cleanly.  This prevents the EADDRINUSE crash loop that
- * `node --watch` triggers when the old process hasn't exited yet.
- */
-function killPortProcess(port) {
-  if (process.platform !== 'win32') return;
-  try {
-    const out = execSync(`netstat -ano | findstr :${port}`, { encoding: 'utf8', timeout: 3000 });
-    const lines = out.trim().split(/\r?\n/);
-    for (const line of lines) {
-      const match = line.match(/:(\d+)\s+.*LISTENING\s+(\d+)/);
-      if (match && Number(match[1]) === port) {
-        execSync(`taskkill /F /PID ${match[2]}`, { timeout: 5000 });
-        logger.info(`Killed stale process PID ${match[2]} on port ${port}`);
-      }
-    }
-  } catch {
-    // best-effort — port may already be free
-  }
-}
 
 async function bootstrap() {
   try {
     await getDbPool();
-    await killPortProcess(env.port);
 
     server = app.listen(env.port, () => {
       logger.info(`huyperfume-server listening on http://localhost:${env.port}`, {

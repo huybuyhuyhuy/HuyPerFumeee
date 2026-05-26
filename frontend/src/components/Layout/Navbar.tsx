@@ -2,15 +2,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.js';
 import { useWishlist } from '../../store/WishlistContext';
+import { productService } from '../../services/productService';
 
 const navLinks = [
   { to: '/home', label: 'Trang chủ' },
   { to: '/products', label: 'Sản phẩm' },
-  { to: '/products?categoryId=4', label: 'Cao cấp' },
-  { to: '/products?categoryId=5', label: 'Mini size' },
   { to: '/home#contact', label: 'Liên hệ' },
 ];
 const ADMIN_APP_URL = (import.meta.env.VITE_ADMIN_APP_URL || 'http://localhost:5178').replace(/\/+$/, '');
+const NAVBAR_TOP_THRESHOLD = 12;
+
+type NavbarCategory = {
+  id: string;
+  name: string;
+  productCount: number;
+};
 
 function SearchIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6" /><path d="m16 16 4 4" /></svg>); }
 function HeartIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.4 5.6c-1.6-1.7-4.2-1.7-5.8 0L12 8.2 9.4 5.6c-1.6-1.7-4.2-1.7-5.8 0-1.8 1.8-1.8 4.7 0 6.5L12 20l8.4-7.9c1.8-1.8 1.8-4.7 0-6.5Z" /></svg>); }
@@ -20,16 +26,14 @@ function TruckIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true" focus
 function GiftIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 10h16v10H4z" /><path d="M4 10h16V6H4z" /><path d="M12 6v14" /><path d="M12 6c-1-3-5-4-6-2.1C5.2 5.7 8 6 12 6Z" /><path d="M12 6c1-3 5-4 6-2.1.8 1.8-2 2.1-6 2.1Z" /></svg>); }
 function MenuIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16" /></svg>); }
 function CloseIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18" /></svg>); }
+function ChevronIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 10 5 5 5-5" /></svg>); }
 
 function isNavLinkActive(pathname: string, search: string, hash: string, to: string) {
   const categoryId = new URLSearchParams(search).get('categoryId');
 
   if (to === '/home') return pathname === '/home' && hash !== '#contact';
   if (to === '/home#contact') return pathname === '/home' && hash === '#contact';
-  if (to === '/products?categoryId=4') return pathname === '/products' && categoryId === '4';
-  if (to === '/products?categoryId=5') return pathname === '/products' && categoryId === '5';
-
-  return pathname.startsWith('/products') && !(pathname === '/products' && (categoryId === '4' || categoryId === '5'));
+  return pathname.startsWith('/products') && !(pathname === '/products' && categoryId);
 }
 
 export function Navbar() {
@@ -38,12 +42,21 @@ export function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [categories, setCategories] = useState<NavbarCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
 
   const handleLogout = () => { logout(); navigate('/home'); };
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 16);
+    const onScroll = () => {
+      const movedFromTop = window.scrollY > NAVBAR_TOP_THRESHOLD;
+      setScrolled(movedFromTop);
+      setHidden(movedFromTop);
+      if (movedFromTop) setCategoriesOpen(false);
+    };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -51,7 +64,37 @@ export function Navbar() {
 
   useEffect(() => {
     setMobileOpen(false);
+    setCategoriesOpen(false);
   }, [location.pathname, location.search, location.hash]);
+
+  useEffect(() => {
+    let active = true;
+
+    productService
+      .getCategories()
+      .then((data) => {
+        if (!active) return;
+        setCategories(
+          (Array.isArray(data) ? data : [])
+            .map((category) => ({
+              id: String(category?.id || '').trim(),
+              name: String(category?.name || '').trim(),
+              productCount: Number(category?.productCount || 0),
+            }))
+            .filter((category) => category.id && category.name)
+        );
+      })
+      .catch(() => {
+        if (active) setCategories([]);
+      })
+      .finally(() => {
+        if (active) setCategoriesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     document.body.classList.toggle('navbar-menu-open', mobileOpen);
@@ -59,20 +102,25 @@ export function Navbar() {
   }, [mobileOpen]);
 
   useEffect(() => {
-    if (!mobileOpen) return;
+    if (!mobileOpen && !categoriesOpen) return;
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileOpen(false);
+      if (event.key === 'Escape') {
+        setMobileOpen(false);
+        setCategoriesOpen(false);
+      }
     };
 
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [mobileOpen]);
+  }, [mobileOpen, categoriesOpen]);
 
   const accountLabel = useMemo(() => (isLoggedIn ? user?.name || 'Tài khoản' : 'Tài khoản'), [isLoggedIn, user?.name]);
+  const activeCategoryId = new URLSearchParams(location.search).get('categoryId');
+  const categoryActive = location.pathname === '/products' && Boolean(activeCategoryId);
 
   return (
-    <nav className={`navbar navbar-expand-lg luxury-navbar sticky-top ${scrolled ? 'is-scrolled' : ''} ${mobileOpen ? 'is-menu-open' : ''}`}>
+    <nav className={`navbar navbar-expand-lg luxury-navbar sticky-top ${scrolled ? 'is-scrolled' : ''} ${hidden && !mobileOpen ? 'is-hidden' : ''} ${mobileOpen ? 'is-menu-open' : ''}`}>
       <div className="luxury-navbar-topbar">
         <div className="container luxury-navbar-topbar-inner">
           <div className="luxury-navbar-benefits" aria-label="Cam kết dịch vụ">
@@ -120,7 +168,49 @@ export function Navbar() {
           </div>
 
           <ul className="navbar-nav luxury-nav mx-lg-auto gap-lg-1">
-            {navLinks.map((item) => {
+            {navLinks.slice(0, 2).map((item) => {
+              const active = isNavLinkActive(location.pathname, location.search, location.hash, item.to);
+
+              return (
+                <li className="nav-item" key={item.label}>
+                  <Link className={`nav-link luxury-nav-link ${active ? 'active' : ''}`} to={item.to} aria-current={active ? 'page' : undefined} onClick={() => setMobileOpen(false)}>
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+            <li className={`nav-item luxury-category-nav ${categoriesOpen ? 'is-open' : ''}`}>
+              <button
+                type="button"
+                className={`nav-link luxury-nav-link luxury-category-trigger ${categoryActive ? 'active' : ''}`}
+                aria-expanded={categoriesOpen}
+                aria-controls="navbar-categories"
+                onClick={() => setCategoriesOpen((value) => !value)}
+              >
+                Danh mục
+                <ChevronIcon />
+              </button>
+              <ul className="luxury-category-menu" id="navbar-categories">
+                {categoriesLoading && <li className="luxury-category-status">Đang tải danh mục...</li>}
+                {!categoriesLoading && categories.length === 0 && <li className="luxury-category-status">Chưa có danh mục</li>}
+                {categories.map((category) => (
+                  <li key={category.id}>
+                    <Link
+                      to={`/products?categoryId=${encodeURIComponent(category.id)}`}
+                      className={activeCategoryId === category.id ? 'active' : ''}
+                      onClick={() => {
+                        setCategoriesOpen(false);
+                        setMobileOpen(false);
+                      }}
+                    >
+                      <span>{category.name}</span>
+                      <small>{category.productCount} sản phẩm</small>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </li>
+            {navLinks.slice(2).map((item) => {
               const active = isNavLinkActive(location.pathname, location.search, location.hash, item.to);
 
               return (

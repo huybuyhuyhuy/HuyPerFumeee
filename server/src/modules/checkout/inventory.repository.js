@@ -1,4 +1,4 @@
-import sql from 'mssql';
+import { sql } from '../../config/database.js';
 import { randomUUID } from 'crypto';
 import { env } from '../../config/env.js';
 import { getCheckoutStorageCapabilities } from './checkout.storage.js';

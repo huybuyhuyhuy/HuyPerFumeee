@@ -93,7 +93,7 @@ export function ProductCard({ product, onAddToCart, onToggleWishlist, onAddWishl
   const isOutOfStock = asNumber(product.stock, 1) <= 0;
 
   return (
-    <div className="col luxury-listing-card-col">
+    <div className="col luxury-listing-card-col scroll-reveal-item">
       <article className="luxury-listing-card">
         <Link to={`/products/${product.id}`} className="luxury-listing-card-media" aria-label={`Xem chi tiết ${name}`}>
           <img src={image} alt={name} loading="lazy" decoding="async" />

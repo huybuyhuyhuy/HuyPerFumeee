@@ -10,7 +10,7 @@ export function RelatedProductRail({ title, products = [] }) {
       <div className="d-flex align-items-end justify-content-between gap-3 mb-3">
         <div>
           <p className="story-eyebrow mb-2">{title}</p>
-          <h2 className="story-subtitle mb-0">Curated picks</h2>
+          <h2 className="story-subtitle mb-0">Gợi ý dành cho bạn</h2>
         </div>
       </div>
       <div className="related-rail">

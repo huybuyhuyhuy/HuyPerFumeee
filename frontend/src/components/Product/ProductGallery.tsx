@@ -29,13 +29,21 @@ export function ProductGallery({ product }: ProductGalleryProps) {
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
   const activeImage = gallery[activeIndex] || gallery[0];
+  const hasMultipleImages = gallery.length > 1;
 
   useEffect(() => {
     setActiveIndex(0);
     setIsLoaded(false);
     setOffset({ x: 0, y: 0 });
   }, [gallery.join('|')]);
+
+  useEffect(() => {
+    if (imageRef.current?.complete && imageRef.current.naturalWidth > 0) {
+      setIsLoaded(true);
+    }
+  }, [activeImage]);
 
   const goTo = (index: number) => {
     const next = (index + gallery.length) % gallery.length;
@@ -78,6 +86,7 @@ export function ProductGallery({ product }: ProductGalleryProps) {
       >
         <div className="product-gallery-shimmer" aria-hidden="true" />
         <img
+          ref={imageRef}
           src={activeImage}
           alt={product.name || 'Hình ảnh sản phẩm'}
           className="product-gallery-image"
@@ -89,28 +98,37 @@ export function ProductGallery({ product }: ProductGalleryProps) {
         />
 
         <div className="product-gallery-hero-copy">
-          <span>Immersive preview</span>
-          <strong>{product.name || 'Luxury fragrance'}</strong>
+          <span>Khám phá chi tiết</span>
+          <strong>{product.name || 'Nước hoa tuyển chọn'}</strong>
         </div>
 
-        <button type="button" className="product-gallery-fullscreen-btn" onClick={(event) => { event.stopPropagation(); setIsFullscreen(true); }}>
-          Xem fullscreen
+        <button
+          type="button"
+          className="product-gallery-fullscreen-btn"
+          aria-label={`Phóng to ảnh ${product.name || 'sản phẩm'}`}
+          onClick={(event) => { event.stopPropagation(); setIsFullscreen(true); }}
+        >
+          Phóng to
         </button>
       </div>
 
-      <div className="product-gallery-controls">
-        <button type="button" className="product-gallery-nav" onClick={() => goTo(activeIndex - 1)} aria-label="Ảnh trước">
-          ←
-        </button>
-        <div className="product-gallery-counter">
-          {String(activeIndex + 1).padStart(2, '0')} / {String(gallery.length).padStart(2, '0')}
+      {hasMultipleImages ? (
+        <div className="product-gallery-controls">
+          <button type="button" className="product-gallery-nav" onClick={() => goTo(activeIndex - 1)} aria-label="Ảnh trước">
+            ←
+          </button>
+          <div className="product-gallery-counter">
+            {String(activeIndex + 1).padStart(2, '0')} / {String(gallery.length).padStart(2, '0')}
+          </div>
+          <button type="button" className="product-gallery-nav" onClick={() => goTo(activeIndex + 1)} aria-label="Ảnh tiếp theo">
+            →
+          </button>
         </div>
-        <button type="button" className="product-gallery-nav" onClick={() => goTo(activeIndex + 1)} aria-label="Ảnh tiếp theo">
-          →
-        </button>
-      </div>
+      ) : (
+        <p className="product-gallery-hint">Di chuột để xem kỹ chi tiết sản phẩm</p>
+      )}
 
-      {gallery.length > 1 && (
+      {hasMultipleImages && (
         <div className="product-gallery-thumbs" role="list" aria-label="Thư viện hình ảnh sản phẩm">
           {gallery.map((image, index) => (
             <button
@@ -127,11 +145,11 @@ export function ProductGallery({ product }: ProductGalleryProps) {
       )}
 
       {isFullscreen && (
-        <div className="product-gallery-modal" role="dialog" aria-modal="true" onClick={() => setIsFullscreen(false)}>
-          <button type="button" className="product-gallery-modal-close" onClick={() => setIsFullscreen(false)}>
+        <div className="product-gallery-modal" role="dialog" aria-modal="true" aria-label="Ảnh sản phẩm phóng to" onClick={() => setIsFullscreen(false)}>
+          <button type="button" className="product-gallery-modal-close" aria-label="Đóng ảnh phóng to" onClick={() => setIsFullscreen(false)}>
             Đóng
           </button>
-          <img src={activeImage} alt={product.name || 'Hình ảnh sản phẩm'} className="product-gallery-modal-image" />
+          <img src={activeImage} alt={product.name || 'Hình ảnh sản phẩm'} className="product-gallery-modal-image" onClick={(event) => event.stopPropagation()} />
         </div>
       )}
     </section>

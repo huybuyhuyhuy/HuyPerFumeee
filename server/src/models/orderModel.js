@@ -1,5 +1,4 @@
-import sql from 'mssql';
-import { getDbPool, query } from '../config/database.js';
+import { getDbPool, query, sql } from '../config/database.js';
 import { getCart, markCartCheckedOut } from './cartModel.js';
 import { invalidateProductCache } from './productModel.js';
 import { getProductStorageCapabilities, hasOrderItemVariantColumn } from '../modules/products/product.repository.js';
