@@ -61,7 +61,8 @@ function clearCartByScope(scope) {
 
 export async function getCart(scope) {
   if (await hasDurableCartStorage()) {
-    return getDurableCart(scope);
+    const durableCart = await getDurableCart(scope);
+    if (durableCart) return durableCart;
   }
 
   const items = getCartByScope(scope);
@@ -78,7 +79,8 @@ export async function addToCart(scope, productId, quantity = 1, variantId = null
   if (selection.code) return selection;
 
   if (await hasDurableCartStorage()) {
-    return upsertDurableCartItem(scope, selection, quantityValidation.quantity, 'add');
+    const durableCart = await upsertDurableCartItem(scope, selection, quantityValidation.quantity, 'add');
+    if (durableCart) return durableCart;
   }
 
   const currentItems = getCartByScope(scope);
@@ -126,7 +128,8 @@ export async function updateCartItem(scope, productId, quantity, variantId = nul
   }
 
   if (await hasDurableCartStorage()) {
-    return upsertDurableCartItem(scope, selection, quantityValidation.quantity, 'set');
+    const durableCart = await upsertDurableCartItem(scope, selection, quantityValidation.quantity, 'set');
+    if (durableCart) return durableCart;
   }
 
   const currentItems = getCartByScope(scope);
@@ -149,7 +152,8 @@ export async function updateCartItem(scope, productId, quantity, variantId = nul
 
 export async function removeCartItem(scope, productId, variantId = null) {
   if (await hasDurableCartStorage()) {
-    return removeDurableCartItem(scope, productId, variantId);
+    const durableCart = await removeDurableCartItem(scope, productId, variantId);
+    if (durableCart) return durableCart;
   }
 
   const currentItems = getCartByScope(scope);
@@ -165,7 +169,8 @@ export async function removeCartItem(scope, productId, variantId = null) {
 
 export async function clearCart(scope) {
   if (await hasDurableCartStorage()) {
-    return clearDurableCart(scope);
+    const durableCart = await clearDurableCart(scope);
+    if (durableCart) return durableCart;
   }
 
   clearCartByScope(scope);
@@ -174,9 +179,35 @@ export async function clearCart(scope) {
 
 export async function markCartCheckedOut(scope) {
   if (await hasDurableCartStorage()) {
-    return clearDurableCart(scope, 'CHECKED_OUT');
+    const durableCart = await clearDurableCart(scope, 'CHECKED_OUT');
+    if (durableCart) return durableCart;
   }
 
   clearCartByScope(scope);
   return toCartResponse([]);
+}
+
+export async function mergeGuestCartToUser(userId, cartToken) {
+  const safeUserId = Number(userId);
+  const safeCartToken = String(cartToken || '').trim();
+  if (!safeUserId || !safeCartToken) {
+    return getCart({ type: 'user', key: safeUserId });
+  }
+
+  const guestScope = { type: 'guest', key: safeCartToken };
+  const userScope = { type: 'user', key: safeUserId };
+  const guestCart = await getCart(guestScope);
+
+  for (const item of guestCart.items || []) {
+    const result = await addToCart(
+      userScope,
+      Number(item.product?.id),
+      Number(item.quantity || 1),
+      item.product?.variantId ?? null
+    );
+    if (result?.code) return result;
+  }
+
+  await clearCart(guestScope);
+  return getCart(userScope);
 }

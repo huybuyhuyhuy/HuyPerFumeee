@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.js';
+import { useCart } from '../../hooks/useCart';
 import { useWishlist } from '../../store/WishlistContext';
 import { productService } from '../../services/productService';
+import { siteContact } from '../../config/siteConfig';
 
 const navLinks = [
   { to: '/home', label: 'Trang chủ' },
@@ -27,6 +29,12 @@ function GiftIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true" focusa
 function MenuIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16" /></svg>); }
 function CloseIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18" /></svg>); }
 function ChevronIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 10 5 5 5-5" /></svg>); }
+
+function CartCountBadge() {
+  const { cart } = useCart();
+
+  return cart.itemCount > 0 ? <span className="icon-pill-badge">{cart.itemCount}</span> : null;
+}
 
 function isNavLinkActive(pathname: string, search: string, hash: string, to: string) {
   const categoryId = new URLSearchParams(search).get('categoryId');
@@ -128,8 +136,8 @@ export function Navbar() {
             <span className="d-none d-md-inline-flex"><TruckIcon /> Giao nhanh toàn quốc</span>
             <span className="d-none d-xl-inline-flex"><GiftIcon /> Gói quà tinh tế</span>
           </div>
-          <a className="luxury-navbar-support" href="tel:0900000000">
-            <span className="d-none d-sm-inline">Tư vấn:</span> 0900 000 000
+          <a className="luxury-navbar-support" href={siteContact.phoneHref}>
+            <span className="d-none d-sm-inline">Tư vấn:</span> {siteContact.phoneDisplay}
           </a>
         </div>
       </div>
@@ -141,7 +149,7 @@ export function Navbar() {
           </span>
           <span className="luxury-brand-copy">
             <strong>HuyPerfume</strong>
-            <small>Luxury fragrance boutique</small>
+            <small>Cửa hàng nước hoa cao cấp</small>
           </span>
         </Link>
 
@@ -238,11 +246,12 @@ export function Navbar() {
               <Link className="icon-pill text-decoration-none" to="/wishlist" aria-label="Yêu thích">
                 <HeartIcon />
                 <span className="navbar-mobile-label">Yêu thích</span>
-                {count > 0 && <span className="icon-pill-badge">{count}</span>}
+                {isLoggedIn && count > 0 && <span className="icon-pill-badge">{count}</span>}
               </Link>
               <Link className="icon-pill text-decoration-none" to="/cart" aria-label="Giỏ hàng">
                 <BagIcon />
                 <span className="navbar-mobile-label">Giỏ hàng</span>
+                {isLoggedIn && <CartCountBadge />}
               </Link>
             </div>
 

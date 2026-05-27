@@ -146,6 +146,40 @@ export async function fetchStatsChartSeries() {
   return { revenue, orders, users };
 }
 
+export async function fetchRecentOrderTrend(days = 14) {
+  const safeDays = Math.max(2, Math.min(60, Number(days) || 14));
+  const daysBack = safeDays - 1;
+  const p = [];
+  const valid = collectInClause(STATUS_GROUPS.VALID_ORDERS, p);
+
+  return query(
+    `WITH day_series AS (
+       SELECT CAST(DATEADD(day, -${daysBack}, CAST(GETDATE() AS date)) AS date) AS dayDate
+       UNION ALL
+       SELECT DATEADD(day, 1, dayDate)
+       FROM day_series
+       WHERE dayDate < CAST(GETDATE() AS date)
+     ),
+     daily_orders AS (
+       SELECT CONVERT(date, o.created_at) AS dayDate,
+              COUNT(*) AS orders,
+              COALESCE(SUM(o.total), 0) AS revenue
+       FROM orders o
+       WHERE o.status IN (${valid})
+         AND o.created_at >= DATEADD(day, -${daysBack}, CAST(GETDATE() AS date))
+         AND o.created_at < DATEADD(day, 1, CAST(GETDATE() AS date))
+       GROUP BY CONVERT(date, o.created_at)
+     )
+     SELECT ds.dayDate AS date,
+            ISNULL(d.orders, 0) AS orders,
+            ISNULL(d.revenue, 0) AS revenue
+     FROM day_series ds
+     LEFT JOIN daily_orders d ON d.dayDate = ds.dayDate
+     ORDER BY ds.dayDate ASC`,
+    p,
+  );
+}
+
 /** Top N products by sold quantity, optionally filtered by date range. */
 export async function fetchTopProducts(limit, dateFilter) {
   const { product } = await getDashboardCapabilities();
@@ -296,17 +330,14 @@ export async function fetchTopCategories(limit, start, end) {
 }
 
 export async function fetchRecentOrders(limit) {
-  const p = [];
-  const valid = collectInClause(STATUS_GROUPS.VALID_ORDERS, p);
   return query(
     `SELECT TOP ${Number(limit)} o.id, o.total, o.status, o.payment_method, o.created_at,
             COALESCE(u.name, N'Khách vãng lai') AS customer_name,
             COALESCE(u.email, '') AS customer_email
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
-     WHERE o.status IN (${valid})
-     ORDER BY o.created_at DESC`,
-    p,
+     WHERE LOWER(ISNULL(o.status, '')) <> 'cart'
+     ORDER BY o.created_at DESC, o.id DESC`,
   );
 }
 

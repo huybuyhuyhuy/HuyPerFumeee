@@ -72,6 +72,8 @@ export interface Product {
   variants?: ProductVariant[];
   category: { id: number; name: string } | null;
   brand: { id: number; name: string } | null;
+  decantInventory?: DecantInventory | null;
+  bottleVolumeMl?: number;
 }
 
 export interface ProductReview {
@@ -166,6 +168,12 @@ export interface JwtResponse {
     token?: string;
     expiresAt: string;
   };
+}
+
+export interface DecantInventory {
+  sealedBottles: number;
+  openedMl: number;
+  bottleVolumeMl: number;
 }
 
 export interface Category {

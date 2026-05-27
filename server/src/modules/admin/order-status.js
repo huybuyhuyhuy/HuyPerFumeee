@@ -13,13 +13,18 @@ const ORDER_STATUS = {
   DA_HUY: 'Đã hủy',
 
   // Future standardized (forward-compatible)
+  PENDING_TITLE: 'Pending',
+  PROCESSING_TITLE: 'Processing',
+  SHIPPED_TITLE: 'Shipped',
   PENDING: 'pending',
   PROCESSING: 'processing',
   SHIPPED: 'shipped',
   DELIVERED_LOWER: 'delivered',
   COMPLETED_LOWER: 'completed',
   CANCELLED_LOWER: 'cancelled',
+  FAILED_TITLE: 'Failed',
   FAILED: 'failed',
+  REFUNDED_TITLE: 'Refunded',
   REFUNDED: 'refunded',
 
   // Non-order
@@ -43,6 +48,9 @@ const STATUS_GROUPS = {
     ORDER_STATUS.WAITING,
     ORDER_STATUS.DA_XAC_NHAN,
     ORDER_STATUS.DANG_GIAO,
+    ORDER_STATUS.PENDING_TITLE,
+    ORDER_STATUS.PROCESSING_TITLE,
+    ORDER_STATUS.SHIPPED_TITLE,
     ORDER_STATUS.PENDING,
     ORDER_STATUS.PROCESSING,
     ORDER_STATUS.SHIPPED,
@@ -62,11 +70,13 @@ const STATUS_GROUPS = {
     ORDER_STATUS.CANCELLED,
     ORDER_STATUS.DA_HUY,
     ORDER_STATUS.CANCELLED_LOWER,
+    ORDER_STATUS.FAILED_TITLE,
     ORDER_STATUS.FAILED,
   ],
 
   // Refunded orders
   REFUNDED: [
+    ORDER_STATUS.REFUNDED_TITLE,
     ORDER_STATUS.REFUNDED,
   ],
 

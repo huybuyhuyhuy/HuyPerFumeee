@@ -5,6 +5,8 @@ export const cartService = {
   async addItem(productId: number, quantity: number, variantId?: number | string | null) {
     const body = variantId ? { productId, quantity, variantId } : { productId, quantity };
     const { data } = await api.post('/cart/add', body);
-    return normalizeCartSummary(unwrapApiData(data));
+    const cart = normalizeCartSummary(unwrapApiData(data));
+    window.dispatchEvent(new Event('huyperfume:cart-updated'));
+    return cart;
   },
 };

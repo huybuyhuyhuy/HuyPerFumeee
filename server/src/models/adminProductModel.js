@@ -50,9 +50,12 @@ export async function listAdminProducts({
   if (!includeInactive || status === 'active') conditions.push('p.status = 1');
   if (status === 'inactive') conditions.push('p.status = 0');
   if (search) {
-    conditions.push('(p.name LIKE ? OR p.sku LIKE ? OR p.batch_code LIKE ?)');
+    const searchColumns = ['p.name'];
+    if (capabilities.columns.has('sku')) searchColumns.push('p.sku');
+    if (capabilities.columns.has('batch_code')) searchColumns.push('p.batch_code');
+    conditions.push(`(${searchColumns.map((column) => `${column} LIKE ?`).join(' OR ')})`);
     const pattern = `%${String(search).trim()}%`;
-    params.push(pattern, pattern, pattern);
+    params.push(...searchColumns.map(() => pattern));
   }
   if (stockState === 'out') conditions.push('ISNULL(p.stock, 0) = 0');
   if (stockState === 'low') conditions.push('ISNULL(p.stock, 0) BETWEEN 1 AND 5');
@@ -70,10 +73,23 @@ export async function listAdminProducts({
             SUM(CASE WHEN p.status = 0 THEN 1 ELSE 0 END) AS inactive,
             SUM(CASE WHEN ISNULL(p.stock, 0) = 0 THEN 1 ELSE 0 END) AS out_of_stock,
             SUM(CASE WHEN ISNULL(p.stock, 0) BETWEEN 1 AND 5 THEN 1 ELSE 0 END) AS low_stock,
-            SUM(ISNULL(p.stock, 0)) AS total_stock
+            SUM(ISNULL(p.stock, 0)) AS total_stock,
+            SUM(ISNULL(p.stock, 0) * ISNULL(p.price, 0)) AS stock_value,
+            AVG(NULLIF(ISNULL(p.price, 0), 0)) AS average_price,
+            SUM(CASE WHEN ISNULL(p.is_decant, 0) = 1 THEN 1 ELSE 0 END) AS decant_count
      FROM products p ${globalWhereSql}`
   );
   const summary = summaryRows[0] || {};
+  const categoryRows = await query(
+    `SELECT TOP 8 COALESCE(c.name, N'Chua phan loai') AS categoryName,
+            COUNT(*) AS total,
+            SUM(ISNULL(p.stock, 0)) AS stock
+     FROM products p
+     LEFT JOIN categories c ON c.id = p.id_category
+     ${globalWhereSql}
+     GROUP BY COALESCE(c.name, N'Chua phan loai')
+     ORDER BY total DESC`
+  );
   const imageColumns = capabilities.tables.has('product_images')
     ? `(SELECT STRING_AGG(pi.image_url, ',') FROM product_images pi WHERE pi.product_id = p.id AND pi.deleted_at IS NULL) AS images_csv,
        (SELECT TOP 1 pi2.image_url FROM product_images pi2 WHERE pi2.product_id = p.id AND pi2.deleted_at IS NULL ORDER BY pi2.is_thumbnail DESC, pi2.sort_order ASC) AS thumbnail`
@@ -152,6 +168,14 @@ export async function listAdminProducts({
       outOfStock: Number(summary.out_of_stock || 0),
       lowStock: Number(summary.low_stock || 0),
       totalStock: Number(summary.total_stock || 0),
+      stockValue: Number(summary.stock_value || 0),
+      averagePrice: Math.round(Number(summary.average_price || 0)),
+      decantCount: Number(summary.decant_count || 0),
+      categoryBreakdown: categoryRows.map((row) => ({
+        category: row.categoryName,
+        total: Number(row.total || 0),
+        stock: Number(row.stock || 0),
+      })),
     },
   };
 }

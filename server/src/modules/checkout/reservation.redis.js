@@ -13,11 +13,11 @@ async function getRedisClient() {
     const client = createClient({ url: env.redisUrl });
     client.on('error', (error) => {
       redisDisabled = true;
-      console.warn('Checkout Redis reservation disabled:', error.message);
+      console.warn('Đặt chỗ Redis thanh toán đã tắt:', error.message);
     });
     redisClientPromise = client.connect().then(() => client).catch((error) => {
       redisDisabled = true;
-      console.warn('Checkout Redis unavailable, using process-local reservation fallback:', error.message);
+      console.warn('Redis không khả dụng, dùng bộ nhớ cục bộ:', error.message);
       return null;
     });
   }
@@ -89,7 +89,7 @@ export async function withInventoryReservationLocks(items, callback) {
       }
 
       if (!locked) {
-        return { code: 409, message: 'Inventory is busy, please retry checkout' };
+        return { code: 409, message: 'Hệ thống đang bận, vui lòng thử lại sau' };
       }
       acquired.push(item);
     }
@@ -101,7 +101,7 @@ export async function withInventoryReservationLocks(items, callback) {
         if (redis) await releaseRedisLock(redis, item.key, item.token);
         else releaseMemoryLock(item.key, item.token);
       } catch (error) {
-        console.warn('Failed to release inventory lock:', error.message);
+        console.warn('Không thể giải phóng khóa tồn kho:', error.message);
       }
     }
   }

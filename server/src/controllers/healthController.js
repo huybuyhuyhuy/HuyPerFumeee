@@ -39,7 +39,7 @@ async function checkRedis() {
   const start = Date.now();
   try {
     const client = await getRedisClient();
-    if (!client) return { status: 'unavailable', message: 'Redis not configured' };
+    if (!client) return { status: 'unavailable', message: 'Redis chưa được cấu hình' };
     const result = await client.ping();
     return { status: result === 'PONG' ? 'ok' : 'error', latencyMs: Date.now() - start };
   } catch (err) {

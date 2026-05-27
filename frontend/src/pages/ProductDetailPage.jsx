@@ -11,6 +11,7 @@ import { useToast } from '../store/ToastContext';
 import { useWishlist } from '../store/WishlistContext';
 import { formatVnCurrency, clampPrice } from '../utils/formatters';
 import { buildProductVariants } from '../utils/productVariants';
+import { getCurrentPath, savePendingCustomerAction } from '../utils/pendingCustomerAction';
 
 const ProductDiscoveryTabs = lazy(() => import('../components/Product/ProductDiscoveryTabs').then((module) => ({ default: module.ProductDiscoveryTabs })));
 const RelatedProductRail = lazy(() => import('../components/Product/RelatedProductRail').then((module) => ({ default: module.RelatedProductRail })));
@@ -56,7 +57,7 @@ function ProductErrorState({ message, onRetry }) {
   return (
     <div className="container luxury-page">
       <EmptyState
-        eyebrow="Product unavailable"
+        eyebrow="Sản phẩm không khả dụng"
         title="Sản phẩm không tồn tại hoặc đã bị xóa"
         description={message || 'Vui lòng thử lại sau hoặc quay về trang danh mục để tiếp tục khám phá.'}
         action={
@@ -109,6 +110,7 @@ export function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [activeVariant, setActiveVariant] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
+  const [cartFeedback, setCartFeedback] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [reviews, setReviews] = useState([]);
   const loadRequestRef = useRef(0);
@@ -116,6 +118,7 @@ export function ProductDetailPage() {
   const { pushToast } = useToast();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const navigate = useNavigate();
+  const currentPath = getCurrentPath({ pathname: `/products/${id || ''}`, search: '', hash: '' });
 
   const load = async () => {
     const requestId = loadRequestRef.current + 1;
@@ -180,18 +183,73 @@ export function ProductDetailPage() {
   useEffect(() => { if (!product) return; setQuantity((current) => Math.min(Math.max(1, current), Math.max(stock, 1))); }, [product, stock]);
 
   const handleAddToCart = async () => {
-    if (!isLoggedIn) { pushToast('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.', 'info'); window.setTimeout(() => navigate('/login'), 250); return; }
+    if (!isLoggedIn) {
+      savePendingCustomerAction({
+        type: 'cart',
+        productId: Number(id),
+        quantity,
+        variantId: product?.hasVariants ? activeVariant?.id : null,
+        returnTo: currentPath,
+      });
+      pushToast('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.', 'info');
+      navigate('/login', { state: { from: currentPath } });
+      return;
+    }
+
     setActionLoading('cart');
-    try { await cartService.addItem(Number(id), quantity, product?.hasVariants ? activeVariant?.id : null); pushToast('Đã thêm vào giỏ hàng.', 'success'); } catch (err) { pushToast(err?.message || 'Lỗi thêm vào giỏ hàng.', 'error'); } finally { setActionLoading(null); }
+    try {
+      await cartService.addItem(Number(id), quantity, product?.hasVariants ? activeVariant?.id : null);
+      setCartFeedback(true);
+      window.setTimeout(() => setCartFeedback(false), 1300);
+      pushToast('Đã thêm vào giỏ hàng.', 'success');
+    } catch (err) {
+      pushToast(err?.message || 'Lỗi thêm vào giỏ hàng.', 'error');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleBuyNow = async () => {
-    if (!isLoggedIn) { pushToast('Vui lòng đăng nhập để mua ngay.', 'info'); window.setTimeout(() => navigate('/login'), 250); return; }
+    if (!isLoggedIn) {
+      savePendingCustomerAction({
+        type: 'cart',
+        productId: Number(id),
+        quantity,
+        variantId: product?.hasVariants ? activeVariant?.id : null,
+        returnTo: '/checkout',
+      });
+      pushToast('Vui lòng đăng nhập để tiếp tục thanh toán.', 'info');
+      navigate('/login', { state: { from: '/checkout' } });
+      return;
+    }
+
     setActionLoading('buy');
-    try { await cartService.addItem(Number(id), quantity, product?.hasVariants ? activeVariant?.id : null); navigate('/checkout'); } catch (err) { pushToast(err?.message || 'Không thể mua ngay lúc này.', 'error'); } finally { setActionLoading(null); }
+    try {
+      await cartService.addItem(Number(id), quantity, product?.hasVariants ? activeVariant?.id : null);
+      if (isLoggedIn) {
+        navigate('/checkout');
+      } else {
+        pushToast('Đã lưu sản phẩm vào giỏ. Đăng nhập để tiếp tục thanh toán.', 'success');
+        navigate('/login', { state: { from: '/checkout' } });
+      }
+    } catch (err) {
+      pushToast(err?.message || 'Không thể mua ngay lúc này.', 'error');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleToggleWishlist = () => { const nextSaved = toggleWishlist(product); pushToast(nextSaved ? 'Đã thêm vào danh sách yêu thích.' : 'Đã bỏ khỏi danh sách yêu thích.', nextSaved ? 'success' : 'info'); };
+  const handleToggleWishlist = () => {
+    if (!isLoggedIn) {
+      savePendingCustomerAction({ type: 'wishlist', product, returnTo: currentPath });
+      pushToast('Vui lòng đăng nhập để thêm sản phẩm vào yêu thích.', 'info');
+      navigate('/login', { state: { from: currentPath } });
+      return;
+    }
+
+    const nextSaved = toggleWishlist(product);
+    pushToast(nextSaved ? 'Đã thêm vào danh sách yêu thích.' : 'Đã bỏ khỏi danh sách yêu thích.', nextSaved ? 'success' : 'info');
+  };
 
   if (loading) return <ProductDetailSkeleton />;
   if (error) return <ProductErrorState message={error} onRetry={load} />;
@@ -259,18 +317,20 @@ export function ProductDetailPage() {
                   {product.concentration ? <div><strong>Nồng độ</strong><span>{product.concentration}</span></div> : null}
                   {product.scentNotes ? <div><strong>Tầng hương</strong><span>{String(product.scentNotes).replaceAll('|', ' · ')}</span></div> : null}
                   {product.category ? <div><strong>Danh mục</strong><span>{product.category.name}</span></div> : null}
+                  {activeVariant?.isDecant && product.decantInventory ? <div><strong>Chai nguyên seal</strong><span>{product.decantInventory.sealedBottles} chai</span></div> : null}
+                  {activeVariant?.isDecant && product.decantInventory ? <div><strong>Đã mở còn</strong><span>{product.decantInventory.openedMl}ml</span></div> : null}
                   <div><strong>Tồn kho</strong><span className={canBuy ? 'text-success' : 'text-danger'} aria-live="polite">{stockState}</span></div>
                   <div><strong>Tình trạng</strong><span>{activeVariant?.isAvailable ? 'Có sẵn' : invalidVariant ? 'Thiếu biến thể' : 'Không khả dụng'}</span></div>
                 </div>
                 {invalidPrice && <div className="luxury-surface mt-4 p-3"><strong className="d-block mb-1">Giá đang được cập nhật</strong><span className="luxury-muted">Hiện chưa có mức giá hợp lệ cho sản phẩm này.</span></div>}
                 {!product.image && <div className="luxury-surface mt-4 p-3"><strong className="d-block mb-1">Chưa có ảnh sản phẩm</strong><span className="luxury-muted">Gallery sẽ hiển thị ngay khi ảnh được bổ sung.</span></div>}
                 <div className="product-detail-actions mt-4">
-                  <div className="input-group quantity-group">
+                  <div className="product-quantity-stepper" aria-label="Số lượng sản phẩm">
                     <button type="button" className="btn btn-outline-secondary" aria-label="Giảm số lượng" onClick={() => quantity > 1 && setQuantity(quantity - 1)} disabled={!canBuy}>-</button>
-                    <input type="text" className="form-control text-center" value={quantity} readOnly disabled={!canBuy} aria-label="Số lượng sản phẩm" />
+                    <span aria-live="polite">{quantity}</span>
                     <button type="button" className="btn btn-outline-secondary" aria-label="Tăng số lượng" onClick={() => quantity < stock && setQuantity(quantity + 1)} disabled={!canBuy}>+</button>
                   </div>
-                  <button type="button" className="btn btn-dark btn-lg luxury-primary-btn action-btn" disabled={!canBuy || actionLoading !== null} onClick={handleAddToCart}>{actionLoading === 'cart' ? 'Đang thêm...' : stock === 0 ? 'Tạm hết hàng' : 'Thêm vào giỏ hàng'}</button>
+                  <button type="button" className={`btn btn-dark btn-lg luxury-primary-btn action-btn add-cart-feedback-btn ${cartFeedback ? 'is-added' : ''}`} disabled={!canBuy || actionLoading !== null} onClick={handleAddToCart}>{actionLoading === 'cart' ? 'Đang thêm...' : cartFeedback ? 'Đã thêm' : stock === 0 ? 'Tạm hết hàng' : 'Thêm vào giỏ hàng'}</button>
                   <button type="button" className="btn btn-outline-dark btn-lg action-btn action-btn-secondary" disabled={!canBuy || actionLoading !== null} onClick={handleBuyNow}>{actionLoading === 'buy' ? 'Đang xử lý...' : 'Mua ngay'}</button>
                   <button type="button" className={`btn btn-outline-dark btn-lg action-btn action-btn-wishlist ${saved ? 'active' : ''}`} onClick={handleToggleWishlist}>{saved ? '♥ Đã lưu' : '♡ Yêu thích'}</button>
                 </div>
@@ -309,7 +369,7 @@ export function ProductDetailPage() {
           <div className="product-mobile-actions">
             <button type="button" className="btn btn-outline-dark" disabled={!canBuy || actionLoading !== null} onClick={handleToggleWishlist} aria-label={saved ? 'Bỏ yêu thích' : 'Thêm vào yêu thích'}>{saved ? '♥' : '♡'}</button>
             <button type="button" className="btn btn-dark luxury-primary-btn" disabled={!canBuy || actionLoading !== null} onClick={handleBuyNow}>Mua ngay</button>
-            <button type="button" className="btn btn-dark luxury-primary-btn" disabled={!canBuy || actionLoading !== null} onClick={handleAddToCart}>{actionLoading === 'cart' ? '...' : 'Giỏ hàng'}</button>
+            <button type="button" className={`btn btn-dark luxury-primary-btn add-cart-feedback-btn ${cartFeedback ? 'is-added' : ''}`} disabled={!canBuy || actionLoading !== null} onClick={handleAddToCart}>{actionLoading === 'cart' ? '...' : cartFeedback ? 'Đã thêm' : 'Giỏ hàng'}</button>
           </div>
         </div>
       </div>

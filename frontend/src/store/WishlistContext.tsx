@@ -8,6 +8,7 @@ interface WishlistContextValue {
   addToWishlist: (product: Product) => void;
   removeFromWishlist: (productId: number) => void;
   toggleWishlist: (product: Product) => boolean;
+  clearWishlist: () => void;
 }
 
 const STORAGE_KEY = 'wishlist';
@@ -67,6 +68,10 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     [items, persist]
   );
 
+  const clearWishlist = useCallback(() => {
+    persist([]);
+  }, [persist]);
+
   const value = useMemo(
     () => ({
       items,
@@ -75,8 +80,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       addToWishlist,
       removeFromWishlist,
       toggleWishlist,
+      clearWishlist,
     }),
-    [items, isWishlisted, addToWishlist, removeFromWishlist, toggleWishlist]
+    [items, isWishlisted, addToWishlist, removeFromWishlist, toggleWishlist, clearWishlist]
   );
 
   return <WishlistContext.Provider value={value}>{children}</WishlistContext.Provider>;

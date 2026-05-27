@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: isAdminApp ? 5178 : 5177,
-      strictPort: true,
+      strictPort: false,
       proxy: {
         '/api': {
           target,

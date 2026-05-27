@@ -13,7 +13,7 @@ export function authMiddleware(req, res, next) {
   try {
     const payload = verifyToken(token);
     if (payload.tokenType && payload.tokenType !== 'access') {
-      return errorResponse(res, 401, 'Token khong hop le');
+      return errorResponse(res, 401, 'Token không hợp lệ');
     }
     req.user = {
       id: Number(payload.sub),
@@ -49,17 +49,17 @@ authMiddleware.optional = function optionalAuth(req, _res, next) {
 
 authMiddleware.requireRoles = function requireRoles(roles = []) {
   return function roleGuard(req, res, next) {
-    if (!req.user) return errorResponse(res, 401, 'Vui long dang nhap de tiep tuc');
-    if (!hasRole(req.user, roles)) return errorResponse(res, 403, 'Khong co quyen truy cap');
+    if (!req.user) return errorResponse(res, 401, 'Vui lòng đăng nhập để tiếp tục');
+    if (!hasRole(req.user, roles)) return errorResponse(res, 403, 'Không có quyền truy cập');
     return next();
   };
 };
 
 authMiddleware.requirePermissions = function requirePermissions(permissions = []) {
   return function permissionGuard(req, res, next) {
-    if (!req.user) return errorResponse(res, 401, 'Vui long dang nhap de tiep tuc');
+    if (!req.user) return errorResponse(res, 401, 'Vui lòng đăng nhập để tiếp tục');
     const allowed = permissions.every((permission) => hasPermission(req.user, permission));
-    if (!allowed) return errorResponse(res, 403, 'Khong co quyen truy cap');
+    if (!allowed) return errorResponse(res, 403, 'Không có quyền truy cập');
     return next();
   };
 };

@@ -7,6 +7,11 @@ export async function getAdminDashboard() {
   return unwrapApiData(data);
 }
 
+export async function getAdminReports(range = '30d') {
+  const { data } = await apiClient.get('/admin/reports', { params: { range } });
+  return unwrapApiData(data);
+}
+
 export async function getAdminProducts() {
   const { data } = await apiClient.get<Product[]>('/admin/products');
   return normalizeProductPage(unwrapApiData(data)).content;

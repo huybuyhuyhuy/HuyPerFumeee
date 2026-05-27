@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import {
@@ -13,27 +13,42 @@ import {
 
 const PAGE_SIZE = 12;
 const ORDER_STATUSES = [
-  { value: 'Waiting', label: 'Waiting' },
-  { value: 'Paid', label: 'Paid' },
-  { value: 'Processing', label: 'Processing' },
-  { value: 'Delivered', label: 'Delivered' },
-  { value: 'Completed', label: 'Completed' },
-  { value: 'Cancelled', label: 'Cancelled' },
-  { value: 'refunded', label: 'Refunded' },
+  { value: 'Waiting', label: 'Chờ xử lý' },
+  { value: 'Paid', label: 'Đã thanh toán' },
+  { value: 'Processing', label: 'Đang xử lý' },
+  { value: 'Delivered', label: 'Đã giao' },
+  { value: 'Completed', label: 'Hoàn tất' },
+  { value: 'Cancelled', label: 'Đã hủy' },
+  { value: 'refunded', label: 'Hoàn tiền' },
 ];
+const PAYMENT_METHODS = ['COD', 'Banking', 'MoMo', 'ZaloPay'];
 const ORDER_STATUS_VALUES = ORDER_STATUSES.map((status) => status.value);
 
 function unwrapApiData(payload) {
   return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload;
 }
 
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString('vi-VN');
+}
+
+function chartDateLabel(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+}
+
 export function AdminOrdersPage() {
   const [searchParams] = useSearchParams();
   const linkedUserId = searchParams.get('userId') || '';
   const linkedUserName = searchParams.get('userName') || '';
-  const initialFilters = { search: '', status: '', paymentMethod: '', dateFrom: '', dateTo: '', userId: linkedUserId };
+  const initialFilters = useMemo(
+    () => ({ search: '', status: '', paymentMethod: '', dateFrom: '', dateTo: '', userId: linkedUserId }),
+    [linkedUserId]
+  );
   const [orders, setOrders] = useState([]);
   const [summary, setSummary] = useState({});
+  const [analytics, setAnalytics] = useState({});
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, totalElements: 0 });
   const [filters, setFilters] = useState(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
@@ -46,10 +61,17 @@ export function AdminOrdersPage() {
   const load = () => {
     setLoading(true);
     setError('');
-    api
-      .get('/admin/orders', { params: { page, pageSize: PAGE_SIZE, ...appliedFilters } })
-      .then((res) => {
-        const data = unwrapApiData(res.data) || {};
+    Promise
+      .allSettled([
+        api.get('/admin/orders', { params: { page, pageSize: PAGE_SIZE, ...appliedFilters } }),
+        api.get('/admin/orders/analytics', { params: appliedFilters }),
+      ])
+      .then(([ordersResult, analyticsResult]) => {
+        if (ordersResult.status !== 'fulfilled') {
+          throw ordersResult.reason;
+        }
+
+        const data = unwrapApiData(ordersResult.value.data) || {};
         setOrders(Array.isArray(data.listOrders) ? data.listOrders : []);
         setSummary(data.summary || {});
         setPagination({
@@ -57,6 +79,12 @@ export function AdminOrdersPage() {
           totalPages: Number(data.totalOrderPages || 1),
           totalElements: Number(data.totalOrders || 0),
         });
+
+        if (analyticsResult.status === 'fulfilled') {
+          setAnalytics(unwrapApiData(analyticsResult.value.data) || {});
+        } else {
+          setAnalytics({});
+        }
       })
       .catch((err) => setError(err?.message || 'Không tải được danh sách đơn hàng.'))
       .finally(() => setLoading(false));
@@ -66,6 +94,12 @@ export function AdminOrdersPage() {
     load();
   }, [page, appliedFilters]);
 
+  useEffect(() => {
+    setFilters(initialFilters);
+    setAppliedFilters(initialFilters);
+    setPage(1);
+  }, [initialFilters]);
+
   const applyFilters = (event) => {
     event.preventDefault();
     setPage(1);
@@ -73,10 +107,9 @@ export function AdminOrdersPage() {
   };
 
   const clearFilters = () => {
-    const cleared = { search: '', status: '', paymentMethod: '', dateFrom: '', dateTo: '', userId: linkedUserId };
-    setFilters(cleared);
+    setFilters(initialFilters);
     setPage(1);
-    setAppliedFilters(cleared);
+    setAppliedFilters(initialFilters);
   };
 
   const updateStatus = async (orderId, status) => {
@@ -85,7 +118,7 @@ export function AdminOrdersPage() {
     setError('');
     try {
       await api.put(`/admin/orders/${orderId}/status`, { status });
-      setFeedback(`Đã cập nhật trạng thái đơn #${orderId} thành ${status}.`);
+      setFeedback(`Đã cập nhật trạng thái đơn #${orderId}.`);
       load();
     } catch (err) {
       setError(err?.message || 'Cập nhật trạng thái thất bại.');
@@ -94,20 +127,36 @@ export function AdminOrdersPage() {
     }
   };
 
+  const analyticsSummary = analytics.summary || {};
+  const mergedSummary = { ...summary, ...analyticsSummary };
   const stats = [
-    { label: 'Đơn theo bộ lọc', value: Number(summary.total || 0).toLocaleString('vi-VN'), hint: 'Kết quả hiện tại' },
-    { label: 'Tổng giá trị', value: formatAdminCurrency(summary.value), hint: 'Theo bộ lọc', tone: 'positive' },
-    { label: 'Đang xử lý', value: Number(summary.processing || 0).toLocaleString('vi-VN'), hint: 'Processing / shipped', tone: 'warning' },
-    { label: 'Hoàn tất', value: Number(summary.completed || 0).toLocaleString('vi-VN'), hint: 'Paid / delivered', tone: 'positive' },
+    { label: 'Đơn theo bộ lọc', value: formatNumber(mergedSummary.total), hint: 'Kết quả hiện tại', icon: 'ORD' },
+    { label: 'Tổng giá trị', value: formatAdminCurrency(mergedSummary.value), hint: 'Theo bộ lọc', tone: 'positive', icon: '₫' },
+    { label: 'Đang xử lý', value: formatNumber(mergedSummary.processing), hint: 'Processing / shipped', tone: 'warning', icon: '↻' },
+    { label: 'Giá trị đơn TB', value: formatAdminCurrency(mergedSummary.averageValue), hint: 'AOV hiện tại', tone: 'positive', icon: '◎' },
   ];
 
+  const dailyRevenue = Array.isArray(analytics.dailyRevenue) ? analytics.dailyRevenue : Array.isArray(summary.dailyRevenue) ? summary.dailyRevenue : [];
+  const paymentBreakdown = Array.isArray(analytics.paymentBreakdown) ? analytics.paymentBreakdown : Array.isArray(summary.paymentBreakdown) ? summary.paymentBreakdown : [];
+  const statusBreakdown = Array.isArray(analytics.statusBreakdown) ? analytics.statusBreakdown : Array.isArray(summary.statusBreakdown) ? summary.statusBreakdown : [];
+  const maxRevenue = Math.max(...dailyRevenue.map((item) => Number(item.revenue || 0)), 1);
+
   return (
-    <div className="admin-page">
+    <div className="admin-page huy-admin-ops-page">
       <AdminPageHeader
-        eyebrow="Order operations"
+        eyebrow="Quản lý đơn hàng"
         title="Quản lý đơn hàng"
-        description={linkedUserId ? `Đơn hàng của ${linkedUserName || `tài khoản #${linkedUserId}`}.` : 'Kiểm soát thanh toán, tiến trình giao hàng và lịch sử xử lý.'}
-        action={linkedUserId ? <Link to="/admin/orders" className="btn btn-outline-dark">Xem tất cả đơn</Link> : <button type="button" className="btn btn-outline-dark" onClick={load}>Làm mới dữ liệu</button>}
+        description={linkedUserId ? `Đơn hàng của ${linkedUserName || `tài khoản #${linkedUserId}`}.` : 'Theo dõi thanh toán, xử lý giao hàng và hiệu suất đơn theo thời gian thực.'}
+        action={(
+          <div className="admin-page-action-row">
+            <Link to="/admin/reports" className="btn btn-outline-dark">Báo cáo</Link>
+            {linkedUserId ? (
+              <Link to="/admin/orders" className="btn btn-outline-dark">Xem tất cả đơn</Link>
+            ) : (
+              <button type="button" className="btn btn-outline-dark" onClick={load}>Làm mới dữ liệu</button>
+            )}
+          </div>
+        )}
       />
 
       <AdminStatGrid items={stats} />
@@ -134,10 +183,7 @@ export function AdminOrdersPage() {
           <label htmlFor="admin-order-payment">Thanh toán</label>
           <select id="admin-order-payment" className="form-select" value={filters.paymentMethod} onChange={(event) => setFilters({ ...filters, paymentMethod: event.target.value })}>
             <option value="">Tất cả</option>
-            <option value="COD">COD</option>
-            <option value="Banking">Banking</option>
-            <option value="MoMo">MoMo</option>
-            <option value="ZaloPay">ZaloPay</option>
+            {PAYMENT_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
           </select>
         </div>
         <div className="admin-filter-field compact">
@@ -155,7 +201,78 @@ export function AdminOrdersPage() {
       {error && <div className="alert alert-danger admin-alert">{error}</div>}
       {feedback && <div className="alert alert-success admin-alert">{feedback}</div>}
 
+      <section className="admin-insight-grid">
+        <article className="admin-insight-card wide">
+          <div className="admin-insight-head">
+            <div>
+              <span className="admin-eyebrow">Doanh thu</span>
+              <h2>Doanh thu 14 ngày gần nhất</h2>
+            </div>
+            <strong>{formatAdminCurrency(dailyRevenue.reduce((sum, item) => sum + Number(item.revenue || 0), 0))}</strong>
+          </div>
+          <div className="admin-mini-bar-chart" role="img" aria-label="Doanh thu đơn hàng theo ngày">
+            {dailyRevenue.length === 0 ? (
+              <span className="admin-chart-empty">Chưa có dữ liệu</span>
+            ) : dailyRevenue.map((item, index) => (
+              <div className="admin-mini-bar-item" key={String(item.date)}>
+                <span
+                  style={{
+                    height: `${Math.max((Number(item.revenue || 0) / maxRevenue) * 100, 8)}%`,
+                    '--bar-delay': `${index * 55}ms`,
+                  }}
+                  title={formatAdminCurrency(item.revenue)}
+                />
+                <small>{chartDateLabel(item.date)}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="admin-insight-card">
+          <div className="admin-insight-head compact">
+            <div>
+              <span className="admin-eyebrow">Phương thức thanh toán</span>
+              <h2>Thanh toán</h2>
+            </div>
+          </div>
+          <div className="admin-breakdown-list">
+            {paymentBreakdown.length === 0 ? <span className="admin-muted">Chưa có dữ liệu</span> : paymentBreakdown.map((item) => (
+              <div className="admin-breakdown-row" key={item.method}>
+                <span>{item.method}</span>
+                <strong>{formatNumber(item.total)}</strong>
+                <small>{formatAdminCurrency(item.value)}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="admin-insight-card">
+          <div className="admin-insight-head compact">
+            <div>
+              <span className="admin-eyebrow">Trạng thái</span>
+              <h2>Trạng thái</h2>
+            </div>
+          </div>
+          <div className="admin-breakdown-list">
+            {statusBreakdown.length === 0 ? <span className="admin-muted">Chưa có dữ liệu</span> : statusBreakdown.slice(0, 5).map((item) => (
+              <div className="admin-breakdown-row" key={item.status}>
+                <AdminStatusBadge status={item.status} />
+                <strong>{formatNumber(item.total)}</strong>
+                <small>{formatAdminCurrency(item.value)}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
       <section className="admin-table-panel">
+        <div className="admin-table-title">
+          <div>
+            <span className="admin-eyebrow">Danh sách đơn hàng</span>
+            <h2>Danh sách đơn hàng</h2>
+          </div>
+          <span>{formatNumber(pagination.totalElements)} đơn</span>
+        </div>
         {loading ? (
           <div className="admin-loading"><div className="spinner-border" /> Đang tải đơn hàng...</div>
         ) : orders.length === 0 ? (

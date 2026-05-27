@@ -57,7 +57,7 @@ export function AdminProductAddPage() {
   return (
     <div className="admin-page">
       <AdminPageHeader
-        eyebrow="Create product"
+        eyebrow="Tạo sản phẩm"
         title="Thêm sản phẩm mới"
         description="Tạo nhanh một sản phẩm rồi hoàn thiện trong trang chỉnh sửa chi tiết."
         action={<Link to="/admin/products" className="btn btn-outline-dark">Quay lại danh sách</Link>}
@@ -135,7 +135,7 @@ export function AdminProductAddPage() {
 
         <div className="col-xl-4">
           <div className="luxury-surface p-4 h-100">
-            <span className="admin-eyebrow">Guide</span>
+            <span className="admin-eyebrow">Hướng dẫn</span>
             <h4 className="mt-2">Luồng tạo sản phẩm</h4>
             <p className="luxury-muted">Tạo nhanh thông tin chính trước, sau đó mở trang chỉnh sửa để bổ sung hình ảnh, mô tả và cấu hình nâng cao.</p>
             <div className="admin-empty-state mt-3">Trang này đã sẵn sàng cho quy trình tạo mới.</div>

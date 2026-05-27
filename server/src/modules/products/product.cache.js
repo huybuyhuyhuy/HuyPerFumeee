@@ -39,11 +39,11 @@ async function getRedisClient() {
     const client = createClient({ url: env.redisUrl });
     client.on('error', (error) => {
       redisDisabled = true;
-      console.warn('Redis cache disabled:', error.message);
+      console.warn('Bộ nhớ đệm Redis đã tắt:', error.message);
     });
     redisClientPromise = client.connect().then(() => client).catch((error) => {
       redisDisabled = true;
-      console.warn('Redis cache unavailable, using memory fallback:', error.message);
+      console.warn('Redis không khả dụng, dùng bộ nhớ tạm:', error.message);
       return null;
     });
   }

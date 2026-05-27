@@ -287,6 +287,6 @@ export async function verifyEmail(token) {
 export async function socialLoginReady() {
   return {
     code: 501,
-    message: 'Social login provider verification is ready at schema level but not configured',
+    message: 'Đăng nhập mạng xã hội chưa được cấu hình',
   };
 }

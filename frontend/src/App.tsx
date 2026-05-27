@@ -6,8 +6,6 @@ import { MainLayout } from './components/Layout/MainLayout';
 import { AdminLayout } from './components/Layout/AdminLayout';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 
-declare const __HUY_PERFUME_APP__: 'user' | 'admin';
-
 const HomePage = lazy(() => import('./pages/HomePage').then((module) => ({ default: module.HomePage })));
 const ProductListPage = lazy(() => import('./pages/ProductListPage').then((module) => ({ default: module.ProductListPage })));
 const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage').then((module) => ({ default: module.ProductDetailPage })));
@@ -18,10 +16,12 @@ const RegisterPage = lazy(() => import('./pages/RegisterPage').then((module) => 
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((module) => ({ default: module.ProfilePage })));
 const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage').then((module) => ({ default: module.OrderHistoryPage })));
 const OrderDetailPage = lazy(() => import('./pages/OrderDetailPage').then((module) => ({ default: module.OrderDetailPage })));
+const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage').then((module) => ({ default: module.OrderSuccessPage })));
 const WishlistPage = lazy(() => import('./pages/WishlistPage').then((module) => ({ default: module.WishlistPage })));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then((module) => ({ default: module.AdminDashboardPage })));
 const AdminProductsPage = lazy(() => import('./pages/AdminProductsPage').then((module) => ({ default: module.AdminProductsPage })));
 const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage').then((module) => ({ default: module.AdminOrdersPage })));
+const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage').then((module) => ({ default: module.AdminReportsPage })));
 const AdminOrderDetailPage = lazy(() => import('./pages/AdminOrderDetailPage').then((module) => ({ default: module.AdminOrderDetailPage })));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then((module) => ({ default: module.AdminUsersPage })));
 const AdminProductAddPage = lazy(() => import('./pages/AdminProductAddPage').then((module) => ({ default: module.AdminProductAddPage })));
@@ -57,6 +57,7 @@ function AdminRoutes() {
         <Route index element={<AdminDashboardPage />} />
         <Route path="products" element={<AdminProductsPage />} />
         <Route path="orders" element={<AdminOrdersPage />} />
+        <Route path="reports" element={<AdminReportsPage />} />
         <Route path="orders/:id" element={<AdminOrderDetailPage />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="products/add" element={<AdminProductAddPage />} />
@@ -68,6 +69,7 @@ function AdminRoutes() {
       <Route path="/home" element={<ExternalRedirect to={userHomeUrl} />} />
       <Route path="/products" element={<Navigate to="/admin/products" replace />} />
       <Route path="/orders" element={<Navigate to="/admin/orders" replace />} />
+      <Route path="/reports" element={<Navigate to="/admin/reports" replace />} />
       <Route path="/users" element={<Navigate to="/admin/users" replace />} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
@@ -88,6 +90,7 @@ function UserRoutes() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute><OrderHistoryPage /></ProtectedRoute>} />
+        <Route path="/orders/:id/success" element={<ProtectedRoute><OrderSuccessPage /></ProtectedRoute>} />
         <Route path="/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
         <Route path="/wishlist" element={<ProtectedRoute><WishlistPage /></ProtectedRoute>} />
       </Route>

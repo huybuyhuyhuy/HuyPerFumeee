@@ -22,7 +22,7 @@ async function tableColumns(tableName) {
 export async function getCheckoutStorageCapabilities() {
   if (!checkoutCapabilitiesPromise) {
     checkoutCapabilitiesPromise = (async () => {
-      const [tables, cartColumns, cartItemColumns, orderColumns, orderItemColumns] = await Promise.all([
+      const [tables, cartColumns, cartItemColumns, orderColumns, orderItemColumns, variantColumns] = await Promise.all([
         query(`
           SELECT TABLE_NAME
           FROM INFORMATION_SCHEMA.TABLES
@@ -33,18 +33,27 @@ export async function getCheckoutStorageCapabilities() {
         tableColumns('cart_items'),
         tableColumns('orders'),
         tableColumns('order_items'),
+        tableColumns('product_variants'),
       ]);
 
       const tableSet = toTableSet(tables);
+      const cartColumnSet = toColumnSet(cartColumns);
+      const cartItemColumnSet = toColumnSet(cartItemColumns);
+      const hasCartCoreColumns = cartColumnSet.has('id') && cartColumnSet.has('user_id');
+      const hasCartItemCoreColumns = cartItemColumnSet.has('cart_id') &&
+        cartItemColumnSet.has('product_id') &&
+        cartItemColumnSet.has('quantity');
+
       return {
-        hasDurableCart: tableSet.has('carts') && tableSet.has('cart_items'),
+        hasDurableCart: tableSet.has('carts') && tableSet.has('cart_items') && hasCartCoreColumns && hasCartItemCoreColumns,
         hasInventoryReservations: tableSet.has('inventory_reservations'),
         hasInventoryTransactions: tableSet.has('inventory_transactions'),
         hasVariants: tableSet.has('product_variants'),
-        cartColumns: toColumnSet(cartColumns),
-        cartItemColumns: toColumnSet(cartItemColumns),
+        cartColumns: cartColumnSet,
+        cartItemColumns: cartItemColumnSet,
         orderColumns: toColumnSet(orderColumns),
         orderItemColumns: toColumnSet(orderItemColumns),
+        variantColumns: toColumnSet(variantColumns),
       };
     })();
   }

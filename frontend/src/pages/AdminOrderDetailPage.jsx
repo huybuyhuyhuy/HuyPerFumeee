@@ -44,7 +44,7 @@ export function AdminOrderDetailPage() {
         <table className="table table-hover">
           <thead className="table-dark">
             <tr>
-              <th>Item ID</th>
+              <th>Mã sản phẩm</th>
               <th>Sản phẩm</th>
               <th>Số lượng</th>
               <th>Giá</th>

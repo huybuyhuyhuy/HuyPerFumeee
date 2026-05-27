@@ -23,7 +23,7 @@ export async function getProductStorageCapabilities() {
           SELECT TABLE_NAME
           FROM INFORMATION_SCHEMA.TABLES
           WHERE TABLE_SCHEMA = 'dbo'
-            AND TABLE_NAME IN ('product_variants', 'product_images', 'brand', 'categories', 'product_reviews', 'product_recent_views', 'wishlist')
+            AND TABLE_NAME IN ('product_variants', 'product_images', 'product_inventory', 'brand', 'categories', 'product_reviews', 'product_recent_views', 'wishlist')
         `),
         query(`
           SELECT COLUMN_NAME
@@ -61,6 +61,7 @@ export async function getProductStorageCapabilities() {
       return {
         hasVariants: tableNames.has('product_variants'),
         hasProductImages: tableNames.has('product_images'),
+        hasProductInventory: tableNames.has('product_inventory'),
         hasBrand: tableNames.has('brand'),
         hasCategories: tableNames.has('categories'),
         hasProductReviews: tableNames.has('product_reviews'),
@@ -183,6 +184,10 @@ function addScentCondition(conditions, params, value, capabilities) {
   if (hasColumn(capabilities.productColumns, 'scent_group')) scentColumns.push("LOWER(ISNULL(p.scent_group, '')) LIKE LOWER(?)");
   if (hasColumn(capabilities.productColumns, 'scent_family')) scentColumns.push("LOWER(ISNULL(p.scent_family, '')) LIKE LOWER(?)");
   if (hasColumn(capabilities.productColumns, 'scent_notes')) scentColumns.push("LOWER(ISNULL(p.scent_notes, '')) LIKE LOWER(?)");
+  if (hasColumn(capabilities.productColumns, 'description')) scentColumns.push("LOWER(ISNULL(p.description, '')) LIKE LOWER(?)");
+  if (hasColumn(capabilities.productColumns, 'top_notes')) scentColumns.push("LOWER(ISNULL(p.top_notes, '')) LIKE LOWER(?)");
+  if (hasColumn(capabilities.productColumns, 'middle_notes')) scentColumns.push("LOWER(ISNULL(p.middle_notes, '')) LIKE LOWER(?)");
+  if (hasColumn(capabilities.productColumns, 'base_notes')) scentColumns.push("LOWER(ISNULL(p.base_notes, '')) LIKE LOWER(?)");
   if (!scentColumns.length) return;
 
   const keywords = Array.isArray(value) ? value : [value];
@@ -317,7 +322,27 @@ function buildFilters(filters = {}, capabilities) {
   const mappedRange = safeFilters.priceRange ? rangeMap[safeFilters.priceRange] : null;
 
   const minPrice = safeFilters.minPrice !== null ? Number(safeFilters.minPrice) : mappedRange?.min;
-  if (Number.isFinite(minPrice)) {
+  const maxPrice = safeFilters.maxPrice !== null ? Number(safeFilters.maxPrice) : mappedRange?.max;
+  const hasMinPrice = Number.isFinite(minPrice);
+  const hasMaxPrice = Number.isFinite(maxPrice);
+
+  if (hasMinPrice && hasMaxPrice) {
+    if (hasVariants) {
+      conditions.push(`(
+        (${hasActiveVariants} AND EXISTS (
+          SELECT 1 FROM product_variants pv_price
+          WHERE ${activeVariantClause(capabilities, 'pv_price')}
+            AND ${variantEffectivePriceSql('pv_price')} >= ?
+            AND ${variantEffectivePriceSql('pv_price')} <= ?
+        ))
+        OR (NOT (${hasActiveVariants}) AND ${effectivePrice} >= ? AND ${effectivePrice} <= ?)
+      )`);
+      params.push(Number(minPrice), Number(maxPrice), Number(minPrice), Number(maxPrice));
+    } else {
+      conditions.push(`${effectivePrice} >= ? AND ${effectivePrice} <= ?`);
+      params.push(Number(minPrice), Number(maxPrice));
+    }
+  } else if (hasMinPrice) {
     if (hasVariants) {
       conditions.push(`(
         (${hasActiveVariants} AND EXISTS (
@@ -332,10 +357,7 @@ function buildFilters(filters = {}, capabilities) {
       conditions.push(`${effectivePrice} >= ?`);
       params.push(Number(minPrice));
     }
-  }
-
-  const maxPrice = safeFilters.maxPrice !== null ? Number(safeFilters.maxPrice) : mappedRange?.max;
-  if (Number.isFinite(maxPrice)) {
+  } else if (hasMaxPrice) {
     if (hasVariants) {
       conditions.push(`(
         (${hasActiveVariants} AND EXISTS (
@@ -384,6 +406,21 @@ function buildFilters(filters = {}, capabilities) {
     if (volumeClauses.length) {
       conditions.push(`(${volumeClauses.join(' OR ')})`);
     }
+  }
+
+  if (safeFilters.variantType && hasVariants && hasColumn(capabilities.variantColumns, 'variant_type')) {
+    const normalizedType = normalizeLookupValue(safeFilters.variantType);
+    const types = normalizedType === 'decant'
+      ? ['DECANT']
+      : normalizedType === 'fullbox' || normalizedType === 'full'
+        ? ['FULL', 'FULLBOX', 'STANDARD']
+        : [String(safeFilters.variantType).trim().toUpperCase()];
+    conditions.push(`EXISTS (
+      SELECT 1 FROM product_variants pv_type
+      WHERE ${activeVariantClause(capabilities, 'pv_type')}
+        AND UPPER(ISNULL(pv_type.variant_type, '')) IN (${types.map(() => '?').join(', ')})
+    )`);
+    params.push(...types);
   }
 
   if (safeFilters.scent) {
@@ -539,11 +576,26 @@ function buildReviewStatsJoin(capabilities) {
   };
 }
 
+function buildProductInventoryJoin(capabilities) {
+  if (!capabilities.hasProductInventory) {
+    return {
+      select: 'NULL AS sealed_bottles, NULL AS opened_ml, NULL AS bottle_volume_ml',
+      join: '',
+    };
+  }
+
+  return {
+    select: 'pi.sealed_bottles, pi.opened_ml, pi.bottle_volume_ml',
+    join: 'LEFT JOIN product_inventory pi ON pi.product_id = p.id',
+  };
+}
+
 function buildProductSelect(capabilities) {
   const productColumns = capabilities.productColumns;
   const variantStock = buildVariantStockJoin(capabilities);
   const images = buildImageJoin(capabilities);
   const reviews = buildReviewStatsJoin(capabilities);
+  const inventory = buildProductInventoryJoin(capabilities);
   const discoveryPrice = discoveryPriceSql(capabilities);
   const discoveryOriginalPrice = capabilities.hasVariants
     ? 'COALESCE(variant_stock.variant_min_original_price, p.price)'
@@ -582,9 +634,13 @@ function buildProductSelect(capabilities) {
       ${optionalSelect(productColumns, 'concentration', 'p.concentration', 'concentration')},
       ${optionalSelect(productColumns, 'scent_group', 'p.scent_group', 'scent_group')},
       ${optionalSelect(productColumns, 'scent_family', 'p.scent_family', 'scent_family')},
+      ${optionalSelect(productColumns, 'top_notes', 'p.top_notes', 'top_notes')},
+      ${optionalSelect(productColumns, 'middle_notes', 'p.middle_notes', 'middle_notes')},
+      ${optionalSelect(productColumns, 'base_notes', 'p.base_notes', 'base_notes')},
       ${reviews.select},
       ${optionalSelect(productColumns, 'updated_at', 'p.updated_at', 'updated_at')},
       ${optionalSelect(productColumns, 'deleted_at', 'p.deleted_at', 'deleted_at')},
+      ${inventory.select},
       c.id AS category_id,
       c.name AS category_name,
       b.id AS brand_id,
@@ -597,6 +653,7 @@ function buildProductSelect(capabilities) {
     FROM products p
     LEFT JOIN categories c ON c.id = p.id_category
     LEFT JOIN brand b ON b.id = p.id_brand
+    ${inventory.join}
     LEFT JOIN (
       SELECT product_id, SUM(ISNULL(quantity, 0)) AS sold_count
       FROM order_items

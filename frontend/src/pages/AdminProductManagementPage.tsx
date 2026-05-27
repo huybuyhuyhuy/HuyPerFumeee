@@ -5,7 +5,7 @@ export function AdminProductManagementPage() {
   return (
     <div className="admin-page">
       <AdminPageHeader
-        eyebrow="Product tools"
+        eyebrow="Công cụ sản phẩm"
         title="Bảng điều khiển sản phẩm"
         description="Trang này là điểm điều phối nhanh để mở danh sách, tạo mới hoặc chuyển tới khu vực chỉnh sửa."
         action={<Link to="/admin/products" className="btn btn-dark">Đi tới sản phẩm</Link>}

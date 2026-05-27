@@ -1,12 +1,12 @@
 export function sendApiError(res, status, message, errors) {
   const reasons = {
-    400: 'Bad Request',
-    401: 'Unauthorized',
-    403: 'Forbidden',
-    404: 'Not Found',
-    500: 'Internal Server Error',
+    400: 'Yêu cầu không hợp lệ',
+    401: 'Chưa xác thực',
+    403: 'Bị từ chối',
+    404: 'Không tìm thấy',
+    500: 'Lỗi máy chủ nội bộ',
   };
-  const reason = reasons[status] || 'Error';
+  const reason = reasons[status] || 'Lỗi';
   const body = {
     status,
     error: reason,

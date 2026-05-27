@@ -95,6 +95,13 @@ function calcGrowth(current, previous) {
   return Math.round(((current - previous) / previous) * 100);
 }
 
+function calcTrendGrowth(rows = []) {
+  const midpoint = Math.floor(rows.length / 2);
+  const previous = rows.slice(0, midpoint).reduce((sum, row) => sum + Number(row.orders || 0), 0);
+  const current = rows.slice(midpoint).reduce((sum, row) => sum + Number(row.orders || 0), 0);
+  return calcGrowth(current, previous);
+}
+
 // ────────────────────────────────────────────────────────────
 //  Chart helpers (group-by & zero-fill)
 // ────────────────────────────────────────────────────────────
@@ -178,6 +185,7 @@ export async function getStats() {
     totalUsers,
     newUsersThisMonth,
     chartSeries,
+    orderTrendRows,
     topProductRows,
     lowStockCount,
   ] = await Promise.all([
@@ -186,6 +194,7 @@ export async function getStats() {
     repo.fetchTotalUsers(),
     repo.fetchNewUsersThisMonth(),
     repo.fetchStatsChartSeries(),
+    repo.fetchRecentOrderTrend(14),
     repo.fetchTopProducts(10, null),
     repo.fetchLowStockCount(),
   ]);
@@ -201,6 +210,12 @@ export async function getStats() {
       orders: chartSeries.orders,
       users: chartSeries.users,
     },
+    orderGrowth: calcTrendGrowth(orderTrendRows),
+    orderTrend: orderTrendRows.map((row) => ({
+      date: toDateString(row.date),
+      orders: Number(row.orders || 0),
+      revenue: Number(row.revenue || 0),
+    })),
     topProducts: topProductRows.map(mapper.toTopProduct),
   };
 }

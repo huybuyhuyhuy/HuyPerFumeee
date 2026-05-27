@@ -1,5 +1,9 @@
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../../store/ToastContext';
 import { resolveProductImage } from '../../utils/image';
+import { getCurrentPath, savePendingCustomerAction } from '../../utils/pendingCustomerAction';
 
 function formatPrice(value) {
   return `${Number(value || 0).toLocaleString('vi-VN')}đ`;
@@ -66,17 +70,29 @@ function getSoldCount(product) {
 
 function getBadgeLabel(product, discountPercent, soldCount) {
   const rawBadge = String(product?.badgeLabel || product?.badge || '').toLowerCase();
-  if (rawBadge.includes('best')) return 'Best Seller';
-  if (rawBadge.includes('new')) return 'New';
-  if (rawBadge.includes('sale') || rawBadge.includes('ưu')) return 'Sale';
-  if (discountPercent > 0) return 'Sale';
-  if (product?.isNew) return 'New';
-  if (soldCount > 0 || asNumber(product?.stock) > 10) return 'Best Seller';
-  if (product?.isDecant) return 'Mini size';
+  if (rawBadge.includes('best')) return 'Bán chạy';
+  if (rawBadge.includes('new')) return 'Mới';
+  if (rawBadge.includes('sale') || rawBadge.includes('ưu')) return 'Giảm giá';
+  if (discountPercent > 0) return 'Giảm giá';
+  if (product?.isNew) return 'Mới';
+  if (soldCount > 0 || asNumber(product?.stock) > 10) return 'Bán chạy';
+  if (product?.isDecant) return 'Size nhỏ';
   return '';
 }
 
 export function ProductCard({ product, onAddToCart, onToggleWishlist, onAddWishlistToCart, wishlisted = false }) {
+  const [cartState, setCartState] = useState('idle');
+  const { isLoggedIn } = useAuth();
+  const { pushToast } = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (cartState !== 'added') return undefined;
+    const timer = window.setTimeout(() => setCartState('idle'), 1250);
+    return () => window.clearTimeout(timer);
+  }, [cartState]);
+
   if (!product) return null;
   const effectivePrice = getEffectivePrice(product);
   const originalPrice = getOriginalPrice(product);
@@ -91,6 +107,25 @@ export function ProductCard({ product, onAddToCart, onToggleWishlist, onAddWishl
   const badgeLabel = getBadgeLabel(product, discountPercent, soldCount);
   const isHidden = product.status === false;
   const isOutOfStock = asNumber(product.stock, 1) <= 0;
+
+  const handleCartClick = async () => {
+    if (isOutOfStock || cartState === 'adding') return;
+    if (!isLoggedIn) {
+      const returnTo = getCurrentPath(location);
+      savePendingCustomerAction({ type: 'cart', productId: Number(product.id), quantity: 1, returnTo });
+      pushToast('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.', 'info');
+      navigate('/login', { state: { from: returnTo } });
+      return;
+    }
+
+    setCartState('adding');
+    try {
+      await onAddToCart?.(product.id);
+      setCartState('added');
+    } catch {
+      setCartState('idle');
+    }
+  };
 
   return (
     <div className="col luxury-listing-card-col scroll-reveal-item">
@@ -133,11 +168,11 @@ export function ProductCard({ product, onAddToCart, onToggleWishlist, onAddWishl
             </Link>
             <button
               type="button"
-              className="luxury-card-cart-btn"
-              onClick={() => onAddToCart?.(product.id)}
-              disabled={isOutOfStock}
+              className={`luxury-card-cart-btn add-cart-feedback-btn ${cartState === 'added' ? 'is-added' : ''}`}
+              onClick={handleCartClick}
+              disabled={isOutOfStock || cartState === 'adding'}
             >
-              {isOutOfStock ? 'Hết hàng' : 'Thêm vào giỏ'}
+              {isOutOfStock ? 'Hết hàng' : cartState === 'adding' ? 'Đang thêm...' : cartState === 'added' ? 'Đã thêm' : 'Thêm vào giỏ'}
             </button>
           </div>
 

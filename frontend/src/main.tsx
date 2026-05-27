@@ -11,6 +11,7 @@ import 'bootstrap/js/dist/carousel';
 import 'bootstrap/js/dist/collapse';
 import 'bootstrap/js/dist/dropdown';
 import './styles/luxury.css';
+import './styles/admin-dashboard-luxury.css';
 import './styles/app.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

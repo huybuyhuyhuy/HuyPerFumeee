@@ -1,42 +1,81 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { orderService } from '../services/orderService';
+import { resolveProductImage } from '../utils/image';
+import { formatVnCurrency } from '../utils/formatters';
+import { siteContact } from '../config/siteConfig';
+
+const paymentMethods = [
+  { value: 'COD', label: 'Thanh toán khi nhận hàng', note: 'Phù hợp khi bạn muốn kiểm tra kiện hàng trước.' },
+  { value: 'MOMO', label: 'Ví MoMo', note: 'Chuyển sang cổng MoMo sau khi tạo đơn.' },
+  { value: 'ZALOPAY', label: 'ZaloPay', note: 'Chuyển sang cổng ZaloPay sau khi tạo đơn.' },
+];
 
 export function CheckoutPage() {
-  const { cart, clearCart } = useCart();
+  const { cart, loading: cartLoading, clearCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [address, setAddress] = useState(user?.address || '');
   const [paymentMethod, setPaymentMethod] = useState('COD');
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const normalizedPhone = useMemo(() => phone.replace(/\D/g, ''), [phone]);
 
   useEffect(() => {
-    if (!cart || cart.items.length === 0) {
+    if (!cartLoading && (!cart || cart.items.length === 0)) {
       navigate('/cart', { replace: true });
     }
-  }, [cart, navigate]);
+  }, [cart, cartLoading, navigate]);
+
+  useEffect(() => {
+    setPhone((current) => current || user?.phone || '');
+    setAddress((current) => current || user?.address || '');
+  }, [user?.phone, user?.address]);
+
+  if (cartLoading) {
+    return (
+      <main className="luxury-page checkout-page">
+        <div className="container">
+          <div className="luxury-cart-loading luxury-surface">Đang chuẩn bị thanh toán...</div>
+        </div>
+      </main>
+    );
+  }
 
   if (!cart || cart.items.length === 0) {
     return null;
   }
 
   const handleCheckout = async () => {
-    if (!phone.trim()) {
-      alert('Vui lòng nhập số điện thoại');
+    setFormError('');
+
+    if (!/^\d{10}$/.test(normalizedPhone)) {
+      setFormError('Số điện thoại cần đúng 10 chữ số.');
       return;
     }
+    if (!address.trim()) {
+      setFormError('Vui lòng nhập địa chỉ giao hàng.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const order = await orderService.checkout({ shippingAddress: address, phone, paymentMethod });
+      const order = await orderService.checkout({
+        shippingAddress: address.trim(),
+        phone: normalizedPhone,
+        paymentMethod,
+      });
+
       await clearCart();
 
       if (paymentMethod === 'MOMO') {
         const paymentResponse = await orderService.createMomoPayment(order.id);
         const paymentUrl = paymentResponse?.paymentUrl || paymentResponse?.payUrl;
-        if (!paymentUrl) throw new Error('Khong tao duoc link thanh toan MoMo');
+        if (!paymentUrl) throw new Error('Không tạo được link thanh toán MoMo');
         window.location.href = paymentUrl;
         return;
       }
@@ -44,91 +83,100 @@ export function CheckoutPage() {
       if (paymentMethod === 'ZALOPAY') {
         const paymentResponse = await orderService.createZaloPayPayment(order.id);
         const paymentUrl = paymentResponse?.paymentUrl || paymentResponse?.orderUrl;
-        if (!paymentUrl) throw new Error('Khong tao duoc link thanh toan ZaloPay');
+        if (!paymentUrl) throw new Error('Không tạo được link thanh toán ZaloPay');
         window.location.href = paymentUrl;
         return;
       }
 
-      navigate('/orders');
+      navigate(`/orders/${order.id}/success`, { replace: true });
     } catch (err) {
-      alert(err?.response?.data?.message || err?.message || 'Lỗi đặt hàng');
+      setFormError(err?.response?.data?.message || err?.message || 'Lỗi đặt hàng');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="container luxury-page">
-      <div className="luxury-surface p-4 p-lg-5 mb-4">
-        <p className="text-uppercase luxury-muted small mb-1">Secure checkout</p>
-        <h3 className="mb-0">Thanh toán</h3>
-      </div>
-      <div className="row g-4">
-        <div className="col-lg-8">
-          <div className="luxury-surface p-4 mb-4">
-            <h5 className="mb-4">Thông tin giao hàng</h5>
-            <div className="mb-3">
-              <label className="form-label">Họ tên</label>
-              <input className="form-control" value={user?.name || ''} disabled />
-            </div>
-            <div className="mb-3">
-              <label className="form-label">Số điện thoại *</label>
-              <input className="form-control" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Nhập số điện thoại" />
-            </div>
-            <div className="mb-0">
-              <label className="form-label">Địa chỉ giao hàng</label>
-              <textarea className="form-control" rows={4} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Nhập địa chỉ" />
-            </div>
+    <main className="luxury-page checkout-page">
+      <div className="container">
+        <section className="luxury-checkout-hero">
+          <div>
+            <p className="section-eyebrow">Thanh toán an toàn</p>
+            <h1>Thanh toán</h1>
+            <p>Hoàn tất thông tin giao hàng, chọn phương thức thanh toán và xác nhận đơn.</p>
           </div>
-          <div className="luxury-surface p-4">
-            <h5 className="mb-4">Phương thức thanh toán</h5>
-            {[
-              { value: 'COD', label: 'Thanh toán khi nhận hàng (COD)' },
-              { value: 'MOMO', label: 'Thanh toán qua MoMo' },
-              { value: 'ZALOPAY', label: 'Thanh toán qua ZaloPay' },
-            ].map((method) => (
-              <div className="form-check mb-3" key={method.value}>
-                <input
-                  className="form-check-input"
-                  type="radio"
-                  id={method.value}
-                  value={method.value}
-                  checked={paymentMethod === method.value}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                />
-                <label className="form-check-label" htmlFor={method.value}>
-                  {method.label}
+          <Link to="/cart" className="btn luxury-secondary-btn">Quay lại giỏ hàng</Link>
+        </section>
+
+        <div className="luxury-checkout-layout">
+          <section className="luxury-checkout-main">
+            <div className="luxury-checkout-panel luxury-surface">
+              <p className="section-eyebrow">Giao hàng</p>
+              <h2>Thông tin giao hàng</h2>
+              <div className="luxury-form-grid">
+                <label>
+                  <span>Họ tên</span>
+                  <input value={user?.name || ''} disabled />
+                </label>
+                <label>
+                  <span>Số điện thoại *</span>
+                  <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder={siteContact.phone} inputMode="tel" autoComplete="tel" />
                 </label>
               </div>
-            ))}
-          </div>
-        </div>
-        <div className="col-lg-4">
-          <div className="luxury-surface p-4 sticky-lg-top" style={{ top: '1rem' }}>
-            <h5>Đơn hàng</h5>
-            <hr />
-            {cart.items.map((item) => (
-              <div key={item.product.id} className="d-flex justify-content-between mb-3">
-                <span className="small pe-2">
-                  {item.product.name} x{item.quantity}
-                </span>
-                <span className="small text-end">
-                  {((item.product.discountPrice > 0 ? item.product.discountPrice : item.product.price) * item.quantity).toLocaleString('vi-VN')}₫
-                </span>
-              </div>
-            ))}
-            <hr />
-            <div className="d-flex justify-content-between fw-bold">
-              <span>Tổng:</span>
-              <span>{cart.total.toLocaleString('vi-VN')}₫</span>
+              <label className="luxury-form-field">
+                <span>Địa chỉ giao hàng *</span>
+                <textarea rows={4} value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành" autoComplete="shipping street-address" />
+              </label>
             </div>
-            <button className="btn btn-dark w-100 mt-3" disabled={loading} onClick={handleCheckout}>
+
+            <div className="luxury-checkout-panel luxury-surface">
+              <p className="section-eyebrow">Thanh toán</p>
+              <h2>Phương thức thanh toán</h2>
+              <div className="luxury-payment-list">
+                {paymentMethods.map((method) => (
+                  <label key={method.value} className={`luxury-payment-option ${paymentMethod === method.value ? 'active' : ''}`}>
+                    <input type="radio" value={method.value} checked={paymentMethod === method.value} onChange={(event) => setPaymentMethod(event.target.value)} />
+                    <span>
+                      <strong>{method.label}</strong>
+                      <small>{method.note}</small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <aside className="luxury-checkout-summary luxury-surface">
+            <p className="section-eyebrow">Đơn hàng</p>
+            <h2>Đơn hàng</h2>
+            <div className="luxury-checkout-items">
+              {cart.items.map((item) => {
+                const product = item.product;
+                const price = product.discountPrice > 0 ? product.discountPrice : product.price;
+                return (
+                  <div key={`${product.id}-${product.variantId || 'default'}`} className="luxury-checkout-item">
+                    <img src={resolveProductImage(product.image)} alt={product.name} loading="lazy" decoding="async" />
+                    <div>
+                      <strong>{product.name}</strong>
+                      <span>x{item.quantity}</span>
+                    </div>
+                    <b>{formatVnCurrency(price * item.quantity)}</b>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="luxury-summary-total">
+              <span>Tổng cộng</span>
+              <strong>{formatVnCurrency(cart.total)}</strong>
+            </div>
+            {formError && <p className="luxury-checkout-error" role="alert">{formError}</p>}
+            <button className="btn luxury-primary-btn w-100" disabled={loading} onClick={handleCheckout}>
               {loading ? 'Đang xử lý...' : 'Đặt hàng'}
             </button>
-          </div>
+            <p className="luxury-summary-note">Đơn COD sẽ được tạo ngay. Với MoMo/ZaloPay, hệ thống sẽ chuyển sang cổng thanh toán sau bước này.</p>
+          </aside>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
-

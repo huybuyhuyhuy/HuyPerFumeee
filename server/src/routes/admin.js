@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { adminMiddleware } from '../middlewares/adminMiddleware.js';
 import { stats, summary, charts } from '../controllers/adminDashboardController.js';
-import { listOrders, orderDetail, changeStatus } from '../controllers/adminOrderController.js';
+import { report } from '../controllers/adminReportController.js';
+import { listOrders, orderAnalytics, orderDetail, changeStatus } from '../controllers/adminOrderController.js';
 import { listAdminUsers, userDetail, updateUser, deleteUser } from '../controllers/adminUserController.js';
 import {
   listProducts,
@@ -11,7 +12,7 @@ import {
   remove,
   resetStock,
 } from '../controllers/adminProductController.js';
-import { list, alerts, adjust, transactions } from '../controllers/adminInventoryController.js';
+import { list, alerts, adjust, transactions, getDecantInventory, openBottles, restockBottles, decantAdjust, decantMovements } from '../controllers/adminInventoryController.js';
 import {
   listReviews,
   reviewDetail,
@@ -30,6 +31,7 @@ router.get('/dashboard', adminMiddleware, stats);
 router.get('/dashboard/stats', adminMiddleware, stats);
 router.get('/dashboard/summary', adminMiddleware, summary);
 router.get('/dashboard/charts', adminMiddleware, charts);
+router.get('/reports', adminMiddleware, report);
 
 // --- Products ---
 router.get('/products', adminMiddleware, listProducts);
@@ -45,8 +47,16 @@ router.get('/inventory/alerts', adminMiddleware, alerts);
 router.post('/inventory/adjust', adminMiddleware, adjust);
 router.get('/inventory/transactions', adminMiddleware, transactions);
 
+// --- Decant Inventory ---
+router.get('/inventory/decant/movements', adminMiddleware, decantMovements);
+router.post('/inventory/decant/open', adminMiddleware, openBottles);
+router.post('/inventory/decant/restock', adminMiddleware, restockBottles);
+router.post('/inventory/decant/adjust', adminMiddleware, decantAdjust);
+router.get('/inventory/decant/:productId', adminMiddleware, getDecantInventory);
+
 // --- Orders ---
 router.get('/orders', adminMiddleware, listOrders);
+router.get('/orders/analytics', adminMiddleware, orderAnalytics);
 router.get('/orders/:id', adminMiddleware, orderDetail);
 router.put('/orders/:id/status', adminMiddleware, changeStatus);
 

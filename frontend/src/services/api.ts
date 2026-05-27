@@ -26,6 +26,7 @@ const TOKEN_KEY = 'token';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 const USER_KEY = 'user';
 const VIEW_TOKEN_KEY = 'huyperfumeViewToken';
+const CART_TOKEN_KEY = 'huyperfumeCartToken';
 let refreshInFlight: Promise<string | null> | null = null;
 
 async function refreshAccessToken() {
@@ -70,6 +71,20 @@ function getOrCreateViewToken() {
   }
 }
 
+function getOrCreateCartToken() {
+  try {
+    const existing = localStorage.getItem(CART_TOKEN_KEY);
+    if (existing) return existing;
+
+    const token = globalThis.crypto?.randomUUID?.() ||
+      `cart_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(CART_TOKEN_KEY, token);
+    return token;
+  } catch {
+    return null;
+  }
+}
+
 api.interceptors.request.use((config) => {
   const token = sessionStorage.getItem(TOKEN_KEY);
   if (token) {
@@ -78,6 +93,10 @@ api.interceptors.request.use((config) => {
   const viewToken = getOrCreateViewToken();
   if (viewToken) {
     config.headers['X-View-Token'] = viewToken;
+  }
+  const cartToken = getOrCreateCartToken();
+  if (cartToken) {
+    config.headers['X-Cart-Token'] = cartToken;
   }
   return config;
 });

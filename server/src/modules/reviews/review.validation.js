@@ -27,14 +27,14 @@ export function validateReviewInput(input = {}, { partial = false } = {}) {
 
   if (!partial || input.rating !== undefined) {
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-      errors.push('RATING_MUST_BE_INTEGER_1_TO_5');
+      errors.push('DANH_GIA_PHAI_TU_1_DEN_5');
     }
   }
 
-  if (normalized.title.length > 180) errors.push('TITLE_TOO_LONG');
-  if (normalized.comment.length > 2000) errors.push('COMMENT_TOO_LONG');
+  if (normalized.title.length > 180) errors.push('TIEU_DE_QUA_DAI');
+  if (normalized.comment.length > 2000) errors.push('BINH_LUAN_QUA_DAI');
   if (normalized.orderId !== null && (!Number.isInteger(normalized.orderId) || normalized.orderId <= 0)) {
-    errors.push('ORDER_ID_INVALID');
+    errors.push('MA_DON_HANG_KHONG_HOP_LE');
   }
 
   return {

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { errorResponse, successResponse } from '../utils/response.js';
 import { query } from '../config/database.js';
+import { getCheckoutStorageCapabilities, hasColumn as hasCheckoutColumn } from '../modules/checkout/checkout.storage.js';
 
 const MOMO_SANDBOX = {
   partnerCode: 'MOMO',
@@ -31,6 +32,11 @@ function hmacSha256Hex(data, secret) {
 function validateOrderId(value) {
   const orderId = Number(value);
   return Number.isInteger(orderId) && orderId > 0 ? orderId : null;
+}
+
+function parseOrderIdFromGatewayId(value) {
+  const match = String(value || '').match(/^(\d+)/);
+  return match ? validateOrderId(match[1]) : null;
 }
 
 function isConfigured(value) {
@@ -107,8 +113,12 @@ async function postForm(endpoint, form) {
 }
 
 async function getOrderForPayment(orderId, userId = null) {
+  const { orderColumns } = await getCheckoutStorageCapabilities();
+  const momoOrderSelect = hasCheckoutColumn(orderColumns, 'momo_order_id') ? 'momo_order_id' : 'NULL AS momo_order_id';
+  const momoTransSelect = hasCheckoutColumn(orderColumns, 'momo_trans_id') ? 'momo_trans_id' : 'NULL AS momo_trans_id';
+  const zaloPaySelect = hasCheckoutColumn(orderColumns, 'zalopay_app_trans_id') ? 'zalopay_app_trans_id' : 'NULL AS zalopay_app_trans_id';
   const rows = await query(
-    `SELECT TOP 1 id, user_id, total, status, payment_method, momo_order_id, momo_trans_id, zalopay_app_trans_id
+    `SELECT TOP 1 id, user_id, total, status, payment_method, ${momoOrderSelect}, ${momoTransSelect}, ${zaloPaySelect}
      FROM orders
      WHERE id = ?${userId ? ' AND user_id = ?' : ''}`,
     userId ? [orderId, userId] : [orderId]
@@ -117,13 +127,21 @@ async function getOrderForPayment(orderId, userId = null) {
 }
 
 async function getOrderByMomoOrderId(momoOrderId) {
-  const rows = await query(
-    `SELECT TOP 1 id, user_id, total, status, payment_method, momo_order_id, momo_trans_id, zalopay_app_trans_id
-     FROM orders
-     WHERE momo_order_id = ?`,
-    [momoOrderId]
-  );
-  return rows[0] || null;
+  const { orderColumns } = await getCheckoutStorageCapabilities();
+  if (hasCheckoutColumn(orderColumns, 'momo_order_id')) {
+    const rows = await query(
+      `SELECT TOP 1 id, user_id, total, status, payment_method, momo_order_id,
+              ${hasCheckoutColumn(orderColumns, 'momo_trans_id') ? 'momo_trans_id' : 'NULL AS momo_trans_id'},
+              ${hasCheckoutColumn(orderColumns, 'zalopay_app_trans_id') ? 'zalopay_app_trans_id' : 'NULL AS zalopay_app_trans_id'}
+       FROM orders
+       WHERE momo_order_id = ?`,
+      [momoOrderId]
+    );
+    if (rows[0]) return rows[0];
+  }
+
+  const orderId = parseOrderIdFromGatewayId(momoOrderId);
+  return orderId ? getOrderForPayment(orderId) : null;
 }
 
 async function updatePaidOrder({ orderId, userId = null, status, momoOrderId = null, momoTransId = null, zalopayAppTransId = null }) {
@@ -131,15 +149,45 @@ async function updatePaidOrder({ orderId, userId = null, status, momoOrderId = n
   if (!order) return { code: 404, message: 'Khong tim thay don hang' };
   if (/cancel/i.test(String(order.status || ''))) return { code: 400, message: 'Don hang da bi huy' };
 
-  await query(
-    `UPDATE orders
-     SET status = ?, momo_order_id = COALESCE(?, momo_order_id),
-         momo_trans_id = COALESCE(?, momo_trans_id),
-         zalopay_app_trans_id = COALESCE(?, zalopay_app_trans_id)
-     WHERE id = ?`,
-    [status, momoOrderId, momoTransId, zalopayAppTransId, orderId]
-  );
+  const { orderColumns } = await getCheckoutStorageCapabilities();
+  const assignments = ['status = ?'];
+  const params = [status];
+
+  if (hasCheckoutColumn(orderColumns, 'momo_order_id')) {
+    assignments.push('momo_order_id = COALESCE(?, momo_order_id)');
+    params.push(momoOrderId);
+  }
+  if (hasCheckoutColumn(orderColumns, 'momo_trans_id')) {
+    assignments.push('momo_trans_id = COALESCE(?, momo_trans_id)');
+    params.push(momoTransId);
+  }
+  if (hasCheckoutColumn(orderColumns, 'zalopay_app_trans_id')) {
+    assignments.push('zalopay_app_trans_id = COALESCE(?, zalopay_app_trans_id)');
+    params.push(zalopayAppTransId);
+  }
+
+  params.push(orderId);
+  await query(`UPDATE orders SET ${assignments.join(', ')} WHERE id = ?`, params);
   return { ok: true };
+}
+
+async function rememberGatewayReference({ orderId, momoOrderId = null, zalopayAppTransId = null }) {
+  const { orderColumns } = await getCheckoutStorageCapabilities();
+  const assignments = [];
+  const params = [];
+
+  if (momoOrderId && hasCheckoutColumn(orderColumns, 'momo_order_id')) {
+    assignments.push('momo_order_id = ?');
+    params.push(momoOrderId);
+  }
+  if (zalopayAppTransId && hasCheckoutColumn(orderColumns, 'zalopay_app_trans_id')) {
+    assignments.push('zalopay_app_trans_id = ?');
+    params.push(zalopayAppTransId);
+  }
+  if (!assignments.length) return;
+
+  params.push(orderId);
+  await query(`UPDATE orders SET ${assignments.join(', ')} WHERE id = ?`, params);
 }
 
 function redirectToOrders(req, res, params) {
@@ -200,7 +248,7 @@ export async function createMomo(req, res) {
       signature: hmacSha256Hex(rawSignature, credentials.secretKey),
     };
 
-    await query('UPDATE orders SET momo_order_id = ? WHERE id = ?', [momoOrderId, orderId]);
+    await rememberGatewayReference({ orderId, momoOrderId });
     const momoResponse = await postJson(credentials.endpoint, payload);
     const payUrl = momoResponse.payUrl || momoResponse.deeplink || '';
 
@@ -230,7 +278,7 @@ export async function momoIpn(req, res) {
 
     if (!receivedSignature || receivedSignature !== computed) {
       console.error('[MOMO_IPN_INVALID_SIGNATURE]', { receivedSignature, computed, body });
-      return errorResponse(res, 400, 'Invalid MoMo signature');
+      return errorResponse(res, 400, 'Chữ ký MoMo không hợp lệ');
     }
 
     const order = await getOrderByMomoOrderId(String(body.orderId || ''));
@@ -252,7 +300,7 @@ export async function momoIpn(req, res) {
     return res.status(204).send();
   } catch (error) {
     console.error('[MOMO_IPN_ERROR]', error);
-    return errorResponse(res, 400, 'Malformed IPN body');
+    return errorResponse(res, 400, 'Dữ liệu IPN không đúng định dạng');
   }
 }
 
@@ -320,7 +368,7 @@ export async function createZaloPay(req, res) {
       mac: hmacSha256Hex(macData, key1),
     });
 
-    await query('UPDATE orders SET zalopay_app_trans_id = ? WHERE id = ?', [appTransId, orderId]);
+    await rememberGatewayReference({ orderId, zalopayAppTransId: appTransId });
     const zaloPayResponse = await postForm(createUrl, form);
 
     if (Number(zaloPayResponse.return_code || 0) !== 1 || !zaloPayResponse.order_url) {

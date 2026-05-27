@@ -1,58 +1,95 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { ProductCard } from '../components/Product/ProductCard';
 import { cartService } from '../services/cartService';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../store/ToastContext';
 import { useWishlist } from '../store/WishlistContext';
+import { resolveProductImage } from '../utils/image';
+import { formatVnCurrency } from '../utils/formatters';
 
 export function WishlistPage() {
-  const { items } = useWishlist();
+  const { items, removeFromWishlist, clearWishlist } = useWishlist();
   const { isLoggedIn } = useAuth();
   const { pushToast } = useToast();
   const navigate = useNavigate();
+  const totalValue = items.reduce((sum, product) => {
+    const price = product.discountPrice > 0 ? product.discountPrice : product.price;
+    return sum + Number(price || 0);
+  }, 0);
 
   const handleAddToCart = async (productId: number) => {
-    if (!isLoggedIn) {
-      pushToast('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.', 'info');
-      navigate('/login');
-      return;
-    }
-
     try {
       await cartService.addItem(productId, 1);
       pushToast('Đã thêm vào giỏ hàng.', 'success');
+      if (!isLoggedIn) {
+        pushToast('Bạn có thể đăng nhập khi thanh toán, giỏ hàng sẽ được đồng bộ tự động.', 'info');
+      }
     } catch (err: any) {
       pushToast(err?.message || 'Lỗi thêm vào giỏ hàng.', 'error');
     }
   };
 
   return (
-    <div className="container luxury-page">
-      <div className="d-flex justify-content-between align-items-end gap-3 mb-4">
-        <div>
-          <p className="text-uppercase luxury-muted small mb-1">Saved for later</p>
-          <h3 className="mb-0">Danh sách yêu thích</h3>
-        </div>
-        <Link to="/products" className="btn btn-outline-dark">
-          Tiếp tục khám phá
-        </Link>
-      </div>
+    <main className="luxury-page wishlist-page">
+      <div className="container">
+        <section className="luxury-wishlist-hero">
+          <div>
+            <p className="section-eyebrow">Đã lưu</p>
+            <h1>Wishlist của bạn</h1>
+            <p>Lưu những mùi hương đáng cân nhắc, so sánh nhanh và chuyển sang giỏ hàng khi đã chốt gu.</p>
+          </div>
+          <div className="luxury-wishlist-stats">
+            <span><strong>{items.length}</strong> sản phẩm</span>
+            <span><strong>{formatVnCurrency(totalValue)}</strong> giá trị dự kiến</span>
+          </div>
+        </section>
 
-      {items.length === 0 ? (
-        <div className="luxury-surface p-5 text-center">
-          <h5 className="mb-2">Chưa có sản phẩm yêu thích</h5>
-          <p className="luxury-muted mb-4">Nhấn biểu tượng trái tim trên sản phẩm để lưu lại những mùi hương đáng nhớ.</p>
-          <Link to="/products" className="btn btn-dark">
-            Xem sản phẩm
-          </Link>
-        </div>
-      ) : (
-        <div className="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-4">
-          {items.map((product) => (
-            <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />
-          ))}
-        </div>
-      )}
-    </div>
+        {items.length === 0 ? (
+          <div className="luxury-cart-empty luxury-surface text-center">
+            <p className="section-eyebrow justify-content-center">Chưa có hương thơm nào</p>
+            <h2>Chưa có sản phẩm yêu thích</h2>
+            <p>Nhấn biểu tượng trái tim trên sản phẩm để lưu lại shortlist riêng của bạn.</p>
+            <Link to="/products" className="btn luxury-primary-btn">Xem sản phẩm</Link>
+          </div>
+        ) : (
+          <>
+            <div className="luxury-wishlist-toolbar">
+              <span>Shortlist đã được lưu trên trình duyệt này.</span>
+              <button type="button" className="btn luxury-link-btn" onClick={clearWishlist}>Xóa tất cả</button>
+            </div>
+
+            <div className="luxury-wishlist-grid">
+              {items.map((product) => {
+                const price = product.discountPrice > 0 ? product.discountPrice : product.price;
+                const originalPrice = product.discountPrice > 0 && product.price > product.discountPrice ? product.price : 0;
+
+                return (
+                  <article key={product.id} className="luxury-wishlist-card luxury-surface">
+                    <Link to={`/products/${product.id}`} className="luxury-wishlist-media">
+                      <img src={resolveProductImage(product.image)} alt={product.name} loading="lazy" decoding="async" />
+                    </Link>
+                    <div className="luxury-wishlist-copy">
+                      <span>{product.brand?.name || 'HuyPerfume'}</span>
+                      <h2><Link to={`/products/${product.id}`}>{product.name}</Link></h2>
+                      <p>{product.description || product.scentNotes || 'Mùi hương được tuyển chọn cho phong cách riêng.'}</p>
+                      <div className="luxury-price-row">
+                        <strong className="luxury-price">{formatVnCurrency(price)}</strong>
+                        {originalPrice > 0 && <del>{formatVnCurrency(originalPrice)}</del>}
+                      </div>
+                    </div>
+                    <div className="luxury-wishlist-actions">
+                      <button type="button" className="btn luxury-primary-btn" disabled={product.stock <= 0} onClick={() => handleAddToCart(Number(product.id))}>
+                        {product.stock <= 0 ? 'Hết hàng' : 'Thêm vào giỏ'}
+                      </button>
+                      <button type="button" className="btn luxury-secondary-btn" onClick={() => removeFromWishlist(Number(product.id))}>Bỏ lưu</button>
+                      <button type="button" className="btn luxury-link-btn" onClick={() => navigate(`/products/${product.id}`)}>Xem chi tiết</button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </main>
   );
 }

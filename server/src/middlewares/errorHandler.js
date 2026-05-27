@@ -13,7 +13,7 @@ export function errorHandler(err, req, res, _next) {
   res.status(status).json({
     success: false,
     status,
-    error: err.name || 'Internal Server Error',
+    error: err.name || 'Lỗi máy chủ nội bộ',
     message,
     data: {},
     path: req.originalUrl,

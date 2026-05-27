@@ -10,6 +10,8 @@ import aiRoutes from './routes/ai.js';
 import productRoutes from './routes/products.js';
 import reviewRoutes from './routes/reviews.js';
 import wishlistRoutes from './routes/wishlist.js';
+import categoriesRoutes from './routes/categories.js';
+import brandsRoutes from './routes/brands.js';
 import contactRoutes from './routes/contact.js';
 
 const app = express();
@@ -35,6 +37,8 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/categories', categoriesRoutes);
+app.use('/api/brands', brandsRoutes);
 app.use('/api/contact', contactRoutes);
 
 app.use((err, req, res, _next) => {
@@ -42,7 +46,7 @@ app.use((err, req, res, _next) => {
 
   res.status(500).json({
     status: 500,
-    error: 'Internal Server Error',
+    error: 'Lỗi máy chủ nội bộ',
     message: 'Lỗi hệ thống: ' + err.message,
     path: req.originalUrl,
     timestamp: new Date().toISOString(),
@@ -50,14 +54,14 @@ app.use((err, req, res, _next) => {
 });
 
 const server = app.listen(port, () => {
-  console.log(`huyperfume-server listening on http://localhost:${port}`);
+  console.log(`huyperfume-server đang chạy tại http://localhost:${port}`);
 });
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${portLabel} is already in use. Stop the existing process or change PORT.`);
+    console.error(`Cổng ${portLabel} đang được sử dụng. Hãy dừng tiến trình cũ hoặc đổi PORT.`);
     process.exit(1);
   }
-  console.error('Server error:', err);
+  console.error('Lỗi máy chủ:', err);
   process.exit(1);
 });

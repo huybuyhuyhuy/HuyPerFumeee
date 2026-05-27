@@ -1,73 +1,65 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import api, { unwrapApiData } from '../services/api';
+import { resolveProductImage } from '../utils/image';
 
 type ChatRole = 'bot' | 'user';
+
+type ChatProduct = {
+  id: number;
+  name: string;
+  brand: string;
+  price: number | null;
+  originalPrice: number | null;
+  discountPrice: number | null;
+  effectivePrice: number | null;
+  volumeMl: number | null;
+  gender: string;
+  scentGroup: string;
+  description: string;
+  image: string;
+  detailUrl: string;
+  isInStock: boolean;
+  stock: number;
+};
 
 type ChatMessage = {
   id: string;
   role: ChatRole;
   text: string;
   createdAt: number;
+  products?: ChatProduct[];
 };
 
 type QuickReply = {
   label: string;
-  answer: string;
 };
 
 const CHAT_HISTORY_KEY = 'huyperfume.chat.history.v2';
 const MAX_STORED_MESSAGES = 12;
-const BOT_REPLY_DELAY_MS = 650;
+const CONNECTION_ERROR_MESSAGE = 'Mình chưa kết nối được máy chủ. Bạn thử lại sau nhé.';
+const CHAT_PRODUCT_PLACEHOLDER = 'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 150%22%3E%3Crect width=%22120%22 height=%22150%22 fill=%22%23f4f0e9%22/%3E%3Cpath d=%22M48 41h24v10h6v48c0 7-5 12-12 12H54c-7 0-12-5-12-12V51h6z%22 fill=%22none%22 stroke=%22%23b89a60%22 stroke-width=%223%22/%3E%3Cpath d=%22M48 67h30%22 stroke=%22%23d0af67%22 stroke-width=%223%22/%3E%3Ctext x=%2260%22 y=%2288%22 text-anchor=%22middle%22 font-family=%22serif%22 font-size=%2212%22 fill=%22%23735a46%22%3EHP%3C/text%3E%3C/svg%3E';
 
 const quickReplies: QuickReply[] = [
-  {
-    label: 'Tư vấn mùi hương nam',
-    answer:
-      'Bạn có thể chọn nhóm hương gỗ, hổ phách, da thuộc hoặc citrus. Đây là các nhóm hương nam tính, sang trọng và dễ dùng hằng ngày.',
-  },
-  {
-    label: 'Tư vấn mùi hương nữ',
-    answer:
-      'Bạn có thể chọn nhóm hương hoa, trái cây, vanilla hoặc musk. Nếu thích phong cách quyến rũ hơn, hương amber hoặc gourmand sẽ rất phù hợp.',
-  },
-  {
-    label: 'Hàng chính hãng?',
-    answer:
-      'HuyPerfume cam kết sản phẩm chính hãng, thông tin rõ ràng và được đóng gói cẩn thận trước khi giao đến khách hàng.',
-  },
-  {
-    label: 'Chính sách giao hàng',
-    answer:
-      'HuyPerfume hỗ trợ giao hàng toàn quốc. Thời gian giao hàng tùy khu vực và sẽ được xác nhận khi đặt hàng.',
-  },
-  {
-    label: 'Chính sách đổi trả',
-    answer:
-      'Sản phẩm được hỗ trợ đổi trả nếu lỗi do shop hoặc giao sai sản phẩm. Vui lòng giữ nguyên tem, hộp và hóa đơn.',
-  },
-  {
-    label: 'Liên hệ shop',
-    answer:
-      'Bạn có thể liên hệ HuyPerfume qua hotline, email hoặc fanpage để được tư vấn nhanh nhất.',
-  },
-  {
-    label: 'Gợi ý quà tặng',
-    answer:
-      'Nếu chọn nước hoa làm quà, bạn nên ưu tiên các mùi dễ dùng như fresh, floral, musk hoặc woody nhẹ. HuyPerfume có thể gợi ý theo giới tính, độ tuổi và ngân sách.',
-  },
+  { label: 'Nước hoa nam dưới 800k' },
+  { label: 'Tìm mùi vanilla' },
+  { label: 'Có chai nào hương gỗ không?' },
+  { label: 'Gợi ý nước hoa nữ dễ dùng' },
+  { label: 'Nước hoa unisex 100ml' },
 ];
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function createMessage(role: ChatRole, text: string): ChatMessage {
+function createMessage(role: ChatRole, text: string, products?: ChatProduct[]): ChatMessage {
   return {
     id: createId(),
     role,
     text,
     createdAt: Date.now(),
+    ...(products?.length ? { products } : {}),
   };
 }
 
@@ -94,27 +86,69 @@ function createGreeting(pathname: string) {
   return createMessage('bot', `${getTimeGreeting()}, ${getPageHint(pathname)}`);
 }
 
-function normalizeText(message: string) {
-  return message
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd');
+function asNumber(value: unknown, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
 }
 
-function readStoredMessages(pathname: string) {
+function optionalPositiveNumber(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function normalizeChatProduct(raw: any): ChatProduct | null {
+  const id = asNumber(raw?.id);
+  if (!id || !raw?.name) return null;
+  const price = optionalPositiveNumber(raw?.price);
+  const discountPrice = optionalPositiveNumber(raw?.discountPrice);
+  const effectivePrice = optionalPositiveNumber(raw?.effectivePrice) ?? discountPrice ?? price;
+
+  return {
+    id,
+    name: String(raw.name),
+    brand: String(raw?.brand || ''),
+    price,
+    originalPrice: optionalPositiveNumber(raw?.originalPrice),
+    discountPrice,
+    effectivePrice,
+    volumeMl: optionalPositiveNumber(raw?.volumeMl),
+    gender: String(raw?.gender || ''),
+    scentGroup: String(raw?.scentGroup || ''),
+    description: String(raw?.description || '').trim(),
+    image: String(raw?.image || ''),
+    detailUrl: `/products/${id}`,
+    isInStock: Boolean(raw?.isInStock ?? asNumber(raw?.stock) > 0),
+    stock: asNumber(raw?.stock),
+  };
+}
+
+function readStoredMessages(pathname: string): ChatMessage[] {
   try {
     const raw = window.localStorage.getItem(CHAT_HISTORY_KEY);
     if (!raw) return [createGreeting(pathname)];
 
-    const parsed = JSON.parse(raw) as ChatMessage[];
-    const validMessages = parsed.filter(
-      (message) =>
+    const parsed = JSON.parse(raw) as unknown[];
+    const validMessages = parsed.reduce<ChatMessage[]>((messages, message: any) => {
+      if (
         typeof message?.id === 'string' &&
         (message.role === 'bot' || message.role === 'user') &&
         typeof message.text === 'string' &&
-        typeof message.createdAt === 'number',
-    );
+        typeof message.createdAt === 'number'
+      ) {
+        const products = Array.isArray(message.products)
+          ? message.products.map(normalizeChatProduct).filter((product: ChatProduct | null): product is ChatProduct => Boolean(product)).slice(0, 5)
+          : [];
+        messages.push({
+          id: message.id,
+          role: message.role,
+          text: message.text,
+          createdAt: message.createdAt,
+          ...(products.length ? { products } : {}),
+        });
+      }
+      return messages;
+    }, []);
 
     return validMessages.length > 0 ? validMessages.slice(-MAX_STORED_MESSAGES) : [createGreeting(pathname)];
   } catch {
@@ -122,45 +156,37 @@ function readStoredMessages(pathname: string) {
   }
 }
 
-function findAnswer(message: string) {
-  const normalized = normalizeText(message);
-
-  if (normalized.includes('nam') || normalized.includes('go') || normalized.includes('da thuoc')) {
-    return quickReplies[0].answer;
-  }
-
-  if (normalized.includes('nu') || normalized.includes('hoa') || normalized.includes('vanilla')) {
-    return quickReplies[1].answer;
-  }
-
-  if (normalized.includes('chinh hang') || normalized.includes('auth') || normalized.includes('that') || normalized.includes('fake')) {
-    return quickReplies[2].answer;
-  }
-
-  if (normalized.includes('giao') || normalized.includes('ship') || normalized.includes('van chuyen')) {
-    return quickReplies[3].answer;
-  }
-
-  if (normalized.includes('doi') || normalized.includes('tra') || normalized.includes('loi')) {
-    return quickReplies[4].answer;
-  }
-
-  if (normalized.includes('lien he') || normalized.includes('hotline') || normalized.includes('email') || normalized.includes('fanpage')) {
-    return quickReplies[5].answer;
-  }
-
-  if (normalized.includes('qua') || normalized.includes('tang') || normalized.includes('sinh nhat')) {
-    return quickReplies[6].answer;
-  }
-
-  return 'Mình chưa có câu trả lời thật chính xác cho nội dung này. Bạn có thể chọn một gợi ý bên dưới hoặc liên hệ HuyPerfume để được tư vấn nhanh hơn.';
-}
-
 function formatMessageTime(timestamp: number) {
   return new Intl.DateTimeFormat('vi-VN', {
     hour: '2-digit',
     minute: '2-digit',
   }).format(timestamp);
+}
+
+function formatCurrency(value: number | null) {
+  return value ? `${value.toLocaleString('vi-VN')}đ` : 'Liên hệ';
+}
+
+function formatGender(value: string) {
+  const gender = value.toLowerCase();
+  if (gender === 'men' || gender === 'male' || gender === 'nam') return 'Nam';
+  if (gender === 'women' || gender === 'female' || gender === 'nữ' || gender === 'nu') return 'Nữ';
+  if (gender === 'unisex') return 'Unisex';
+  return value;
+}
+
+function formatScentGroup(value: string) {
+  return value.replace(/\s*\|\s*/g, ' / ');
+}
+
+function getContextProductId(messages: ChatMessage[], pathname: string) {
+  const productRoute = pathname.match(/^\/products\/(\d+)(?:\/|$)/);
+  if (productRoute) return Number(productRoute[1]);
+
+  const lastBotMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === 'bot');
+  return lastBotMessage?.products?.length === 1 ? lastBotMessage.products[0].id : null;
 }
 
 export function ChatBox() {
@@ -171,8 +197,8 @@ export function ChatBox() {
   const [typing, setTyping] = useState(false);
   const [nudgeVisible, setNudgeVisible] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const typingTimerRef = useRef<number | null>(null);
   const nudgeTimerRef = useRef<number | null>(null);
+  const requestSequenceRef = useRef(0);
 
   useEffect(() => {
     if (!open) return;
@@ -207,28 +233,44 @@ export function ChatBox() {
     };
   }, [open]);
 
-  useEffect(() => {
-    return () => {
-      if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
-    };
-  }, []);
-
-  const sendQuestion = (question: string, answer: string) => {
-    if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
-
+  const sendQuestion = async (question: string) => {
+    const requestSequence = requestSequenceRef.current + 1;
+    requestSequenceRef.current = requestSequence;
     setMessages((current) => [...current, createMessage('user', question)].slice(-MAX_STORED_MESSAGES));
     setTyping(true);
     setNudgeVisible(false);
 
-    typingTimerRef.current = window.setTimeout(() => {
-      setMessages((current) => [...current, createMessage('bot', answer)].slice(-MAX_STORED_MESSAGES));
+    try {
+      const contextProductId = getContextProductId(messages, location.pathname);
+      const { data } = await api.post('/ai/product-chat', {
+        question,
+        ...(contextProductId ? { productId: contextProductId } : {}),
+      });
+      if (requestSequence !== requestSequenceRef.current) return;
+      const payload = unwrapApiData<any>(data);
+      const products = Array.isArray(payload?.products)
+        ? payload.products.map(normalizeChatProduct).filter((product: ChatProduct | null): product is ChatProduct => Boolean(product)).slice(0, 5)
+        : [];
+      const answer = typeof payload?.answer === 'string' && payload.answer.trim()
+        ? payload.answer.trim()
+        : 'Mình chưa nhận được câu trả lời phù hợp. Bạn thử lại sau nhé.';
+      setMessages((current) => [...current, createMessage('bot', answer, products)].slice(-MAX_STORED_MESSAGES));
+    } catch (error) {
+      if (requestSequence !== requestSequenceRef.current) return;
+      const isConnectionError = error instanceof Error && error.message.includes('Không thể kết nối');
+      const message = isConnectionError
+        ? CONNECTION_ERROR_MESSAGE
+        : 'Mình chưa thể trả lời lúc này. Bạn thử lại sau nhé.';
+      setMessages((current) => [...current, createMessage('bot', message)].slice(-MAX_STORED_MESSAGES));
+    } finally {
+      if (requestSequence !== requestSequenceRef.current) return;
       setTyping(false);
-    }, BOT_REPLY_DELAY_MS);
+    }
   };
 
   const handleQuickReply = (item: QuickReply) => {
     setOpen(true);
-    sendQuestion(item.label, item.answer);
+    void sendQuestion(item.label);
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -237,12 +279,12 @@ export function ChatBox() {
     if (!question) return;
 
     setOpen(true);
-    sendQuestion(question, findAnswer(question));
+    void sendQuestion(question);
     setDraft('');
   };
 
   const clearConversation = () => {
-    if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+    requestSequenceRef.current += 1;
     setTyping(false);
     setMessages([createGreeting(location.pathname)]);
   };
@@ -273,7 +315,45 @@ export function ChatBox() {
           <div className="chatbox-messages">
             {messages.map((message) => (
               <div key={message.id} className={`chatbox-message ${message.role}`}>
-                <span>{message.text}</span>
+                <p className="chatbox-message-text">{message.text}</p>
+                {message.role === 'bot' && message.products && message.products.length > 0 && (
+                  <div className="chatbox-products" aria-label="Sản phẩm được gợi ý">
+                    {message.products.map((product) => (
+                      <article key={product.id} className="chatbox-product">
+                        <img
+                          className="chatbox-product-image"
+                          src={product.image ? resolveProductImage(product.image) : CHAT_PRODUCT_PLACEHOLDER}
+                          alt={product.name}
+                          loading="lazy"
+                          decoding="async"
+                          onError={(event) => {
+                            if (event.currentTarget.src.startsWith('data:image/svg+xml')) return;
+                            event.currentTarget.src = CHAT_PRODUCT_PLACEHOLDER;
+                          }}
+                        />
+                        <div className="chatbox-product-body">
+                          <div className="chatbox-product-topline">
+                            {product.brand && <small>{product.brand}</small>}
+                            <span className={`chatbox-stock-badge ${product.isInStock ? 'in-stock' : 'out-of-stock'}`}>
+                              {product.isInStock ? 'Còn hàng' : 'Hết hàng'}
+                            </span>
+                          </div>
+                          <strong>{product.name}</strong>
+                          <b>{formatCurrency(product.effectivePrice ?? product.discountPrice ?? product.price)}</b>
+                          {(product.volumeMl || product.gender) && (
+                            <div className="chatbox-product-meta">
+                              {product.volumeMl && <span>{product.volumeMl} ml</span>}
+                              {product.gender && <span>{formatGender(product.gender)}</span>}
+                            </div>
+                          )}
+                          {product.scentGroup && <p className="chatbox-product-scent">{formatScentGroup(product.scentGroup)}</p>}
+                          {product.description && <p className="chatbox-product-description">{product.description}</p>}
+                          <Link to={product.detailUrl} className="chatbox-product-link">Xem chi tiết</Link>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
                 <time dateTime={new Date(message.createdAt).toISOString()}>{formatMessageTime(message.createdAt)}</time>
               </div>
             ))}

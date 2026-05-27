@@ -18,10 +18,21 @@ export function ProductVariants({ variants, activeVariantId, onChange }) {
             aria-disabled={disabled}
             disabled={disabled}
           >
-            <span className="product-variant-pill-label">{variant.label}</span>
+            <span className="product-variant-pill-label">
+              {variant.label}
+              {variant.variantType && variant.variantType !== 'STANDARD' && (
+                <span className={`variant-type-badge variant-type-${variant.variantType.toLowerCase()}`}>
+                  {variant.isDecant ? 'Chiết' : variant.variantType === 'FULL' ? 'Full' : variant.variantType}
+                </span>
+              )}
+            </span>
             <span className="product-variant-pill-meta">
               {variant.size ? `${variant.size} · ` : ''}
-              {variant.stock > 0 ? `${variant.stock} còn lại` : 'Hết hàng'}
+              {variant.isDecant && variant.stock > 0
+                ? `~${variant.stock} lọ`
+                : variant.stock > 0
+                  ? `${variant.stock} còn lại`
+                  : 'Hết hàng'}
             </span>
           </button>
         );

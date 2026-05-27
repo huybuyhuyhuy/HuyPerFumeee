@@ -31,7 +31,7 @@ let _pool = null;
 async function getPool() {
   if (!_pool) {
     _pool = await sql.connect(config);
-    console.log('Connected to SQL Server');
+    console.log('Đã kết nối SQL Server');
   }
   return _pool;
 }
@@ -52,7 +52,7 @@ function convertQuery(sqlStr, params) {
 function toSafePageNumber(value, label) {
   const number = Number(value);
   if (!Number.isInteger(number) || number < 0) {
-    throw new Error(`${label} must be a non-negative integer`);
+    throw new Error(`${label} phải là số nguyên không âm`);
   }
   return number;
 }

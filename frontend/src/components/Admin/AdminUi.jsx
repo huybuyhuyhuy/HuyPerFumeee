@@ -1,5 +1,5 @@
 export function formatAdminCurrency(value) {
-  return `${Math.round(Number(value || 0)).toLocaleString('vi-VN')}₫`;
+  return `₫${Math.round(Number(value || 0)).toLocaleString('vi-VN')}`;
 }
 
 export function formatAdminDate(value) {
@@ -26,6 +26,7 @@ export function AdminStatGrid({ items }) {
     <section className="admin-kpi-grid" aria-label="Tổng quan">
       {items.map((item) => (
         <article className={`admin-kpi-card ${item.tone || ''}`} key={item.label}>
+          {item.icon && <span className="admin-kpi-icon" aria-hidden="true">{item.icon}</span>}
           <span>{item.label}</span>
           <strong>{item.value}</strong>
           {item.hint && <small>{item.hint}</small>}
@@ -66,14 +67,29 @@ export function AdminEmptyState({ title, description }) {
 
 export function AdminStatusBadge({ status }) {
   const normalized = String(status || '').toLowerCase();
+  const labelMap = {
+    waiting: 'Chờ xử lý',
+    paid: 'Đã thanh toán',
+    processing: 'Đang xử lý',
+    shipped: 'Đang giao',
+    delivered: 'Đã giao',
+    completed: 'Hoàn tất',
+    cancelled: 'Đã hủy',
+    failed: 'Thất bại',
+    refunded: 'Hoàn tiền',
+    active: 'Đang hiển thị',
+    disabled: 'Đã ẩn',
+    locked: 'Đã khóa',
+    pending_verification: 'Chờ xác minh',
+  };
   const tone = ['completed', 'delivered', 'paid', 'active'].includes(normalized)
     ? 'positive'
-    : ['processing', 'shipped', 'pending_verification'].includes(normalized)
+    : ['processing', 'shipped', 'pending_verification', 'waiting'].includes(normalized)
       ? 'progress'
       : ['cancelled', 'failed', 'disabled', 'locked', 'refunded'].includes(normalized)
         ? 'negative'
         : 'neutral';
-  return <span className={`admin-status-badge ${tone}`}>{status || '-'}</span>;
+  return <span className={`admin-status-badge ${tone}`}>{labelMap[normalized] || status || '-'}</span>;
 }
 
 export function AdminQuickNav({ items }) {

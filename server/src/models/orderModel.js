@@ -1,6 +1,7 @@
 import { getDbPool, query, sql } from '../config/database.js';
 import { getCart, markCartCheckedOut } from './cartModel.js';
 import { invalidateProductCache } from './productModel.js';
+import { computeDecantStock, decrementDecantInventory, decrementFullBottleInventory, restoreDecantInventory, syncVariantStock } from './decantInventoryModel.js';
 import { getProductStorageCapabilities, hasOrderItemVariantColumn } from '../modules/products/product.repository.js';
 import { getCheckoutStorageCapabilities } from '../modules/checkout/checkout.storage.js';
 import {
@@ -118,6 +119,25 @@ async function productHasVariants(transaction, productId, capabilities) {
   return Number(result.recordset?.[0]?.total || 0) > 0;
 }
 
+async function selectDefaultAvailableVariant(transaction, productId, quantity, capabilities) {
+  if (!capabilities.hasVariants || !hasOrderItemVariantColumn(capabilities)) return null;
+
+  const request = new sql.Request(transaction);
+  request.input('productId', sql.Int, productId);
+  request.input('quantity', sql.Int, quantity);
+  const result = await request.query(
+    `SELECT TOP 1 pv.id
+     FROM product_variants pv WITH (UPDLOCK, ROWLOCK)
+     WHERE pv.product_id = @productId
+       AND ISNULL(pv.stock_quantity, 0) >= @quantity
+       AND ISNULL(pv.price, 0) > 0
+       ${deletedFilter(capabilities.variantColumns, 'pv')}
+       ${hasColumn(capabilities.variantColumns, 'status') ? 'AND ISNULL(pv.status, 1) = 1' : ''}
+     ORDER BY pv.id ASC`
+  );
+  return result.recordset?.[0]?.id || null;
+}
+
 async function prepareVariantInventoryItem(transaction, cartItem, capabilities) {
   const productId = Number(cartItem.product?.id);
   const variantId = Number(cartItem.product?.variantId || cartItem.variantId);
@@ -139,6 +159,8 @@ async function prepareVariantInventoryItem(transaction, cartItem, capabilities) 
             p.batch_code,
             pv.id AS variant_id,
             pv.sku AS variant_sku,
+            pv.volume_ml AS variant_volume_ml,
+            pv.variant_type,
             pv.stock_quantity,
             pv.price AS variant_price,
             pv.sale_price AS variant_sale_price,
@@ -155,6 +177,41 @@ async function prepareVariantInventoryItem(transaction, cartItem, capabilities) 
 
   const row = result.recordset?.[0];
   if (!row) return { code: 404, message: 'Khong tim thay bien the san pham' };
+
+  const variantType = String(row.variant_type || '').toUpperCase();
+  const isDecant = variantType === 'DECANT';
+  const isFullBottle = variantType === 'FULL';
+
+  // ── decant stock validation: check product_inventory ──
+  if (isDecant) {
+    const decantVolumeMl = Number(row.variant_volume_ml) || 0;
+    if (decantVolumeMl <= 0) return { code: 400, message: 'Bien the decant chua co dung tich hop le' };
+
+    const neededMl = decantVolumeMl * quantity;
+    const stock = await computeDecantStock(transaction, productId, decantVolumeMl);
+    if (neededMl > stock.totalAvailableMl) {
+      return { code: 400, message: `Khong du dung tich de chiet. Con ${stock.totalAvailableMl}ml, can ${neededMl}ml` };
+    }
+
+    const unitPrice = resolveUnitPrice(row.variant_price, row.variant_sale_price);
+    if (!unitPrice) return { code: 400, message: `San pham ${row.product_name} chua co gia hop le` };
+
+    return {
+      productId,
+      variantId,
+      productName: row.product_name,
+      productImage: row.variant_image || row.product_image || '',
+      quantity,
+      unitPrice,
+      stockBefore: stock.totalAvailableMl,
+      selectedBatchCode: row.variant_sku || row.batch_code || '',
+      isDecant: true,
+      decantVolumeMl,
+      isFullBottle: false,
+    };
+  }
+
+  // ── full bottle: check variant stock_quantity ──
   if (quantity > Number(row.stock_quantity || 0)) {
     return { code: 400, message: `San pham ${row.product_name} khong du ton kho` };
   }
@@ -171,6 +228,8 @@ async function prepareVariantInventoryItem(transaction, cartItem, capabilities) 
     unitPrice,
     stockBefore: Number(row.stock_quantity || 0),
     selectedBatchCode: row.variant_sku || row.batch_code || '',
+    isDecant: false,
+    isFullBottle: isFullBottle,
   };
 }
 
@@ -179,7 +238,14 @@ async function prepareProductInventoryItem(transaction, cartItem, capabilities) 
   const quantity = Number(cartItem.quantity);
 
   if (await productHasVariants(transaction, productId, capabilities)) {
-    return { code: 400, message: 'Vui long chon bien the san pham' };
+    const fallbackVariantId = await selectDefaultAvailableVariant(transaction, productId, quantity, capabilities);
+    if (!fallbackVariantId) {
+      return { code: 400, message: 'San pham khong co bien the du ton kho de thanh toan' };
+    }
+    return prepareVariantInventoryItem(transaction, {
+      ...cartItem,
+      product: { ...cartItem.product, variantId: fallbackVariantId },
+    }, capabilities);
   }
 
   const request = new sql.Request(transaction);
@@ -214,6 +280,25 @@ async function prepareProductInventoryItem(transaction, cartItem, capabilities) 
 }
 
 async function decrementInventory(transaction, item) {
+  // ── decant: use product_inventory instead of variant stock ──
+  if (item.isDecant) {
+    const neededMl = (item.decantVolumeMl || 0) * item.quantity;
+    const result = await decrementDecantInventory(transaction, {
+      productId: item.productId,
+      neededMl,
+    });
+    return result.openedMlAfter;
+  }
+
+  // ── full bottle via inventory tracking ──
+  if (item.isFullBottle) {
+    const result = await decrementFullBottleInventory(transaction, {
+      productId: item.productId,
+      quantity: item.quantity,
+    });
+    return result.sealedBottlesAfter;
+  }
+
   const request = new sql.Request(transaction);
   request.input('productId', sql.Int, item.productId);
   request.input('quantity', sql.Int, item.quantity);
@@ -413,6 +498,16 @@ export async function checkoutOrder({ userId, shippingAddress, phone, paymentMet
         console.warn('Order committed but product cache invalidation failed:', error.message);
       }
 
+      // Sync variant stock_quantity for decant/full-bottle products
+      try {
+        await Promise.all(
+          [...new Set(preparedItems.filter((item) => item.isDecant || item.isFullBottle).map((item) => item.productId))]
+            .map((id) => syncVariantStock(id))
+        );
+      } catch (error) {
+        console.warn('Order committed but variant stock sync failed:', error.message);
+      }
+
       const createdOrder = await getOrderByIdForUser(orderId, userId);
       return { order: createdOrder };
     } catch (error) {
@@ -498,6 +593,27 @@ export async function listOrderHistory(userId) {
 }
 
 async function restoreInventory(transaction, item) {
+  // ── decant restore ──
+  if (item.isDecant) {
+    const neededMl = (item.decantVolumeMl || 0) * (item.quantity || 0);
+    const result = await restoreDecantInventory(transaction, {
+      productId: item.product_id,
+      neededMl,
+      isFullBottle: false,
+    });
+    return { stock_before: result.openedMl - neededMl, stock_after: result.openedMl };
+  }
+
+  // ── full bottle restore via product_inventory ──
+  if (item.isFullBottle) {
+    const result = await restoreDecantInventory(transaction, {
+      productId: item.product_id,
+      neededMl: 0,
+      isFullBottle: true,
+    });
+    return { stock_before: result.sealedBottles - 1, stock_after: result.sealedBottles };
+  }
+
   const request = new sql.Request(transaction);
   request.input('productId', sql.Int, item.product_id);
   request.input('quantity', sql.Int, item.quantity);
@@ -596,23 +712,38 @@ async function releaseCancelledOrderInventory({ orderId, userId = null, enforceC
     );
 
     const variantSelect = hasOrderItemVariantColumn(capabilities)
-      ? 'product_variant_id'
+      ? 'oi.product_variant_id'
       : 'NULL AS product_variant_id';
+    const variantJoinClause = capabilities.hasVariants && hasOrderItemVariantColumn(capabilities)
+      ? 'LEFT JOIN product_variants pv ON pv.id = oi.product_variant_id'
+      : '';
+    const variantMetaSelect = capabilities.hasVariants && hasOrderItemVariantColumn(capabilities)
+      ? 'pv.variant_type, pv.volume_ml AS variant_volume_ml'
+      : 'NULL AS variant_type, NULL AS variant_volume_ml';
     const itemRequest = new sql.Request(transaction);
     itemRequest.input('orderId', sql.Int, orderId);
     const itemResult = await itemRequest.query(
-      `SELECT product_id, ${variantSelect}, quantity
-       FROM order_items
-       WHERE order_id = @orderId`
+      `SELECT oi.product_id, ${variantSelect}, oi.quantity,
+              ${variantMetaSelect}
+       FROM order_items oi
+       ${variantJoinClause}
+       WHERE oi.order_id = @orderId`
     );
 
     for (const item of itemResult.recordset || []) {
-      const stock = await restoreInventory(transaction, item);
-      const reservationId = await findReservationForOrderItem(transaction, orderId, item, checkoutCapabilities);
+      const variantType = String(item.variant_type || '').toUpperCase();
+      const enrichedItem = {
+        ...item,
+        isDecant: variantType === 'DECANT',
+        isFullBottle: variantType === 'FULL',
+        decantVolumeMl: Number(item.variant_volume_ml) || 0,
+      };
+      const stock = await restoreInventory(transaction, enrichedItem);
+      const reservationId = await findReservationForOrderItem(transaction, orderId, enrichedItem, checkoutCapabilities);
       await releaseInventoryReservation(transaction, reservationId);
       await recordInventoryTransaction(transaction, {
-        productId: item.product_id,
-        variantId: item.product_variant_id,
+        productId: enrichedItem.product_id,
+        variantId: enrichedItem.product_variant_id,
         orderId,
         reservationId,
         transactionType: 'RELEASE',
@@ -628,6 +759,18 @@ async function releaseCancelledOrderInventory({ orderId, userId = null, enforceC
       await Promise.all([...new Set((itemResult.recordset || []).map((item) => item.product_id))].map((id) => invalidateProductCache(id)));
     } catch (error) {
       console.warn('Order cancelled but product cache invalidation failed:', error.message);
+    }
+
+    // Sync variant stock for decant products after cancellation
+    try {
+      const decantProductIds = [...new Set((itemResult.recordset || [])
+        .filter((item) => String(item.variant_type || '').toUpperCase() === 'DECANT' || String(item.variant_type || '').toUpperCase() === 'FULL')
+        .map((item) => item.product_id))];
+      if (decantProductIds.length > 0) {
+        await Promise.all(decantProductIds.map((id) => syncVariantStock(id)));
+      }
+    } catch (error) {
+      console.warn('Order cancelled but variant stock sync failed:', error.message);
     }
     return { ok: true };
   } catch (error) {

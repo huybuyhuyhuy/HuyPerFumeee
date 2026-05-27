@@ -9,12 +9,22 @@ import {
   AdminStatusBadge,
   formatAdminCurrency,
 } from '../components/Admin/AdminUi';
+import { resolveProductImage } from '../utils/image';
 
 const PAGE_SIZE = 10;
 const DEFAULT_FILTERS = { search: '', status: '', stockState: '' };
 
 function unwrapApiData(payload) {
   return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload;
+}
+
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString('vi-VN');
+}
+
+function productFallbackImage(event) {
+  event.currentTarget.onerror = null;
+  event.currentTarget.src = '/assets/images/1.webp';
 }
 
 export function AdminProductsPage() {
@@ -70,6 +80,7 @@ export function AdminProductsPage() {
   const toggleVisibility = async (product) => {
     setBusyId(product.id);
     setFeedback('');
+    setError('');
     try {
       await api.put(`/admin/products/${product.id}`, { status: !product.status });
       setFeedback(`Đã ${product.status ? 'ẩn' : 'hiển thị'} ${product.name}.`);
@@ -89,6 +100,7 @@ export function AdminProductsPage() {
     }
     setBusyId(product.id);
     setFeedback('');
+    setError('');
     try {
       await api.post(`/admin/products/${product.id}/reset-stock`, { stock: nextStock });
       setFeedback(`Đã cập nhật tồn kho ${product.name}.`);
@@ -101,33 +113,78 @@ export function AdminProductsPage() {
   };
 
   const stats = [
-    { label: 'Tổng sản phẩm', value: Number(summary.total || 0).toLocaleString('vi-VN'), hint: 'Trong danh mục' },
-    { label: 'Đang hiển thị', value: Number(summary.active || 0).toLocaleString('vi-VN'), hint: 'Có thể mua', tone: 'positive' },
-    { label: 'Sắp hết hàng', value: Number(summary.lowStock || 0).toLocaleString('vi-VN'), hint: 'Còn 1 - 5 chai', tone: 'warning' },
-    { label: 'Tổng tồn kho', value: Number(summary.totalStock || 0).toLocaleString('vi-VN'), hint: 'Đơn vị sản phẩm' },
+    { label: 'Tổng sản phẩm', value: formatNumber(summary.total), hint: 'Trong danh mục', icon: 'SKU' },
+    { label: 'Đang hiển thị', value: formatNumber(summary.active), hint: 'Có thể mua', tone: 'positive', icon: 'ON' },
+    { label: 'Sắp hết hàng', value: formatNumber(summary.lowStock), hint: 'Còn 1 - 5 chai', tone: 'warning', icon: 'LOW' },
+    { label: 'Giá trị tồn kho', value: formatAdminCurrency(summary.stockValue), hint: 'Ước tính theo giá bán', tone: 'positive', icon: 'VND' },
   ];
 
+  const categoryBreakdown = Array.isArray(summary.categoryBreakdown) ? summary.categoryBreakdown : [];
+  const maxCategoryTotal = Math.max(...categoryBreakdown.map((item) => Number(item.total || 0)), 1);
+  const stockTotal = Number(summary.totalStock || 0);
+
   return (
-    <div className="admin-page">
+    <div className="admin-page huy-admin-ops-page">
       <AdminPageHeader
-        eyebrow="Catalog control"
+        eyebrow="Quản lý danh mục"
         title="Quản lý sản phẩm"
-        description="Theo dõi danh mục, mức tồn kho và trạng thái hiển thị của boutique."
-        action={
-          <div className="d-flex flex-wrap gap-2">
-            <Link to="/admin/products" className="btn btn-outline-dark">Danh sách</Link>
-            <button type="button" className="btn btn-outline-dark" onClick={load}>Làm mới dữ liệu</button>
+        description="Theo dõi danh mục, tồn kho, giá bán và trạng thái hiển thị của boutique."
+        action={(
+          <div className="admin-page-action-row">
+            <Link to="/admin/reports" className="btn btn-outline-dark">Báo cáo</Link>
+            <Link to="/admin/products/add" className="btn luxury-primary-btn">Thêm sản phẩm</Link>
+            <button type="button" className="btn btn-outline-dark" onClick={load}>Làm mới</button>
           </div>
-        }
+        )}
       />
 
       <AdminStatGrid items={stats} />
 
-      <div className="admin-quick-links mb-4 d-flex flex-wrap gap-2">
-        <Link to="/admin" className="btn btn-sm btn-outline-dark">Dashboard</Link>
-        <Link to="/admin/orders" className="btn btn-sm btn-outline-dark">Đơn hàng</Link>
-        <Link to="/admin/users" className="btn btn-sm btn-outline-dark">Người dùng</Link>
-      </div>
+      <section className="admin-insight-grid products">
+        <article className="admin-insight-card">
+          <div className="admin-insight-head compact">
+            <div>
+              <span className="admin-eyebrow">Tồn kho</span>
+              <h2>Sức khỏe tồn kho</h2>
+            </div>
+          </div>
+          <div className="admin-stock-health">
+            <div>
+              <strong>{formatNumber(stockTotal)}</strong>
+              <span>Tổng đơn vị tồn</span>
+            </div>
+            <div>
+              <strong>{formatNumber(summary.outOfStock)}</strong>
+              <span>Hết hàng</span>
+            </div>
+            <div>
+              <strong>{formatNumber(summary.decantCount)}</strong>
+              <span>Sản phẩm decant</span>
+            </div>
+          </div>
+        </article>
+
+        <article className="admin-insight-card wide">
+          <div className="admin-insight-head">
+            <div>
+              <span className="admin-eyebrow">Phân bố danh mục</span>
+              <h2>Phân bổ danh mục</h2>
+            </div>
+            <strong>{formatNumber(categoryBreakdown.length)} nhóm</strong>
+          </div>
+          <div className="admin-category-bars">
+            {categoryBreakdown.length === 0 ? <span className="admin-muted">Chưa có dữ liệu</span> : categoryBreakdown.map((item) => (
+              <div className="admin-category-bar" key={item.category}>
+                <div>
+                  <span>{item.category}</span>
+                  <strong>{formatNumber(item.total)}</strong>
+                </div>
+                <i><span style={{ width: `${Math.max((Number(item.total || 0) / maxCategoryTotal) * 100, 6)}%` }} /></i>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
 
       <form className="admin-filter-panel" onSubmit={applyFilters}>
         <div className="admin-filter-field grow">
@@ -165,6 +222,13 @@ export function AdminProductsPage() {
       {feedback && <div className="alert alert-success admin-alert">{feedback}</div>}
 
       <section className="admin-table-panel">
+        <div className="admin-table-title">
+          <div>
+            <span className="admin-eyebrow">Danh sách sản phẩm</span>
+            <h2>Danh sách sản phẩm</h2>
+          </div>
+          <span>{formatNumber(pagination.totalElements)} sản phẩm</span>
+        </div>
         {loading ? (
           <div className="admin-loading"><div className="spinner-border" /> Đang tải sản phẩm...</div>
         ) : products.length === 0 ? (
@@ -188,7 +252,7 @@ export function AdminProductsPage() {
                     <tr key={product.id}>
                       <td>
                         <div className="admin-product-cell">
-                          <span className="admin-product-monogram">{String(product.name || '?').charAt(0)}</span>
+                          <img src={resolveProductImage(product.image)} alt={product.name} loading="lazy" onError={productFallbackImage} />
                           <div>
                             <strong>{product.name}</strong>
                             <small>{product.sku || `#${product.id}`} · {product.brandName || 'Chưa có thương hiệu'}</small>
@@ -212,9 +276,9 @@ export function AdminProductsPage() {
                           </button>
                         </div>
                       </td>
-                      <td><AdminStatusBadge status={product.status ? 'ACTIVE' : 'DISABLED'} /></td>
+                      <td><AdminStatusBadge status={product.status ? 'active' : 'disabled'} /></td>
                       <td className="text-end">
-                        <div className="d-flex justify-content-end flex-wrap gap-2">
+                        <div className="admin-row-actions justify-content-end">
                           <Link to={`/admin/products/${product.id}/edit`} className="btn btn-sm btn-outline-dark">Chi tiết</Link>
                           <button
                             type="button"

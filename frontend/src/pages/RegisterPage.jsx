@@ -52,7 +52,7 @@ export function RegisterPage() {
         <div className="col-12 col-lg-5 order-lg-2 d-none d-lg-block">
           <div className="luxury-surface p-5 h-100 shadow-sm d-flex flex-column justify-content-between" style={{ minHeight: 720 }}>
             <div>
-              <p className="text-uppercase luxury-muted small mb-3">Join The Perfume Shop</p>
+              <p className="text-uppercase luxury-muted small mb-3">Tham gia HuyPerfume</p>
               <h1 className="display-6 fw-semibold mb-3">Tạo tài khoản để mua sắm và theo dõi đơn hàng dễ dàng hơn</h1>
               <p className="luxury-muted mb-0">
                 Đăng ký chỉ với vài thông tin cơ bản để nhận trải nghiệm cá nhân hóa và quản lý đơn hàng tiện lợi.
@@ -78,7 +78,7 @@ export function RegisterPage() {
         <div className="col-12 col-lg-5 col-xl-4 order-lg-1">
           <div className="luxury-surface p-4 p-lg-5 shadow-sm">
             <div className="mb-4">
-              <p className="text-uppercase luxury-muted small mb-2">Create your account</p>
+              <p className="text-uppercase luxury-muted small mb-2">Tạo tài khoản</p>
               <h2 className="mb-2 fw-semibold">Đăng ký tài khoản</h2>
               <p className="text-muted mb-0">Điền thông tin bên dưới để bắt đầu hành trình mua sắm.</p>
             </div>

@@ -81,6 +81,15 @@ function getAuthPayload(responseData: any): AuthPayload {
   return { ...payload, token };
 }
 
+async function mergeGuestCartSilently() {
+  try {
+    await api.post('/cart/merge');
+    window.dispatchEvent(new Event('huyperfume:cart-updated'));
+  } catch {
+    // Login should never fail just because a guest cart could not be merged.
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUserState] = useState<User | null>(readStoredUser);
 
@@ -104,7 +113,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    return { token, user };
+    await mergeGuestCartSilently();
+    return { token, refreshToken, user };
   };
 
   const register = async (form: Record<string, string>) => {
@@ -117,7 +127,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    return { token, user };
+    await mergeGuestCartSilently();
+    return { token, refreshToken, user };
   };
 
   const logout = () => {

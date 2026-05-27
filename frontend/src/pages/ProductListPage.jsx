@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { productService } from '../services/productService';
 import { cartService } from '../services/cartService';
-import { useAuth } from '../hooks/useAuth';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 import { ProductCard } from '../components/Product/ProductCard.jsx';
@@ -320,7 +319,6 @@ export function ProductListPage() {
   const [page, setPage] = useState(1);
   const [draftSearch, setDraftSearch] = useState(searchParams.get('search') || '');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const { isLoggedIn } = useAuth();
   const { pushToast } = useToast();
   const debouncedSearch = useDebouncedValue(draftSearch, 350);
   const productGridRef = useScrollReveal('.scroll-reveal-item', !loading && products.length > 0);
@@ -503,16 +501,12 @@ export function ProductListPage() {
   }, [products, scent, sort, volume]);
 
   const handleAddToCart = async (productId) => {
-    if (!isLoggedIn) {
-      pushToast('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.', 'info');
-      return;
-    }
-
     try {
       await cartService.addItem(productId, 1);
       pushToast('Đã thêm vào giỏ hàng.', 'success');
     } catch (err) {
       pushToast(err?.message || 'Lỗi thêm vào giỏ hàng.', 'error');
+      throw err;
     }
   };
 

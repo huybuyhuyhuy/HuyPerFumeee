@@ -9,29 +9,22 @@ import type { Product } from '../types';
 import { useToast } from '../store/ToastContext';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 import { resolveProductImage } from '../utils/image';
+import { siteContact } from '../config/siteConfig';
 
-const collectionSections = [
-  { title: 'For Him', subtitle: 'Mạnh mẽ, lịch lãm, có chiều sâu', copy: 'Những mùi hương gỗ, da thuộc và trầm ấm cho phong thái tự tin.', image: '/assets/images/4.png', to: '/products?categoryId=1', badge: 'Men’s edit' },
-  { title: 'For Her', subtitle: 'Thanh lịch, tinh tế, cuốn hút', copy: 'Hương hoa, trái cây và musk mềm mượt để tôn lên nét nữ tính hiện đại.', image: '/assets/images/5.png', to: '/products?categoryId=2', badge: 'Women’s edit' },
-  { title: 'Signature Scents', subtitle: 'Mùi hương ký dấu cá nhân', copy: 'Các lựa chọn cân bằng giữa độ sang, độ bền và dấu ấn riêng không trộn lẫn.', image: '/assets/images/7.png', to: '/products?sort=best_seller', badge: 'House favorites' },
-  { title: 'Seasonal Picks', subtitle: 'Theo mùa, theo mood', copy: 'Tươi mát cho ngày sáng, ấm áp cho những buổi tối cần cảm xúc hơn.', image: '/assets/images/6.png', to: '/products?season=seasonal', badge: 'Mood selection' },
-  { title: 'Niche Collection', subtitle: 'Tinh tuyển, khác biệt, khó quên', copy: 'Những mùi hương có cá tính riêng cho người thích sự độc bản và có gu.', image: '/assets/images/12.png', to: '/products?collection=niche', badge: 'Curated niche' },
-];
-
-const signaturePoints = [
-  'Chính hãng 100%',
-  'Tuyển chọn kỹ lưỡng',
-  'Đóng gói tinh tế',
-  'Tư vấn theo phong cách',
+const luxuryCollectionSections = [
+  { title: 'Cho Nam', subtitle: 'Gỗ trầm, da thuộc, bản lĩnh', copy: 'Các mùi hương nam tính có độ sâu, dễ mặc nhưng vẫn đủ nổi bật trong những buổi gặp quan trọng.', image: '/assets/images/4.webp', to: '/products?categoryId=1', badge: 'Tuyển chọn nam', note: 'Gỗ / Thơm nồng' },
+  { title: 'Cho Nữ', subtitle: 'Hoa trắng, musk, nét mềm sang', copy: 'Một tuyển tập nữ tính hiện đại: sạch, mượt, lưu hương đẹp và hợp cả ngày thường lẫn dịp đặc biệt.', image: '/assets/images/5.webp', to: '/products?categoryId=2', badge: 'Tuyển chọn nữ', note: 'Hoa / Xạ hương' },
+  { title: 'Hương đặc trưng', subtitle: 'Mùi hương tạo dấu ấn riêng', copy: 'Những lựa chọn có độ cân bằng tốt giữa độ sang, độ bền và khả năng trở thành mùi hương nhận diện.', image: '/assets/images/7.webp', to: '/products?sort=best_seller', badge: 'Lựa chọn của HuyPerfume', note: 'Bán chạy nhất' },
+  { title: 'Bộ sưu tập độc quyền', subtitle: 'Tinh tuyển, khác biệt, khó quên', copy: 'Dành cho người thích một cấu trúc mùi có cá tính rõ ràng, giàu lớp lang và không đại trà.', image: '/assets/images/12.webp', to: '/products?categoryId=4', badge: 'Độc bản', note: 'Hàng hiếm' },
 ];
 
 const categoryCards = [
-  { name: 'Floral', cat: 2, img: '/assets/images/women-perfume-banner.png', desc: 'Mềm mại, nữ tính và sáng bừng như một campaign mùa xuân.', tone: 'Petal glow' },
-  { name: 'Woody', cat: 1, img: '/assets/images/men-perfume-banner.png', desc: 'Trầm ấm, bản lĩnh và có chiều sâu theo ngôn ngữ thời trang nam.', tone: 'Urban wood' },
-  { name: 'Amber', cat: 4, img: '/assets/images/7.png', desc: 'Ấm, sang và cuốn hút - đúng tinh thần evening luxury.', tone: 'Golden amber' },
-  { name: 'Fresh', cat: 3, img: '/assets/images/unisex-perfume-banner.png', desc: 'Sạch, sáng, thoáng và hiện đại cho nhịp sống mỗi ngày.', tone: 'Clean air' },
-  { name: 'Oriental', cat: 4, img: '/assets/images/12.png', desc: 'Dày dặn, gợi cảm và đầy cảm xúc, như một khung hình điện ảnh.', tone: 'Velvet mood' },
-  { name: 'Citrus', cat: 5, img: '/assets/images/3.png', desc: 'Bùng nổ tươi mát, giàu năng lượng và rất dễ yêu.', tone: 'Bright spark' },
+  { name: 'Hương hoa', cat: 2, fallbackImage: '/assets/images/5.webp', desc: 'Mềm mại, nữ tính và sáng bừng như một chiến dịch mùa xuân.', tone: 'Sắc hoa' },
+  { name: 'Hương gỗ', cat: 1, fallbackImage: '/assets/images/4.webp', desc: 'Trầm ấm, bản lĩnh và có chiều sâu theo tinh thần sang trọng nam tính.', tone: 'Gỗ thành thị' },
+  { name: 'Hổ phách', cat: 4, fallbackImage: '/assets/images/7.webp', desc: 'Ấm, sang và cuốn hút đúng chất luxury evening.', tone: 'Hổ phách vàng' },
+  { name: 'Tươi mát', cat: 3, fallbackImage: '/assets/images/6.webp', desc: 'Sạch, sáng, thoáng và hiện đại cho nhịp sống mỗi ngày.', tone: 'Không khí sạch' },
+  { name: 'Phương Đông', cat: 4, fallbackImage: '/assets/images/12.webp', desc: 'Dày dặn, gợi cảm và đầy cảm xúc như một khung hình điện ảnh.', tone: 'Nhung quyến rũ' },
+  { name: 'Cam chanh', cat: 5, fallbackImage: '/assets/images/3.webp', desc: 'Bùng nổ tươi mát, giàu năng lượng và rất dễ yêu.', tone: 'Tia sáng' },
 ];
 
 type HeroSlide = {
@@ -42,6 +35,11 @@ type HeroSlide = {
   image: string;
   badge: string;
   to: string;
+};
+
+type ProductWithCategoryAliases = Product & {
+  categoryId?: number | string | null;
+  id_category?: number | string | null;
 };
 
 type ContactFormState = {
@@ -68,8 +66,8 @@ const emptyContactForm: ContactFormState = {
 };
 
 const contactChannels = [
-  { icon: 'headset', label: 'Hotline tư vấn', value: '0900 000 000', note: '8:00 - 21:00 mỗi ngày', href: 'tel:0900000000' },
-  { icon: 'mail', label: 'Email hỗ trợ', value: 'support@huyperfume.vn', note: 'Phản hồi trong ngày', href: 'mailto:support@huyperfume.vn' },
+  { icon: 'headset', label: 'Hotline tư vấn', value: siteContact.phoneDisplay, note: '8:00 - 21:00 mỗi ngày', href: siteContact.phoneHref },
+  { icon: 'mail', label: 'Email hỗ trợ', value: siteContact.email, note: 'Phản hồi trong ngày', href: siteContact.emailHref },
 ];
 
 const consultationSteps = [
@@ -190,11 +188,31 @@ export function HomePage() {
   const featuredRevealRef = useScrollReveal('.scroll-reveal-item', !loading && products.length > 0);
 
   useEffect(() => {
-    productService.getProducts({ page: 1, size: 4, sort: 'best_seller' })
+    productService.getProducts({ page: 1, size: 12, sort: 'best_seller' })
       .then((data) => setProducts(Array.isArray(data?.content) ? data.content : []))
       .catch(() => setProducts([]))
       .finally(() => setLoading(false));
   }, []);
+
+  function getProductCategoryId(product: Product) {
+    const item = product as ProductWithCategoryAliases;
+    const categoryId = item.category?.id ?? item.categoryId ?? item.id_category;
+    const numericCategoryId = Number(categoryId);
+
+    return Number.isFinite(numericCategoryId) ? numericCategoryId : null;
+  }
+
+  function getProductImageByCategory(categoryId: number, fallbackImage: string) {
+    const product = products.find((item) => getProductCategoryId(item) === categoryId && Boolean(item.image));
+
+    return product?.image ? resolveProductImage(product.image) : fallbackImage;
+  }
+
+  function getProductImageByIndex(index: number, fallbackImage: string) {
+    const productImage = products[index]?.image;
+
+    return productImage ? resolveProductImage(productImage) : fallbackImage;
+  }
 
   const heroSlides = useMemo<HeroSlide[]>(() => {
     const realProductSlides = products.slice(0, 3).map((product) => ({
@@ -212,6 +230,15 @@ export function HomePage() {
 
   const safeHeroSlides = heroSlides.length > 0 ? heroSlides : fallbackHeroSlides;
   const activeHero = safeHeroSlides[heroIndex % safeHeroSlides.length] || fallbackHeroSlides[0];
+  const mostLovedProducts = useMemo(() => (
+    [...products]
+      .sort((left, right) => {
+        const leftScore = (left.rating || 0) * 100 + (left.reviewCount || 0) * 8 + (left.soldCount || 0);
+        const rightScore = (right.rating || 0) * 100 + (right.reviewCount || 0) * 8 + (right.soldCount || 0);
+        return rightScore - leftScore;
+      })
+      .slice(0, 4)
+  ), [products]);
   const bestPrice = products[0] ? formatCurrency(products[0].discountPrice > 0 ? products[0].discountPrice : products[0].price) : 'Từ 690.000₫';
 
   useEffect(() => {
@@ -227,6 +254,7 @@ export function HomePage() {
       pushToast('Đã thêm vào giỏ hàng.', 'success');
     } catch (err: any) {
       pushToast(err?.message || 'Lỗi thêm vào giỏ hàng.', 'error');
+      throw err;
     }
   };
 
@@ -328,17 +356,35 @@ export function HomePage() {
       <section className="luxury-section luxury-category-section luxury-scroll-reveal">
         <div className="container">
           <div className="luxury-section-heading text-center">
-            <p className="section-eyebrow justify-content-center">Danh mục</p>
+            <p className="section-eyebrow justify-content-center">Bộ sưu tập</p>
             <h2 className="section-title">Khám phá theo phong cách</h2>
+            <p className="luxury-section-lead">Những mảng hương được chọn lọc theo mood, giúp người dùng xem nhanh và tìm đúng gu chỉ trong vài giây.</p>
           </div>
           <div className="luxury-category-grid">
-            {categoryCards.map((category) => (
-              <Link key={category.name} to={`/products?categoryId=${category.cat}`} className="luxury-category-card">
-                <img src={category.img} alt={category.name} loading="lazy" decoding="async" />
-                <div className="luxury-category-overlay" />
-                <div className="luxury-category-content"><p>Collection</p><h3>{category.name}</h3></div>
-              </Link>
-            ))}
+            {categoryCards.map((category) => {
+              const image = getProductImageByCategory(category.cat, category.fallbackImage);
+
+              return (
+                <Link key={category.name} to={`/products?categoryId=${category.cat}`} className="luxury-category-card">
+                  <img
+                    src={image}
+                    alt={category.name}
+                    loading="lazy"
+                    decoding="async"
+                    onError={(event) => {
+                      event.currentTarget.src = category.fallbackImage;
+                    }}
+                  />
+                  <div className="luxury-category-overlay" />
+                  <div className="luxury-category-content">
+                    <span className="luxury-category-tone">{category.tone}</span>
+                    <p>Bộ sưu tập</p>
+                    <h3>{category.name}</h3>
+                    <small>{category.desc}</small>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -346,16 +392,20 @@ export function HomePage() {
       <section className="luxury-section luxury-featured-section">
         <div className="container" ref={featuredRevealRef}>
           <div className="luxury-featured-heading scroll-reveal-item">
-            <div><p className="section-eyebrow">Sản phẩm nổi bật</p><h2 className="section-title">Được yêu thích nhất</h2></div>
-            <Link to="/products" className="btn luxury-link-btn">Xem tất cả</Link>
+            <div>
+              <p className="section-eyebrow">Được yêu thích nhất</p>
+              <h2 className="section-title">Được chọn nhiều nhất</h2>
+              <p className="luxury-featured-subtitle">Sắp xếp theo tín hiệu thật từ lượt mua, đánh giá và mức độ quan tâm thay vì chỉ lấy ngẫu nhiên.</p>
+            </div>
+            <Link to="/products?sort=best_seller" className="btn luxury-link-btn">Xem tất cả</Link>
           </div>
           {loading ? (
-            <ProductGridSkeleton count={8} />
+            <ProductGridSkeleton count={4} />
           ) : products.length === 0 ? (
             <div className="luxury-surface luxury-empty-state text-center"><h3>Chưa có sản phẩm để hiển thị</h3><p className="luxury-muted mb-0">Khi backend trả dữ liệu, khu vực này sẽ tự động hiển thị sản phẩm thật.</p></div>
           ) : (
             <div className="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-4 luxury-mobile-snap-row">
-              {products.map((product) => <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />)}
+              {mostLovedProducts.map((product) => <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />)}
             </div>
           )}
         </div>
@@ -367,28 +417,28 @@ export function HomePage() {
             <div className="luxury-story-media">
               <img src="/assets/images/12.png" alt="HuyPerfume craftsmanship" loading="lazy" decoding="async" />
               <div className="luxury-story-media-card">
-                <span>Signature identity</span>
-                <strong>Curated, not crowded</strong>
+                <span>Bản sắc riêng</span>
+                <strong>Tuyển chọn tinh tế</strong>
                 <p>Một trải nghiệm boutique, nơi từng lựa chọn đều có lý do và có câu chuyện.</p>
               </div>
             </div>
             <div className="luxury-story-copy">
-              <p className="section-eyebrow">Brand story</p>
+              <p className="section-eyebrow">Câu chuyện thương hiệu</p>
               <h2 className="section-title">Đây là một brand thật, có gu và có tinh thần riêng.</h2>
               <p className="luxury-section-lead">HuyPerfume được xây dựng như một boutique fragrance house: chọn lọc, tinh tế và tập trung vào cảm giác sở hữu một mùi hương đúng với bản sắc của bạn.</p>
               <div className="luxury-story-points">
                 <article>
-                  <span>Why choose us</span>
+                  <span>Vì sao chọn chúng tôi</span>
                   <strong>Chọn lọc có chủ đích</strong>
                   <p>Không bày tràn lan. Mỗi sản phẩm xuất hiện đều được cân nhắc theo tính thẩm mỹ, độ tin cậy và độ phù hợp với người dùng.</p>
                 </article>
                 <article>
-                  <span>Craftsmanship</span>
+                  <span>Thủ công tinh xảo</span>
                   <strong>Chăm chút như một atelier</strong>
                   <p>Từ ảnh sản phẩm, khoảng thở đến typography đều được tinh chỉnh để mang cảm giác thủ công cao cấp, mềm mại và chỉn chu.</p>
                 </article>
                 <article>
-                  <span>Authenticity</span>
+                  <span>Chính hãng</span>
                   <strong>Minh bạch và đáng tin</strong>
                   <p>Thông tin sản phẩm, trust cues và social proof được trình bày rõ ràng để người dùng cảm thấy an tâm ngay từ đầu.</p>
                 </article>
@@ -401,25 +451,38 @@ export function HomePage() {
       <section className="luxury-section luxury-collection-editorial luxury-scroll-reveal">
         <div className="container">
           <div className="luxury-section-heading text-center">
-            <p className="section-eyebrow justify-content-center">Featured collections</p>
-            <h2 className="section-title">Curated fragrance experience</h2>
-            <p className="luxury-section-lead">Mỗi collection có nhịp riêng, không lặp layout, giống một tạp chí mùi hương hơn là một catalog thông thường.</p>
+            <p className="section-eyebrow justify-content-center">Bộ sưu tập nổi bật</p>
+            <h2 className="section-title">Trải nghiệm mùi hương tuyển chọn</h2>
+            <p className="luxury-section-lead">Bốn edit được chọn theo mood thật, có vai trò rõ ràng: dễ chọn hơn, sang hơn và không còn cảm giác catalog xếp đều cho có.</p>
           </div>
           <div className="luxury-collection-stack">
-            {collectionSections.map((item, index) => (
-              <article key={item.title} className={`luxury-collection-editorial-card ${index % 2 === 1 ? 'reverse' : ''}`}>
-                <div className="luxury-collection-visual">
-                  <img src={item.image} alt={item.title} loading="lazy" decoding="async" />
-                  <span className="luxury-collection-badge">{item.badge}</span>
-                </div>
-                <div className="luxury-collection-copy">
-                  <p className="section-eyebrow">{item.title}</p>
-                  <h3>{item.subtitle}</h3>
-                  <p>{item.copy}</p>
-                  <Link to={item.to} className="btn luxury-primary-btn">Khám phá collection</Link>
-                </div>
-              </article>
-            ))}
+            {luxuryCollectionSections.map((item, index) => {
+              const image = getProductImageByIndex(index, item.image);
+
+              return (
+                <article key={item.title} className={`luxury-collection-editorial-card ${index % 2 === 1 ? 'reverse' : ''}`}>
+                  <div className="luxury-collection-visual">
+                    <img
+                      src={image}
+                      alt={item.title}
+                      loading="lazy"
+                      decoding="async"
+                      onError={(event) => {
+                        event.currentTarget.src = item.image;
+                      }}
+                    />
+                    <span className="luxury-collection-badge">{item.badge}</span>
+                  </div>
+                  <div className="luxury-collection-copy">
+                    <p className="section-eyebrow">{item.title}</p>
+                    <h3>{item.subtitle}</h3>
+                    <p>{item.copy}</p>
+                    <span className="luxury-collection-note">{item.note}</span>
+                    <Link to={item.to} className="btn luxury-primary-btn">Khám phá collection</Link>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -427,15 +490,15 @@ export function HomePage() {
       <section className="luxury-section luxury-trust-section luxury-scroll-reveal">
         <div className="container">
           <div className="luxury-section-heading text-center">
-            <p className="section-eyebrow justify-content-center">Trust & social proof</p>
+            <p className="section-eyebrow justify-content-center">Uy tín & khách hàng</p>
             <h2 className="section-title">Tinh tế, minh bạch, đáng tin</h2>
             <p className="luxury-section-lead">Thông tin ngắn gọn, rõ ràng và đủ để người dùng cảm thấy an tâm mà không bị ngợp bởi marketing noise.</p>
           </div>
           <div className="luxury-trust-stat-grid">
-            <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Authentic guarantee</span><strong>100%</strong><p>Cam kết sản phẩm chính hãng, nguồn gốc rõ ràng.</p></article>
-            <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Total orders</span><strong>25K+</strong><p>Lượt đơn đã hoàn tất trên hệ thống.</p></article>
-            <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Customer count</span><strong>10K+</strong><p>Khách hàng quay lại và giới thiệu thêm bạn bè.</p></article>
-            <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Rating</span><strong>4.9/5</strong><p>Được đánh giá cao bởi trải nghiệm mua sắm chỉn chu.</p></article>
+            <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Cam kết chính hãng</span><strong>100%</strong><p>Cam kết sản phẩm chính hãng, nguồn gốc rõ ràng.</p></article>
+            <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Tổng đơn hàng</span><strong>25K+</strong><p>Lượt đơn đã hoàn tất trên hệ thống.</p></article>
+            <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Khách hàng</span><strong>10K+</strong><p>Khách hàng quay lại và giới thiệu thêm bạn bè.</p></article>
+            <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Đánh giá</span><strong>4.9/5</strong><p>Được đánh giá cao bởi trải nghiệm mua sắm chỉn chu.</p></article>
           </div>
           <div className="luxury-trust-badges">
             {serviceCommitments.slice(0, 4).map((item) => (
@@ -492,7 +555,7 @@ export function HomePage() {
                   </label>
                   <label className={contactErrors.phone ? 'has-error' : ''} htmlFor="contact-phone">
                     <span className="luxury-field-label">Số điện thoại <b>*</b></span>
-                    <input id="contact-phone" name="phone" type="tel" inputMode="tel" maxLength={20} autoComplete="tel" placeholder="0900 000 000" value={contactForm.phone} onChange={(event) => updateContactField('phone', event.target.value)} aria-invalid={Boolean(contactErrors.phone)} aria-describedby={contactErrors.phone ? 'contact-phone-error' : undefined} />
+                    <input id="contact-phone" name="phone" type="tel" inputMode="tel" maxLength={20} autoComplete="tel" placeholder={siteContact.phoneDisplay} value={contactForm.phone} onChange={(event) => updateContactField('phone', event.target.value)} aria-invalid={Boolean(contactErrors.phone)} aria-describedby={contactErrors.phone ? 'contact-phone-error' : undefined} />
                     {contactErrors.phone && <small className="luxury-field-error" id="contact-phone-error">{contactErrors.phone}</small>}
                   </label>
                 </div>

@@ -16,7 +16,7 @@ async function run() {
     .sort();
 
   if (files.length === 0) {
-    console.log('No migration files found.');
+    console.log('Không tìm thấy file migration.');
     return;
   }
 
@@ -28,7 +28,7 @@ async function run() {
       .map((b) => b.trim())
       .filter(Boolean);
 
-    console.log(`Running migration: ${file} (${batches.length} batch(es))`);
+    console.log(`Đang chạy migration: ${file} (${batches.length} batch(es))`);
     for (const batch of batches) {
       try {
         await query(batch);
@@ -41,15 +41,15 @@ async function run() {
         }
       }
     }
-    console.log(`  Done.`);
+    console.log('  Hoàn tất.');
   }
 
   const pool = await getDbPool();
   await pool.close();
-  console.log('All migrations complete.');
+  console.log('Tất cả migration đã hoàn tất.');
 }
 
 run().catch((err) => {
-  console.error('Migration failed:', err);
+  console.error('Migration thất bại:', err);
   process.exit(1);
 });

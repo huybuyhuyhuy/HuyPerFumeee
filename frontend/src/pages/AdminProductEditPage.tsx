@@ -55,6 +55,13 @@ export function AdminProductEditPage() {
     concentration: '',
     volumeMl: '',
   });
+  const [decantInventory, setDecantInventory] = useState<any>(null);
+  const [decantPopup, setDecantPopup] = useState<'open' | 'restock' | 'adjust' | null>(null);
+  const [decantQty, setDecantQty] = useState('1');
+  const [decantReason, setDecantReason] = useState('');
+  const [decantMl, setDecantMl] = useState('0');
+  const [decantActionLoading, setDecantActionLoading] = useState(false);
+  const [decantError, setDecantError] = useState('');
 
   useEffect(() => {
     if (!Number.isFinite(numericId)) {
@@ -94,6 +101,37 @@ export function AdminProductEditPage() {
       .catch((err) => setError(err?.response?.data?.message || err?.message || 'Không tải được chi tiết sản phẩm.'))
       .finally(() => setLoading(false));
   }, [numericId]);
+
+  useEffect(() => {
+    if (!Number.isFinite(numericId)) return;
+    api.get(`/admin/inventory/decant/${numericId}`)
+      .then((res) => setDecantInventory(unwrapApiData(res.data)))
+      .catch(() => setDecantInventory(null));
+  }, [numericId]);
+
+  const handleDecantAction = async () => {
+    setDecantActionLoading(true);
+    setDecantError('');
+    const endpoint = decantPopup === 'open'
+      ? '/admin/inventory/decant/open'
+      : decantPopup === 'restock'
+        ? '/admin/inventory/decant/restock'
+        : '/admin/inventory/decant/adjust';
+
+    const body = decantPopup === 'adjust'
+      ? { productId: numericId, sealedBottlesDelta: Number(decantQty) || 0, openedMlDelta: Number(decantMl) || 0, reason: decantReason }
+      : { productId: numericId, quantity: Number(decantQty) || 1, reason: decantReason };
+
+    try {
+      const res = await api.post(endpoint, body);
+      setDecantInventory(unwrapApiData(res.data));
+      setDecantPopup(null);
+    } catch (err: any) {
+      setDecantError(err?.response?.data?.message || err?.message || 'Thao tác thất bại');
+    } finally {
+      setDecantActionLoading(false);
+    }
+  };
 
   const displayPrice = useMemo(() => formatAdminCurrency(form.discountPrice || form.price), [form.discountPrice, form.price]);
 
@@ -158,7 +196,7 @@ export function AdminProductEditPage() {
   return (
     <div className="admin-page">
       <AdminPageHeader
-        eyebrow="Product detail"
+        eyebrow="Chi tiết sản phẩm"
         title={`Chỉnh sửa sản phẩm #${product?.id || numericId}`}
         description="Cập nhật nhanh thông tin cơ bản, tồn kho và trạng thái hiển thị."
         action={<Link to="/admin/products" className="btn btn-outline-dark">Quay lại danh sách</Link>}
@@ -240,7 +278,7 @@ export function AdminProductEditPage() {
         <div className="col-xl-4">
           <div className="luxury-surface p-4 h-100 d-flex flex-column gap-3">
             <div>
-              <span className="admin-eyebrow">Preview</span>
+              <span className="admin-eyebrow">Xem trước</span>
               <h4 className="mt-2">Tổng quan nhanh</h4>
             </div>
             {product?.image ? (
@@ -254,6 +292,64 @@ export function AdminProductEditPage() {
               <div><strong>Tồn kho:</strong> {String(form.stock || 0)}</div>
               <div><strong>Cập nhật gần nhất:</strong> {formatAdminDate(product?.updatedAt || product?.createdAt)}</div>
             </div>
+
+            {decantInventory && (
+              <div className="border-top pt-3">
+                <span className="admin-eyebrow">Tồn kho chiết</span>
+                <h5 className="mt-1">Tồn kho chiết</h5>
+                <div className="d-grid gap-2 mt-2">
+                  <div><strong>Chai nguyên seal:</strong> {decantInventory.sealedBottles}</div>
+                  <div><strong>Đã mở còn lại:</strong> {decantInventory.openedMl}ml</div>
+                  <div><strong>Dung tích chai gốc:</strong> {decantInventory.bottleVolumeMl}ml</div>
+                </div>
+                <div className="d-flex gap-2 mt-3">
+                  <button type="button" className="btn btn-sm btn-outline-dark" onClick={() => { setDecantPopup('open'); setDecantQty('1'); setDecantError(''); }}>
+                    Mở chai
+                  </button>
+                  <button type="button" className="btn btn-sm btn-outline-dark" onClick={() => { setDecantPopup('restock'); setDecantQty('1'); setDecantError(''); }}>
+                    Nhập chai
+                  </button>
+                  <button type="button" className="btn btn-sm btn-outline-dark" onClick={() => { setDecantPopup('adjust'); setDecantQty('0'); setDecantMl('0'); setDecantError(''); }}>
+                    Điều chỉnh
+                  </button>
+                </div>
+                {decantPopup && (
+                  <div className="mt-3 p-3 border rounded-3 bg-light">
+                    <h6>
+                      {decantPopup === 'open' ? 'Mở chai nguyên seal' : decantPopup === 'restock' ? 'Nhập thêm chai seal' : 'Điều chỉnh tồn kho'}
+                    </h6>
+                    {decantError && <div className="alert alert-danger py-2 small">{decantError}</div>}
+                    {decantPopup === 'adjust' ? (
+                      <>
+                        <div className="mb-2">
+                          <label className="form-label small">Số chai seal (dương: thêm, âm: bớt)</label>
+                          <input type="number" className="form-control form-control-sm" value={decantQty} onChange={(e) => setDecantQty(e.target.value)} />
+                        </div>
+                        <div className="mb-2">
+                          <label className="form-label small">Số ml đã mở (dương: thêm, âm: bớt)</label>
+                          <input type="number" className="form-control form-control-sm" value={decantMl} onChange={(e) => setDecantMl(e.target.value)} />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="mb-2">
+                        <label className="form-label small">Số lượng chai</label>
+                        <input type="number" min="1" className="form-control form-control-sm" value={decantQty} onChange={(e) => setDecantQty(e.target.value)} />
+                      </div>
+                    )}
+                    <div className="mb-2">
+                      <label className="form-label small">Ghi chú</label>
+                      <input className="form-control form-control-sm" value={decantReason} onChange={(e) => setDecantReason(e.target.value)} placeholder="Lý do..." />
+                    </div>
+                    <div className="d-flex gap-2">
+                      <button type="button" className="btn btn-sm btn-dark" onClick={handleDecantAction} disabled={decantActionLoading}>
+                        {decantActionLoading ? 'Đang xử lý...' : 'Xác nhận'}
+                      </button>
+                      <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setDecantPopup(null)}>Hủy</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

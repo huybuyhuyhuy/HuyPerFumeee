@@ -29,6 +29,7 @@ export function normalizeProductFilters(filters = {}) {
     maxPrice: normalizeListValue(filters.maxPrice),
     volumeMl: normalizeListValue(filters.volumeMl),
     volume: normalizeListValue(filters.volume),
+    variantType: normalizeListValue(filters.variantType),
     scent: normalizeListValue(filters.scent),
     scentGroup: normalizeListValue(filters.scentGroup || filters.scentFamily),
     gender: normalizeListValue(filters.gender),
@@ -40,31 +41,31 @@ export function normalizeProductFilters(filters = {}) {
 export function validateProductResponse(product) {
   const errors = [];
 
-  if (!product.name) errors.push('PRODUCT_NAME_REQUIRED');
-  if (product.status && product.price === null) errors.push('ACTIVE_PRODUCT_PRICE_REQUIRED');
+  if (!product.name) errors.push('THIEU_TEN_SAN_PHAM');
+  if (product.status && product.price === null) errors.push('THIEU_GIA_SAN_PHAM');
   if (product.salePrice !== null && product.originalPrice !== null && product.salePrice > product.originalPrice) {
-    errors.push('SALE_PRICE_MUST_NOT_EXCEED_ORIGINAL_PRICE');
+    errors.push('GIA_GIAM_KHONG_VUOT_GIA_GOC');
   }
   if (!Number.isInteger(product.stockQuantity) || product.stockQuantity < 0) {
-    errors.push('STOCK_QUANTITY_MUST_BE_NON_NEGATIVE');
+    errors.push('TON_KHO_KHONG_DUOC_AM');
   }
 
   const imageKeys = new Set();
   for (const image of product.images || []) {
-    if (!image || typeof image !== 'string') errors.push('IMAGE_URL_INVALID');
+    if (!image || typeof image !== 'string') errors.push('URL_ANH_KHONG_HOP_LE');
     const key = String(image || '').toLowerCase();
-    if (imageKeys.has(key)) errors.push('IMAGE_URL_DUPLICATED');
+    if (imageKeys.has(key)) errors.push('URL_ANH_TRUNG_LAP');
     imageKeys.add(key);
   }
 
   for (const variant of product.variants || []) {
-    if (!variant.sku) errors.push(`VARIANT_${variant.id}_SKU_REQUIRED`);
-    if (variant.price === null) errors.push(`VARIANT_${variant.id}_PRICE_REQUIRED`);
+    if (!variant.sku) errors.push('THIEU_SKU_BIEN_THE');
+    if (variant.price === null) errors.push('THIEU_GIA_BIEN_THE');
     if (variant.salePrice !== null && variant.originalPrice !== null && variant.salePrice > variant.originalPrice) {
-      errors.push(`VARIANT_${variant.id}_SALE_PRICE_INVALID`);
+      errors.push('GIA_GIAM_BIEN_THE_KHONG_HOP_LE');
     }
     if (!Number.isInteger(variant.stockQuantity) || variant.stockQuantity < 0) {
-      errors.push(`VARIANT_${variant.id}_STOCK_INVALID`);
+      errors.push('TON_KHO_BIEN_THE_KHONG_HOP_LE');
     }
   }
 
@@ -89,13 +90,15 @@ export function resolvePurchasableSelection(product, variantId = null) {
 
   const parsedVariantId = parsePositiveInt(variantId);
   if (product.hasVariants) {
-    if (!parsedVariantId) {
-      return { code: 400, message: 'Vui lòng chọn biến thể sản phẩm' };
-    }
+    const variant = parsedVariantId
+      ? (product.variants || []).find((item) => Number(item.id) === parsedVariantId)
+      : (product.variants || []).find((item) => item.isAvailable);
 
-    const variant = (product.variants || []).find((item) => Number(item.id) === parsedVariantId);
     if (!variant) {
-      return { code: 404, message: 'Không tìm thấy biến thể sản phẩm' };
+      return {
+        code: 404,
+        message: parsedVariantId ? 'Không tìm thấy biến thể sản phẩm' : 'Sản phẩm chưa có biến thể khả dụng',
+      };
     }
     if (!variant.isAvailable) {
       return { code: 400, message: 'Biến thể sản phẩm đã hết hàng hoặc chưa có giá hợp lệ' };

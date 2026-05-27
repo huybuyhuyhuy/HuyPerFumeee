@@ -10,6 +10,94 @@ function isRefundedStatus(status) {
   return /refunded|hoàn tiền|hoan tien/i.test(String(status || ''));
 }
 
+function formatOrderCode(id) {
+  return `ORD-${String(id).padStart(6, '0')}`;
+}
+
+function normalizeDateKey(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function parseSearchOrderId(search) {
+  const raw = String(search || '').trim();
+  if (!raw) return null;
+
+  const directId = Number(raw);
+  if (Number.isInteger(directId) && directId > 0) return directId;
+
+  const orderCodeMatch = raw.match(/^#?(?:ORD[-\s]?)?0*(\d+)$/i);
+  if (!orderCodeMatch) return null;
+
+  const parsedId = Number(orderCodeMatch[1]);
+  return Number.isInteger(parsedId) && parsedId > 0 ? parsedId : null;
+}
+
+function buildOrderFilters({
+  userId = null,
+  status = null,
+  paymentMethod = null,
+  dateFrom = null,
+  dateTo = null,
+  search = null,
+} = {}) {
+  const conditions = [];
+  const params = [];
+
+  if (userId) {
+    conditions.push('o.user_id = ?');
+    params.push(Number(userId));
+  }
+  if (status) {
+    conditions.push('o.status = ?');
+    params.push(String(status));
+  }
+  if (paymentMethod) {
+    conditions.push('o.payment_method = ?');
+    params.push(String(paymentMethod));
+  }
+  if (dateFrom) {
+    conditions.push('o.created_at >= ?');
+    params.push(String(dateFrom));
+  }
+  if (dateTo) {
+    conditions.push('o.created_at < DATEADD(day, 1, CAST(? AS date))');
+    params.push(String(dateTo));
+  }
+  if (search) {
+    const searchOrderId = parseSearchOrderId(search);
+    if (searchOrderId) {
+      conditions.push('(o.id = ? OR u.name LIKE ? OR u.email LIKE ?)');
+      params.push(searchOrderId, `%${search}%`, `%${search}%`);
+    } else {
+      conditions.push('(u.name LIKE ? OR u.email LIKE ?)');
+      params.push(`%${search}%`, `%${search}%`);
+    }
+  }
+
+  return {
+    whereSql: conditions.length ? `WHERE ${conditions.join(' AND ')}` : '',
+    conditions,
+    params,
+  };
+}
+
+function buildRecentDaySeries(days = 14) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (days - 1 - index));
+    return {
+      date,
+      key: normalizeDateKey(date),
+      orders: 0,
+      revenue: 0,
+    };
+  });
+}
+
 export async function listAdminOrders({
   page = 1,
   pageSize = 10,
@@ -48,13 +136,13 @@ export async function listAdminOrders({
     params.push(String(dateTo));
   }
   if (search) {
-    const searchNum = Number(search);
-    if (!Number.isNaN(searchNum)) {
-      conditions.push('(o.id = ? OR u.name LIKE ?)');
-      params.push(searchNum, `%${search}%`);
+    const searchOrderId = parseSearchOrderId(search);
+    if (searchOrderId) {
+      conditions.push('(o.id = ? OR u.name LIKE ? OR u.email LIKE ?)');
+      params.push(searchOrderId, `%${search}%`, `%${search}%`);
     } else {
-      conditions.push('u.name LIKE ?');
-      params.push(`%${search}%`);
+      conditions.push('(u.name LIKE ? OR u.email LIKE ?)');
+      params.push(`%${search}%`, `%${search}%`);
     }
   }
 
@@ -65,6 +153,7 @@ export async function listAdminOrders({
   const summaryRows = await query(
     `SELECT COUNT(*) AS total,
             SUM(ISNULL(o.total, 0)) AS value,
+            AVG(NULLIF(ISNULL(o.total, 0), 0)) AS average_value,
             SUM(CASE WHEN LOWER(o.status) IN ('waiting', 'pending', N'đã xác nhận') THEN 1 ELSE 0 END) AS awaiting,
             SUM(CASE WHEN LOWER(o.status) IN ('processing', 'shipped', N'đang giao') THEN 1 ELSE 0 END) AS processing,
             SUM(CASE WHEN LOWER(o.status) IN ('paid', 'delivered', 'completed', N'giao hàng thành công') THEN 1 ELSE 0 END) AS completed,
@@ -75,6 +164,56 @@ export async function listAdminOrders({
     params
   );
   const summary = summaryRows[0] || {};
+  const statusRows = await query(
+    `SELECT COALESCE(NULLIF(o.status, ''), N'Không xác định') AS status,
+            COUNT(*) AS total,
+            SUM(ISNULL(o.total, 0)) AS value
+     FROM orders o
+     LEFT JOIN users u ON u.id = o.user_id
+     ${whereSql}
+     GROUP BY COALESCE(NULLIF(o.status, ''), N'Không xác định')
+     ORDER BY total DESC`,
+    params
+  );
+  const paymentRows = await query(
+    `SELECT COALESCE(NULLIF(o.payment_method, ''), N'Khác') AS paymentMethod,
+            COUNT(*) AS total,
+            SUM(ISNULL(o.total, 0)) AS value
+     FROM orders o
+     LEFT JOIN users u ON u.id = o.user_id
+     ${whereSql}
+     GROUP BY COALESCE(NULLIF(o.payment_method, ''), N'Khác')
+     ORDER BY total DESC`,
+    params
+  );
+  const dailyWhereSql = conditions.length
+    ? `${whereSql} AND o.created_at >= DATEADD(day, -13, CAST(GETDATE() AS date)) AND o.created_at < DATEADD(day, 1, CAST(GETDATE() AS date))`
+    : 'WHERE o.created_at >= DATEADD(day, -13, CAST(GETDATE() AS date)) AND o.created_at < DATEADD(day, 1, CAST(GETDATE() AS date))';
+  const dailyRows = await query(
+    `WITH day_series AS (
+       SELECT CAST(DATEADD(day, -13, CAST(GETDATE() AS date)) AS date) AS dayDate
+       UNION ALL
+       SELECT DATEADD(day, 1, dayDate)
+       FROM day_series
+       WHERE dayDate < CAST(GETDATE() AS date)
+     ),
+     daily_orders AS (
+       SELECT CONVERT(date, o.created_at) AS dayDate,
+              COUNT(*) AS orders,
+              SUM(ISNULL(o.total, 0)) AS revenue
+       FROM orders o
+       LEFT JOIN users u ON u.id = o.user_id
+       ${dailyWhereSql}
+       GROUP BY CONVERT(date, o.created_at)
+     )
+     SELECT ds.dayDate AS date,
+            ISNULL(d.orders, 0) AS orders,
+            ISNULL(d.revenue, 0) AS revenue
+     FROM day_series ds
+     LEFT JOIN daily_orders d ON d.dayDate = ds.dayDate
+     ORDER BY ds.dayDate ASC`,
+    params
+  );
 
   const rows = await query(
     `SELECT o.id, o.user_id, o.total, o.payment_method, o.status, o.created_at,
@@ -103,11 +242,152 @@ export async function listAdminOrders({
     summary: {
       total: Number(summary.total || 0),
       value: Number(summary.value || 0),
+      averageValue: Math.round(Number(summary.average_value || 0)),
+      awaiting: Number(summary.awaiting || 0),
+      processing: Number(summary.processing || 0),
+      completed: Number(summary.completed || 0),
+      cancelled: Number(summary.cancelled || 0),
+      statusBreakdown: statusRows.map((row) => ({
+        status: row.status,
+        total: Number(row.total || 0),
+        value: Number(row.value || 0),
+      })),
+      paymentBreakdown: paymentRows.map((row) => ({
+        method: row.paymentMethod,
+        total: Number(row.total || 0),
+        value: Number(row.value || 0),
+      })),
+      dailyRevenue: dailyRows.map((row) => ({
+        date: row.date,
+        orders: Number(row.orders || 0),
+        revenue: Number(row.revenue || 0),
+      })),
+    },
+  };
+}
+
+export async function getAdminOrderAnalytics({
+  userId = null,
+  status = null,
+  paymentMethod = null,
+  dateFrom = null,
+  dateTo = null,
+  search = null,
+} = {}) {
+  const { whereSql, conditions, params } = buildOrderFilters({
+    userId,
+    status,
+    paymentMethod,
+    dateFrom,
+    dateTo,
+    search,
+  });
+  const dailyWhereSql = conditions.length
+    ? `${whereSql} AND o.created_at >= DATEADD(day, -13, CAST(GETDATE() AS date)) AND o.created_at < DATEADD(day, 1, CAST(GETDATE() AS date))`
+    : 'WHERE o.created_at >= DATEADD(day, -13, CAST(GETDATE() AS date)) AND o.created_at < DATEADD(day, 1, CAST(GETDATE() AS date))';
+
+  const [summaryRows, statusRows, paymentRows, dailyRows, recentRows] = await Promise.all([
+    query(
+      `SELECT COUNT(*) AS total,
+              SUM(ISNULL(o.total, 0)) AS value,
+              AVG(NULLIF(ISNULL(o.total, 0), 0)) AS average_value,
+              SUM(CASE WHEN LOWER(o.status) IN ('waiting', 'pending', N'đã xác nhận') THEN 1 ELSE 0 END) AS awaiting,
+              SUM(CASE WHEN LOWER(o.status) IN ('processing', 'shipped', N'đang giao') THEN 1 ELSE 0 END) AS processing,
+              SUM(CASE WHEN LOWER(o.status) IN ('paid', 'delivered', 'completed', N'giao hàng thành công') THEN 1 ELSE 0 END) AS completed,
+              SUM(CASE WHEN LOWER(o.status) IN ('cancelled', 'failed', 'refunded', N'đã hủy') THEN 1 ELSE 0 END) AS cancelled
+       FROM orders o
+       LEFT JOIN users u ON u.id = o.user_id
+       ${whereSql}`,
+      params
+    ),
+    query(
+      `SELECT COALESCE(NULLIF(o.status, ''), N'Không xác định') AS status,
+              COUNT(*) AS total,
+              SUM(ISNULL(o.total, 0)) AS value
+       FROM orders o
+       LEFT JOIN users u ON u.id = o.user_id
+       ${whereSql}
+       GROUP BY COALESCE(NULLIF(o.status, ''), N'Không xác định')
+       ORDER BY total DESC`,
+      params
+    ),
+    query(
+      `SELECT COALESCE(NULLIF(o.payment_method, ''), N'Khác') AS paymentMethod,
+              COUNT(*) AS total,
+              SUM(ISNULL(o.total, 0)) AS value
+       FROM orders o
+       LEFT JOIN users u ON u.id = o.user_id
+       ${whereSql}
+       GROUP BY COALESCE(NULLIF(o.payment_method, ''), N'Khác')
+       ORDER BY total DESC`,
+      params
+    ),
+    query(
+      `SELECT CONVERT(date, o.created_at) AS date,
+              COUNT(*) AS orders,
+              SUM(ISNULL(o.total, 0)) AS revenue
+       FROM orders o
+       LEFT JOIN users u ON u.id = o.user_id
+       ${dailyWhereSql}
+       GROUP BY CONVERT(date, o.created_at)
+       ORDER BY date ASC`,
+      params
+    ),
+    query(
+      `SELECT TOP 8 o.id, o.user_id, o.total, o.payment_method, o.status, o.created_at,
+              COALESCE(u.name, N'Khách vãng lai') AS customer_name,
+              COALESCE(u.email, '') AS customer_email
+       FROM orders o
+       LEFT JOIN users u ON u.id = o.user_id
+       ${whereSql}
+       ORDER BY o.created_at DESC, o.id DESC`,
+      params
+    ),
+  ]);
+
+  const summary = summaryRows[0] || {};
+  const dayMap = new Map(dailyRows.map((row) => [normalizeDateKey(row.date), row]));
+  const dailyRevenue = buildRecentDaySeries(14).map((item) => {
+    const row = dayMap.get(item.key);
+    return {
+      date: item.key,
+      orders: Number(row?.orders || 0),
+      revenue: Number(row?.revenue || 0),
+    };
+  });
+
+  return {
+    summary: {
+      total: Number(summary.total || 0),
+      value: Number(summary.value || 0),
+      averageValue: Math.round(Number(summary.average_value || 0)),
       awaiting: Number(summary.awaiting || 0),
       processing: Number(summary.processing || 0),
       completed: Number(summary.completed || 0),
       cancelled: Number(summary.cancelled || 0),
     },
+    dailyRevenue,
+    statusBreakdown: statusRows.map((row) => ({
+      status: row.status,
+      total: Number(row.total || 0),
+      value: Number(row.value || 0),
+    })),
+    paymentBreakdown: paymentRows.map((row) => ({
+      method: row.paymentMethod,
+      total: Number(row.total || 0),
+      value: Number(row.value || 0),
+    })),
+    recentOrders: recentRows.map((row) => ({
+      id: row.id,
+      orderCode: formatOrderCode(row.id),
+      userId: row.user_id,
+      customerName: row.customer_name,
+      customerEmail: row.customer_email,
+      totalAmount: Number(row.total || 0),
+      paymentMethod: row.payment_method,
+      status: row.status,
+      createdAt: row.created_at,
+    })),
   };
 }
 

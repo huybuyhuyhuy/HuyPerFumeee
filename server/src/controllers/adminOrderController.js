@@ -1,5 +1,5 @@
 import { errorResponse, successResponse } from '../utils/response.js';
-import { getAdminOrderById, listAdminOrders, updateAdminOrderStatus } from '../models/adminOrderModel.js';
+import { getAdminOrderAnalytics, getAdminOrderById, listAdminOrders, updateAdminOrderStatus } from '../models/adminOrderModel.js';
 import { auditLog } from '../config/logger.js';
 
 const ALLOWED_ORDER_STATUSES = new Set(['Waiting', 'Paid', 'Processing', 'Delivered', 'Completed', 'Cancelled', 'refunded']);
@@ -24,6 +24,27 @@ export async function listOrders(req, res) {
     return successResponse(res, 'Lấy danh sách đơn hàng thành công', data);
   } catch (err) {
     return errorResponse(res, 500, 'Lỗi khi lấy danh sách đơn hàng', { message: err.message });
+  }
+}
+
+export async function orderAnalytics(req, res) {
+  try {
+    if (!req.user?.id) {
+      return errorResponse(res, 401, 'Vui lòng đăng nhập với tài khoản admin');
+    }
+
+    const { userId, status, paymentMethod, dateFrom, dateTo, search } = req.query;
+    const data = await getAdminOrderAnalytics({
+      userId: userId || null,
+      status: status || null,
+      paymentMethod: paymentMethod || null,
+      dateFrom: dateFrom || null,
+      dateTo: dateTo || null,
+      search: search || null,
+    });
+    return successResponse(res, 'Lấy phân tích đơn hàng thành công', data);
+  } catch (err) {
+    return errorResponse(res, 500, 'Lỗi khi lấy phân tích đơn hàng', { message: err.message });
   }
 }
 

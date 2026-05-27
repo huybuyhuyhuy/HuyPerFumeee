@@ -17,8 +17,41 @@ function resolvePrice(originalPrice, salePrice) {
   return sale && original && sale < original ? sale : original;
 }
 
-function cartScopeSql(scope, alias = 'c') {
+function hasColumn(columns, name) {
+  return columns.has(String(name).toLowerCase());
+}
+
+function supportsGuestCart(capabilities) {
+  return hasColumn(capabilities.cartColumns, 'cart_token');
+}
+
+function supportsCartStatus(capabilities) {
+  return hasColumn(capabilities.cartColumns, 'status');
+}
+
+function supportsCartUpdatedAt(capabilities) {
+  return hasColumn(capabilities.cartColumns, 'updated_at');
+}
+
+function supportsCartExpiresAt(capabilities) {
+  return hasColumn(capabilities.cartColumns, 'expires_at');
+}
+
+function supportsCartItemVariant(capabilities) {
+  return hasColumn(capabilities.cartItemColumns, 'product_variant_id');
+}
+
+function supportsCartItemUnitPrice(capabilities) {
+  return hasColumn(capabilities.cartItemColumns, 'unit_price');
+}
+
+function supportsCartItemUpdatedAt(capabilities) {
+  return hasColumn(capabilities.cartItemColumns, 'updated_at');
+}
+
+function cartScopeSql(scope, alias = 'c', capabilities = null) {
   if (scope.type === 'user') return `${alias}.user_id = @userId`;
+  if (capabilities && !supportsGuestCart(capabilities)) return null;
   return `${alias}.cart_token = @cartToken`;
 }
 
@@ -38,13 +71,17 @@ export async function hasDurableCartStorage() {
 export async function findActiveCart(scope) {
   const capabilities = await getCheckoutStorageCapabilities();
   if (!capabilities.hasDurableCart) return null;
+  if (scope.type === 'guest' && !supportsGuestCart(capabilities)) return null;
 
   const params = scope.type === 'user' ? [Number(scope.key)] : [String(scope.key)];
   const where = scope.type === 'user' ? 'user_id = ?' : 'cart_token = ?';
+  const statusWhere = supportsCartStatus(capabilities) ? "status = 'ACTIVE' AND " : '';
+  const statusSelect = supportsCartStatus(capabilities) ? 'status' : "N'ACTIVE' AS status";
+  const cartTokenSelect = supportsGuestCart(capabilities) ? 'cart_token' : 'NULL AS cart_token';
   const rows = await query(
-    `SELECT TOP 1 id, user_id, cart_token, status
+    `SELECT TOP 1 id, user_id, ${cartTokenSelect}, ${statusSelect}
      FROM carts
-     WHERE status = 'ACTIVE' AND ${where}
+     WHERE ${statusWhere}${where}
      ORDER BY id DESC`,
     params
   );
@@ -52,12 +89,19 @@ export async function findActiveCart(scope) {
 }
 
 export async function ensureActiveCart(scope, transaction) {
+  const capabilities = await getCheckoutStorageCapabilities();
+  if (!capabilities.hasDurableCart) return null;
+  if (scope.type === 'guest' && !supportsGuestCart(capabilities)) return null;
+
   const request = new sql.Request(transaction);
   bindScope(request, scope);
+  const scopeSql = cartScopeSql(scope, 'carts', capabilities);
+  if (!scopeSql) return null;
+  const statusWhere = supportsCartStatus(capabilities) ? "status = 'ACTIVE' AND " : '';
   const result = await request.query(
     `SELECT TOP 1 id
      FROM carts WITH (UPDLOCK, HOLDLOCK)
-     WHERE status = 'ACTIVE' AND ${cartScopeSql(scope)}
+     WHERE ${statusWhere}${scopeSql}
      ORDER BY id DESC`
   );
 
@@ -67,25 +111,44 @@ export async function ensureActiveCart(scope, transaction) {
   const insertRequest = new sql.Request(transaction);
   if (scope.type === 'user') {
     insertRequest.input('userId', sql.Int, Number(scope.key));
+    const columns = ['user_id'];
+    const values = ['@userId'];
+    if (supportsCartStatus(capabilities)) {
+      columns.push('status');
+      values.push("'ACTIVE'");
+    }
     const insertResult = await insertRequest.query(
-      `INSERT INTO carts (user_id, status)
+      `INSERT INTO carts (${columns.join(', ')})
        OUTPUT INSERTED.id AS id
-       VALUES (@userId, 'ACTIVE')`
+       VALUES (${values.join(', ')})`
     );
     return insertResult.recordset?.[0]?.id;
   }
 
   insertRequest.input('cartToken', sql.NVarChar, String(scope.key));
+  const columns = ['cart_token'];
+  const values = ['@cartToken'];
+  if (supportsCartStatus(capabilities)) {
+    columns.push('status');
+    values.push("'ACTIVE'");
+  }
+  if (supportsCartExpiresAt(capabilities)) {
+    columns.push('expires_at');
+    values.push('DATEADD(day, 30, SYSUTCDATETIME())');
+  }
   const insertResult = await insertRequest.query(
-    `INSERT INTO carts (cart_token, status, expires_at)
+    `INSERT INTO carts (${columns.join(', ')})
      OUTPUT INSERTED.id AS id
-     VALUES (@cartToken, 'ACTIVE', DATEADD(day, 30, SYSUTCDATETIME()))`
+     VALUES (${values.join(', ')})`
   );
   return insertResult.recordset?.[0]?.id;
 }
 
 function buildCartItemSelect(capabilities) {
-  const variantJoin = capabilities.hasVariants
+  const hasVariantColumn = supportsCartItemVariant(capabilities);
+  const productVariantSelect = hasVariantColumn ? 'ci.product_variant_id' : 'NULL AS product_variant_id';
+  const unitPriceSelect = supportsCartItemUnitPrice(capabilities) ? 'ci.unit_price' : 'NULL AS unit_price';
+  const variantJoin = capabilities.hasVariants && hasVariantColumn
     ? 'LEFT JOIN product_variants pv ON pv.id = ci.product_variant_id'
     : 'LEFT JOIN (SELECT NULL AS id, NULL AS sku, NULL AS barcode, NULL AS volume_ml, NULL AS volume_label, NULL AS variant_type, NULL AS price, NULL AS sale_price, NULL AS stock_quantity, NULL AS image, NULL AS status) pv ON 1 = 0';
 
@@ -94,9 +157,9 @@ function buildCartItemSelect(capabilities) {
       ci.id AS cart_item_id,
       ci.cart_id,
       ci.product_id,
-      ci.product_variant_id,
+      ${productVariantSelect},
       ci.quantity,
-      ci.unit_price,
+      ${unitPriceSelect},
       p.name AS product_name,
       p.image AS product_image,
       p.price AS product_price,
@@ -179,12 +242,50 @@ function normalizeCartRow(row) {
   };
 }
 
+async function backfillLegacyVariantSelections(cartId, capabilities) {
+  if (!capabilities.hasVariants || !supportsCartItemVariant(capabilities)) return;
+
+  const variantPredicates = [
+    'pv.product_id = ci.product_id',
+    'ISNULL(pv.stock_quantity, 0) >= ci.quantity',
+    'ISNULL(pv.price, 0) > 0',
+  ];
+  if (hasColumn(capabilities.variantColumns, 'status')) {
+    variantPredicates.push('ISNULL(pv.status, 1) = 1');
+  }
+  if (hasColumn(capabilities.variantColumns, 'deleted_at')) {
+    variantPredicates.push('pv.deleted_at IS NULL');
+  }
+
+  const unitPriceAssignment = supportsCartItemUnitPrice(capabilities)
+    ? ', unit_price = CASE WHEN ISNULL(fallback.sale_price, 0) > 0 AND fallback.sale_price < fallback.price THEN fallback.sale_price ELSE fallback.price END'
+    : '';
+
+  await query(
+    `UPDATE ci
+     SET product_variant_id = fallback.id${unitPriceAssignment}
+     FROM cart_items ci
+     CROSS APPLY (
+       SELECT TOP 1 pv.id, pv.price, pv.sale_price
+       FROM product_variants pv
+       WHERE ${variantPredicates.join(' AND ')}
+       ORDER BY pv.id ASC
+     ) fallback
+     WHERE ci.cart_id = ?
+       AND ci.product_variant_id IS NULL`,
+    [cartId]
+  );
+}
+
 export async function getDurableCart(scope) {
   const capabilities = await getCheckoutStorageCapabilities();
   if (!capabilities.hasDurableCart) return null;
+  if (scope.type === 'guest' && !supportsGuestCart(capabilities)) return null;
 
   const cart = await findActiveCart(scope);
   if (!cart) return { items: [], total: 0, itemCount: 0, cartId: null };
+
+  await backfillLegacyVariantSelections(cart.id, capabilities);
 
   const rows = await query(
     `${buildCartItemSelect(capabilities)}
@@ -204,6 +305,10 @@ export async function getDurableCart(scope) {
 export async function upsertDurableCartItem(scope, selection, quantity, mode = 'add') {
   const capabilities = await getCheckoutStorageCapabilities();
   if (!capabilities.hasDurableCart) return null;
+  if (scope.type === 'guest' && !supportsGuestCart(capabilities)) return null;
+  if (selection.variantId && !supportsCartItemVariant(capabilities)) {
+    return { code: 500, message: 'Schema cart_items chua ho tro product_variant_id' };
+  }
 
   const pool = await getDbPool();
   const transaction = new sql.Transaction(pool);
@@ -211,18 +316,25 @@ export async function upsertDurableCartItem(scope, selection, quantity, mode = '
 
   try {
     const cartId = await ensureActiveCart(scope, transaction);
+    if (!cartId) {
+      await transaction.rollback();
+      return null;
+    }
     const productId = Number(selection.productId);
-    const variantId = selection.variantId ? Number(selection.variantId) : null;
+    const variantId = supportsCartItemVariant(capabilities) && selection.variantId ? Number(selection.variantId) : null;
     const existingRequest = new sql.Request(transaction);
     existingRequest.input('cartId', sql.Int, cartId);
     existingRequest.input('productId', sql.Int, productId);
-    existingRequest.input('variantId', sql.Int, variantId);
+    if (supportsCartItemVariant(capabilities)) existingRequest.input('variantId', sql.Int, variantId);
+    const variantWhere = supportsCartItemVariant(capabilities)
+      ? 'AND ISNULL(product_variant_id, 0) = ISNULL(@variantId, 0)'
+      : '';
     const existingResult = await existingRequest.query(
       `SELECT TOP 1 id, quantity
        FROM cart_items WITH (UPDLOCK, HOLDLOCK)
        WHERE cart_id = @cartId
          AND product_id = @productId
-         AND ISNULL(product_variant_id, 0) = ISNULL(@variantId, 0)`
+         ${variantWhere}`
     );
 
     const existing = existingResult.recordset?.[0];
@@ -239,28 +351,43 @@ export async function upsertDurableCartItem(scope, selection, quantity, mode = '
       const updateRequest = new sql.Request(transaction);
       updateRequest.input('itemId', sql.Int, existing.id);
       updateRequest.input('quantity', sql.Int, nextQuantity);
-      updateRequest.input('unitPrice', sql.Float, selection.unitPrice);
+      if (supportsCartItemUnitPrice(capabilities)) updateRequest.input('unitPrice', sql.Float, selection.unitPrice);
+      const assignments = ['quantity = @quantity'];
+      if (supportsCartItemUnitPrice(capabilities)) assignments.push('unit_price = @unitPrice');
+      if (supportsCartItemUpdatedAt(capabilities)) assignments.push('updated_at = SYSUTCDATETIME()');
       await updateRequest.query(
         `UPDATE cart_items
-         SET quantity = @quantity, unit_price = @unitPrice, updated_at = SYSUTCDATETIME()
+         SET ${assignments.join(', ')}
          WHERE id = @itemId`
       );
     } else {
       const insertRequest = new sql.Request(transaction);
       insertRequest.input('cartId', sql.Int, cartId);
       insertRequest.input('productId', sql.Int, productId);
-      insertRequest.input('variantId', sql.Int, variantId);
       insertRequest.input('quantity', sql.Int, nextQuantity);
-      insertRequest.input('unitPrice', sql.Float, selection.unitPrice);
+      const insertColumns = ['cart_id', 'product_id', 'quantity'];
+      const insertValues = ['@cartId', '@productId', '@quantity'];
+      if (supportsCartItemVariant(capabilities)) {
+        insertRequest.input('variantId', sql.Int, variantId);
+        insertColumns.splice(2, 0, 'product_variant_id');
+        insertValues.splice(2, 0, '@variantId');
+      }
+      if (supportsCartItemUnitPrice(capabilities)) {
+        insertRequest.input('unitPrice', sql.Float, selection.unitPrice);
+        insertColumns.push('unit_price');
+        insertValues.push('@unitPrice');
+      }
       await insertRequest.query(
-        `INSERT INTO cart_items (cart_id, product_id, product_variant_id, quantity, unit_price)
-         VALUES (@cartId, @productId, @variantId, @quantity, @unitPrice)`
+        `INSERT INTO cart_items (${insertColumns.join(', ')})
+         VALUES (${insertValues.join(', ')})`
       );
     }
 
-    const touchRequest = new sql.Request(transaction);
-    touchRequest.input('cartId', sql.Int, cartId);
-    await touchRequest.query('UPDATE carts SET updated_at = SYSUTCDATETIME() WHERE id = @cartId');
+    if (supportsCartUpdatedAt(capabilities)) {
+      const touchRequest = new sql.Request(transaction);
+      touchRequest.input('cartId', sql.Int, cartId);
+      await touchRequest.query('UPDATE carts SET updated_at = SYSUTCDATETIME() WHERE id = @cartId');
+    }
 
     await transaction.commit();
     return getDurableCart(scope);
@@ -273,13 +400,14 @@ export async function upsertDurableCartItem(scope, selection, quantity, mode = '
 export async function removeDurableCartItem(scope, productId, variantId = null) {
   const capabilities = await getCheckoutStorageCapabilities();
   if (!capabilities.hasDurableCart) return null;
+  if (scope.type === 'guest' && !supportsGuestCart(capabilities)) return null;
 
   const cart = await findActiveCart(scope);
   if (!cart) return getDurableCart(scope);
 
   const params = [cart.id, Number(productId)];
   let variantSql = '';
-  if (variantId !== null && variantId !== undefined && variantId !== '') {
+  if (supportsCartItemVariant(capabilities) && variantId !== null && variantId !== undefined && variantId !== '') {
     variantSql = 'AND ISNULL(product_variant_id, 0) = ISNULL(?, 0)';
     params.push(Number(variantId));
   }
@@ -289,22 +417,27 @@ export async function removeDurableCartItem(scope, productId, variantId = null) 
      WHERE cart_id = ? AND product_id = ? ${variantSql}`,
     params
   );
-  await query('UPDATE carts SET updated_at = SYSUTCDATETIME() WHERE id = ?', [cart.id]);
+  if (supportsCartUpdatedAt(capabilities)) {
+    await query('UPDATE carts SET updated_at = SYSUTCDATETIME() WHERE id = ?', [cart.id]);
+  }
   return getDurableCart(scope);
 }
 
 export async function clearDurableCart(scope, status = 'ACTIVE') {
   const capabilities = await getCheckoutStorageCapabilities();
   if (!capabilities.hasDurableCart) return null;
+  if (scope.type === 'guest' && !supportsGuestCart(capabilities)) return null;
 
   const cart = await findActiveCart(scope);
   if (!cart) return { items: [], total: 0, itemCount: 0, cartId: null };
 
-  if (status === 'CHECKED_OUT' || status === 'ABANDONED') {
+  if ((status === 'CHECKED_OUT' || status === 'ABANDONED') && supportsCartStatus(capabilities)) {
     await query('UPDATE carts SET status = ?, updated_at = SYSUTCDATETIME() WHERE id = ?', [status, cart.id]);
   } else {
     await query('DELETE FROM cart_items WHERE cart_id = ?', [cart.id]);
-    await query('UPDATE carts SET updated_at = SYSUTCDATETIME() WHERE id = ?', [cart.id]);
+    if (supportsCartUpdatedAt(capabilities)) {
+      await query('UPDATE carts SET updated_at = SYSUTCDATETIME() WHERE id = ?', [cart.id]);
+    }
   }
 
   return { items: [], total: 0, itemCount: 0, cartId: null };

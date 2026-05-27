@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 export function ProtectedRoute({
@@ -11,7 +11,10 @@ export function ProtectedRoute({
   unauthorizedTo?: string;
 }) {
   const { isLoggedIn, isAdmin } = useAuth();
-  if (!isLoggedIn) return <Navigate to="/login" replace />;
+  const location = useLocation();
+  const from = `${location.pathname}${location.search}${location.hash}`;
+
+  if (!isLoggedIn) return <Navigate to="/login" replace state={{ from }} />;
   if (adminOnly && !isAdmin) return <Navigate to={unauthorizedTo} replace />;
   return <>{children}</>;
 }

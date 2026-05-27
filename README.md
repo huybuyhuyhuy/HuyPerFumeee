@@ -8,6 +8,8 @@ Dự án hiện tại dùng một đường chạy chính rõ ràng:
 
 Các nhánh cũ bằng Servlet/JSP, Spring Boot và MoMo proxy sẽ được giữ trong `legacy/` để tham khảo, nhưng không còn là đường chạy mặc định.
 
+Hai thư mục `luxury-perfume-homepage/` và `luxury-perfume-listing/` là prototype giao diện Next.js độc lập. Chúng không được dùng bởi lệnh chạy, Docker image hoặc quy trình deploy của ứng dụng chính; chỉ giữ lại khi còn cần đối chiếu thiết kế.
+
 ## Chạy nhanh trong VS Code
 
 1. Tạo database SQL Server bằng file `database_setup.sql`.

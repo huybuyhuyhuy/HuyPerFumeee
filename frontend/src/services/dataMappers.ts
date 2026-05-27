@@ -82,6 +82,14 @@ export function normalizeProduct(raw: any): Product {
   const salePrice = asNullableNumber(raw?.salePrice ?? raw?.discountPrice ?? raw?.discount_price);
   const stockQuantity = asNumber(raw?.stockQuantity ?? raw?.stock_quantity ?? raw?.stock ?? raw?.quantity);
 
+  const decantInventory = raw?.decantInventory
+    ? {
+        sealedBottles: asNumber(raw.decantInventory.sealedBottles),
+        openedMl: asNumber(raw.decantInventory.openedMl),
+        bottleVolumeMl: asNumber(raw.decantInventory.bottleVolumeMl),
+      }
+    : null;
+
   return {
     id: asNumber(raw?.id ?? raw?.productId),
     variantId: raw?.variantId ?? raw?.productVariantId ?? raw?.product_variant_id ?? null,
@@ -119,6 +127,8 @@ export function normalizeProduct(raw: any): Product {
     variants: Array.isArray(raw?.variants) ? raw.variants.map(normalizeProductVariant) : [],
     category,
     brand,
+    decantInventory,
+    bottleVolumeMl: asNumber(raw?.bottleVolumeMl ?? raw?.bottle_volume_ml ?? raw?.volumeMl ?? raw?.volume_ml),
   };
 }
 

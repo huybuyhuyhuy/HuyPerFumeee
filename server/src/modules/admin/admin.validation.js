@@ -128,3 +128,24 @@ export const dashboardChartQuerySchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Định dạng ngày phải là YYYY-MM-DD').optional(),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Định dạng ngày phải là YYYY-MM-DD').optional(),
 });
+
+// ── decant inventory ────────────────────────────────────
+
+export const decantOpenBottlesSchema = z.object({
+  productId: z.number().int().positive('ID sản phẩm không hợp lệ'),
+  quantity: z.number().int().positive('Số lượng chai cần mở phải là số dương'),
+  reason: z.string().max(500).optional().nullable(),
+});
+
+export const decantRestockBottlesSchema = z.object({
+  productId: z.number().int().positive('ID sản phẩm không hợp lệ'),
+  quantity: z.number().int().positive('Số lượng chai nhập phải là số dương'),
+  reason: z.string().max(500).optional().nullable(),
+});
+
+export const decantAdjustSchema = z.object({
+  productId: z.number().int().positive('ID sản phẩm không hợp lệ'),
+  sealedBottlesDelta: z.number().int('Số chai điều chỉnh phải là số nguyên'),
+  openedMlDelta: z.number().int('Số ml điều chỉnh phải là số nguyên'),
+  reason: z.string().max(500).optional().nullable(),
+});

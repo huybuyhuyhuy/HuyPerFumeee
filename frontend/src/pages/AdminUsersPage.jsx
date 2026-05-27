@@ -95,7 +95,7 @@ export function AdminUsersPage() {
   return (
     <div className="admin-page">
       <AdminPageHeader
-        eyebrow="Customer directory"
+        eyebrow="Danh sách khách hàng"
         title="Quản lý người dùng"
         description="Tìm kiếm tài khoản, xem vai trò và truy cập nhanh lịch sử đơn hàng của khách."
         action={<button type="button" className="btn btn-outline-dark" onClick={load}>Làm mới dữ liệu</button>}
