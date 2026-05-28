@@ -96,7 +96,8 @@ export async function cancel(req, res) {
       return errorResponse(res, 400, 'ID đơn hàng không hợp lệ');
     }
 
-    const result = await cancelOrder(userId, orderId);
+    const note = String(req.body?.note || '').trim().slice(0, 500) || null;
+    const result = await cancelOrder(userId, orderId, note);
     if (result.code) {
       return errorResponse(res, result.code, result.message);
     }

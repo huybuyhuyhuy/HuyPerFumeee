@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import { errorResponse, successResponse } from '../utils/response.js';
 import { query } from '../config/database.js';
 import { getCheckoutStorageCapabilities, hasColumn as hasCheckoutColumn } from '../modules/checkout/checkout.storage.js';
+import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus.js';
+import { updateOrderStatusWithHistory } from '../models/orderModel.js';
 
 const MOMO_SANDBOX = {
   partnerCode: 'MOMO',
@@ -144,14 +146,17 @@ async function getOrderByMomoOrderId(momoOrderId) {
   return orderId ? getOrderForPayment(orderId) : null;
 }
 
-async function updatePaidOrder({ orderId, userId = null, status, momoOrderId = null, momoTransId = null, zalopayAppTransId = null }) {
+async function updatePaidOrder({ orderId, userId = null, momoOrderId = null, momoTransId = null, zalopayAppTransId = null }) {
   const order = await getOrderForPayment(orderId, userId);
   if (!order) return { code: 404, message: 'Khong tim thay don hang' };
-  if (/cancel/i.test(String(order.status || ''))) return { code: 400, message: 'Don hang da bi huy' };
+  const currentStatus = normalizeOrderStatus(order.status);
+  if ([ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED].includes(currentStatus)) {
+    return { code: 400, message: 'Don hang da bi huy hoac hoan tien' };
+  }
 
   const { orderColumns } = await getCheckoutStorageCapabilities();
-  const assignments = ['status = ?'];
-  const params = [status];
+  const assignments = [];
+  const params = [];
 
   if (hasCheckoutColumn(orderColumns, 'momo_order_id')) {
     assignments.push('momo_order_id = COALESCE(?, momo_order_id)');
@@ -166,9 +171,18 @@ async function updatePaidOrder({ orderId, userId = null, status, momoOrderId = n
     params.push(zalopayAppTransId);
   }
 
-  params.push(orderId);
-  await query(`UPDATE orders SET ${assignments.join(', ')} WHERE id = ?`, params);
-  return { ok: true };
+  if (assignments.length) {
+    params.push(orderId);
+    await query(`UPDATE orders SET ${assignments.join(', ')} WHERE id = ?`, params);
+  }
+  if (currentStatus === ORDER_STATUS.PENDING) {
+    return updateOrderStatusWithHistory({
+      orderId,
+      newStatus: ORDER_STATUS.CONFIRMED,
+      note: `${String(order.payment_method || 'ONLINE').toUpperCase()} thanh toán thành công`,
+    });
+  }
+  return { ok: true, status: currentStatus };
 }
 
 async function rememberGatewayReference({ orderId, momoOrderId = null, zalopayAppTransId = null }) {
@@ -288,7 +302,6 @@ export async function momoIpn(req, res) {
     if (resultCode === 0) {
       await updatePaidOrder({
         orderId: order.id,
-        status: 'Paid',
         momoOrderId: String(body.orderId || ''),
         momoTransId: String(body.transId || ''),
       });
@@ -316,7 +329,7 @@ export async function momoReturn(req, res) {
     }
 
     if (resultCode === 0) {
-      await updatePaidOrder({ orderId: order.id, status: 'Paid', momoOrderId, momoTransId: transId });
+      await updatePaidOrder({ orderId: order.id, momoOrderId, momoTransId: transId });
       return redirectToOrders(req, res, { payment: 'momo', status: 'success', orderId: order.id });
     }
 
@@ -398,7 +411,7 @@ export async function zaloPayReturn(req, res) {
 
     const resultCode = Number(req.query.resultcode || req.query.resultCode || 0);
     if (resultCode === 1 || resultCode === 0) {
-      await updatePaidOrder({ orderId, status: 'Paid', zalopayAppTransId: appTransId });
+      await updatePaidOrder({ orderId, zalopayAppTransId: appTransId });
       return redirectToOrders(req, res, { payment: 'zalopay', status: 'success', orderId });
     }
 

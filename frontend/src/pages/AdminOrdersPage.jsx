@@ -10,19 +10,11 @@ import {
   formatAdminCurrency,
   formatAdminDate,
 } from '../components/Admin/AdminUi';
+import { ORDER_STATUS_OPTIONS } from '../constants/orderStatus';
 
 const PAGE_SIZE = 12;
-const ORDER_STATUSES = [
-  { value: 'Waiting', label: 'Chờ xử lý' },
-  { value: 'Paid', label: 'Đã thanh toán' },
-  { value: 'Processing', label: 'Đang xử lý' },
-  { value: 'Delivered', label: 'Đã giao' },
-  { value: 'Completed', label: 'Hoàn tất' },
-  { value: 'Cancelled', label: 'Đã hủy' },
-  { value: 'refunded', label: 'Hoàn tiền' },
-];
 const PAYMENT_METHODS = ['COD', 'Banking', 'MoMo', 'ZaloPay'];
-const ORDER_STATUS_VALUES = ORDER_STATUSES.map((status) => status.value);
+const ORDER_STATUS_VALUES = ORDER_STATUS_OPTIONS.map((status) => status.value);
 
 function unwrapApiData(payload) {
   return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload;
@@ -132,7 +124,7 @@ export function AdminOrdersPage() {
   const stats = [
     { label: 'Đơn theo bộ lọc', value: formatNumber(mergedSummary.total), hint: 'Kết quả hiện tại', icon: 'ORD' },
     { label: 'Tổng giá trị', value: formatAdminCurrency(mergedSummary.value), hint: 'Theo bộ lọc', tone: 'positive', icon: '₫' },
-    { label: 'Đang xử lý', value: formatNumber(mergedSummary.processing), hint: 'Processing / shipped', tone: 'warning', icon: '↻' },
+    { label: 'Đang xử lý', value: formatNumber(mergedSummary.processing), hint: 'Đóng gói / đang giao', tone: 'warning', icon: '↻' },
     { label: 'Giá trị đơn TB', value: formatAdminCurrency(mergedSummary.averageValue), hint: 'AOV hiện tại', tone: 'positive', icon: '◎' },
   ];
 
@@ -176,7 +168,7 @@ export function AdminOrdersPage() {
           <label htmlFor="admin-order-status">Trạng thái</label>
           <select id="admin-order-status" className="form-select" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
             <option value="">Tất cả</option>
-            {ORDER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+            {ORDER_STATUS_OPTIONS.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
           </select>
         </div>
         <div className="admin-filter-field">
@@ -311,7 +303,7 @@ export function AdminOrdersPage() {
                             onChange={(event) => updateStatus(order.id, event.target.value)}
                           >
                             {!ORDER_STATUS_VALUES.includes(order.status) && <option value={order.status}>{order.status}</option>}
-                            {ORDER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+                            {ORDER_STATUS_OPTIONS.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
                           </select>
                           <Link to={`/admin/orders/${order.id}`} className="btn btn-sm btn-outline-dark">Chi tiết</Link>
                         </div>

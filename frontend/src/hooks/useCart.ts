@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import api, { unwrapApiData } from '../services/api';
-import { normalizeCartSummary } from '../services/dataMappers';
+import { cartService } from '../services/cartService';
 import type { CartSummary } from '../types';
 
 export const CART_UPDATED_EVENT = 'huyperfume:cart-updated';
@@ -20,8 +19,7 @@ export function useCart() {
     try {
       setLoading(true);
       setError('');
-      const { data } = await api.get('/cart');
-      setCart(normalizeCartSummary(unwrapApiData<CartSummary>(data)));
+      setCart(await cartService.getCart());
     } catch (err: any) {
       setCart(emptyCart);
       setError(err?.message || 'Không thể tải giỏ hàng.');
@@ -31,30 +29,25 @@ export function useCart() {
   }, []);
 
   const updateQuantity = useCallback(async (productId: number, quantity: number, variantId?: number | string | null) => {
-    if (quantity < 1) {
-      await api.delete(`/cart/remove/${productId}`, { params: variantId ? { variantId } : undefined });
-    } else {
-      const body = variantId ? { productId, quantity, variantId } : { productId, quantity };
-      await api.put('/cart/update', body);
-    }
-    await fetchCart();
-    notifyCartChanged();
-  }, [fetchCart]);
+    const nextCart = quantity < 1
+      ? await cartService.removeItem(productId, variantId)
+      : await cartService.updateItem(productId, quantity, variantId);
+    setCart(nextCart);
+    setError('');
+  }, []);
 
   const removeItem = useCallback(async (productId: number, variantId?: number | string | null) => {
-    await api.delete(`/cart/remove/${productId}`, { params: variantId ? { variantId } : undefined });
-    await fetchCart();
-    notifyCartChanged();
-  }, [fetchCart]);
+    setCart(await cartService.removeItem(productId, variantId));
+    setError('');
+  }, []);
 
   const clearCart = useCallback(async () => {
     try {
-      await api.delete('/cart/clear');
+      setCart(await cartService.clear());
     } catch {
       // keep local cleanup resilient if the server already emptied the cart
+      setCart(emptyCart);
     }
-    setCart(emptyCart);
-    notifyCartChanged();
   }, []);
 
   useEffect(() => {

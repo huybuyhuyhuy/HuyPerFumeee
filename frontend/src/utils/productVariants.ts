@@ -1,7 +1,12 @@
 import { clampPrice } from './formatters';
 import { resolveProductImage } from './image';
 
-export function buildProductVariants(product) {
+function resolveVariantImage(variant: any, product: any) {
+  const variantImage = String(variant?.image ?? variant?.productImage ?? '').trim();
+  return resolveProductImage(variantImage || product?.image);
+}
+
+export function buildProductVariants(product: any) {
   const variants = Array.isArray(product?.variants) ? product.variants : [];
   const mapped = variants
     .map((variant, index) => {
@@ -20,7 +25,7 @@ export function buildProductVariants(product) {
         price,
         originalPrice: originalPrice > price ? originalPrice : price,
         stock,
-        image: resolveProductImage(variant?.image ?? variant?.productImage ?? product?.image),
+        image: resolveVariantImage(variant, product),
         sku: String(variant?.sku ?? product?.sku ?? ''),
         batchCode: String(variant?.batchCode ?? variant?.batch_code ?? product?.batchCode ?? ''),
         status: variant?.status !== false,

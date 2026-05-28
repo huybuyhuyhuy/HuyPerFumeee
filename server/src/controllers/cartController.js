@@ -17,6 +17,14 @@ function getScope(req) {
   return cartToken ? { type: 'guest', key: cartToken } : null;
 }
 
+function publicCartResponse(cart) {
+  return {
+    items: Array.isArray(cart?.items) ? cart.items : [],
+    total: Number(cart?.total || 0),
+    itemCount: Number(cart?.itemCount || 0),
+  };
+}
+
 export async function listCart(req, res) {
   try {
     const scope = getScope(req);
@@ -25,7 +33,7 @@ export async function listCart(req, res) {
     }
 
     const cart = await getCart(scope);
-    return successResponse(res, 'Lấy giỏ hàng thành công', cart);
+    return successResponse(res, 'Lấy giỏ hàng thành công', publicCartResponse(cart));
   } catch (error) {
     return errorResponse(res, 500, error.message || 'Không lấy được giỏ hàng');
   }
@@ -49,7 +57,7 @@ export async function addCart(req, res) {
     if (result.code) {
       return errorResponse(res, result.code, result.message);
     }
-    return successResponse(res, 'Thêm vào giỏ hàng thành công', result);
+    return successResponse(res, 'Thêm vào giỏ hàng thành công', publicCartResponse(result));
   } catch (error) {
     return errorResponse(res, 500, error.message || 'Không thêm được sản phẩm vào giỏ hàng');
   }
@@ -73,7 +81,7 @@ export async function updateCart(req, res) {
     if (result.code) {
       return errorResponse(res, result.code, result.message);
     }
-    return successResponse(res, 'Cập nhật giỏ hàng thành công', result);
+    return successResponse(res, 'Cập nhật giỏ hàng thành công', publicCartResponse(result));
   } catch (error) {
     return errorResponse(res, 500, error.message || 'Không cập nhật được giỏ hàng');
   }
@@ -93,7 +101,7 @@ export async function removeCart(req, res) {
 
     const variantId = req.query?.variantId ?? req.body?.variantId ?? null;
     const result = await removeCartItem(scope, productId, variantId);
-    return successResponse(res, 'Xóa sản phẩm khỏi giỏ hàng thành công', result);
+    return successResponse(res, 'Xóa sản phẩm khỏi giỏ hàng thành công', publicCartResponse(result));
   } catch (error) {
     return errorResponse(res, 500, error.message || 'Không xóa được sản phẩm khỏi giỏ hàng');
   }
@@ -107,7 +115,7 @@ export async function clearCartController(req, res) {
     }
 
     const result = await clearCart(scope);
-    return successResponse(res, 'Xóa toàn bộ giỏ hàng thành công', result);
+    return successResponse(res, 'Xóa toàn bộ giỏ hàng thành công', publicCartResponse(result));
   } catch (error) {
     return errorResponse(res, 500, error.message || 'Không xóa được giỏ hàng');
   }
@@ -125,7 +133,7 @@ export async function mergeCart(req, res) {
     if (result.code) {
       return errorResponse(res, result.code, result.message);
     }
-    return successResponse(res, 'Đồng bộ giỏ hàng thành công', result);
+    return successResponse(res, 'Đồng bộ giỏ hàng thành công', publicCartResponse(result));
   } catch (error) {
     return errorResponse(res, 500, error.message || 'Không đồng bộ được giỏ hàng');
   }

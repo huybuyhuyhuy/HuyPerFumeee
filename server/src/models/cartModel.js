@@ -1,5 +1,4 @@
 import { getProductPurchaseOption } from './productModel.js';
-import { clearGuestCart, clearUserCart, getGuestCart, getUserCart, setGuestCart, setUserCart } from '../utils/cartStore.js';
 import { validateCartQuantity } from '../modules/products/product.validation.js';
 import {
   clearDurableCart,
@@ -9,64 +8,27 @@ import {
   upsertDurableCartItem,
 } from '../modules/checkout/cart.repository.js';
 
-function toCartResponse(items) {
-  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  return { items, total, itemCount };
-}
+const CART_STORAGE_ERROR = 'Chua khoi tao bang gio hang. Vui long chay migration 001_create_cart_tables.sql.';
 
 function cartItemMatches(item, productId, variantId = null) {
   const currentVariantId = item.product.variantId ?? null;
   return Number(item.product.id) === Number(productId) && String(currentVariantId ?? '') === String(variantId ?? '');
 }
 
-function normalizeCartItem(selection, quantity) {
-  const { product, variant, unitPrice, stockQuantity } = selection;
-  return {
-    product: {
-      id: product.id,
-      variantId: selection.variantId,
-      name: product.name,
-      image: selection.image,
-      price: variant?.originalPrice ?? product.originalPrice,
-      salePrice: variant?.salePrice ?? product.salePrice,
-      discountPrice: variant?.salePrice ?? product.salePrice,
-      originalPrice: variant?.originalPrice ?? product.originalPrice,
-      stock: stockQuantity,
-      stockQuantity,
-      brand: product.brand,
-      category: product.category,
-      selectedVariant: variant,
-    },
-    quantity,
-    price: unitPrice,
-    subtotal: unitPrice * quantity,
-  };
+async function requireCartStorage() {
+  if (!(await hasDurableCartStorage())) {
+    throw new Error(CART_STORAGE_ERROR);
+  }
 }
 
-function getCartByScope(scope) {
-  if (scope.type === 'user') return getUserCart(scope.key);
-  return getGuestCart(scope.key);
-}
-
-function saveCartByScope(scope, items) {
-  if (scope.type === 'user') return setUserCart(scope.key, items);
-  return setGuestCart(scope.key, items);
-}
-
-function clearCartByScope(scope) {
-  if (scope.type === 'user') return clearUserCart(scope.key);
-  return clearGuestCart(scope.key);
+function requireCartResult(cart) {
+  if (!cart) throw new Error(CART_STORAGE_ERROR);
+  return cart;
 }
 
 export async function getCart(scope) {
-  if (await hasDurableCartStorage()) {
-    const durableCart = await getDurableCart(scope);
-    if (durableCart) return durableCart;
-  }
-
-  const items = getCartByScope(scope);
-  return toCartResponse(items);
+  await requireCartStorage();
+  return requireCartResult(await getDurableCart(scope));
 }
 
 export async function addToCart(scope, productId, quantity = 1, variantId = null) {
@@ -78,41 +40,10 @@ export async function addToCart(scope, productId, quantity = 1, variantId = null
   const selection = await getProductPurchaseOption(productId, variantId);
   if (selection.code) return selection;
 
-  if (await hasDurableCartStorage()) {
-    const durableCart = await upsertDurableCartItem(scope, selection, quantityValidation.quantity, 'add');
-    if (durableCart) return durableCart;
-  }
-
-  const currentItems = getCartByScope(scope);
-  const existing = currentItems.find((item) => cartItemMatches(item, selection.productId, selection.variantId));
-  const nextQuantity = existing ? existing.quantity + quantityValidation.quantity : quantityValidation.quantity;
-
-  if (nextQuantity > selection.stockQuantity) {
-    return { code: 400, message: 'So luong vuot qua ton kho' };
-  }
-
-  let nextItems;
-  if (existing) {
-    nextItems = currentItems.map((item) => (
-      cartItemMatches(item, selection.productId, selection.variantId)
-        ? {
-            ...item,
-            quantity: nextQuantity,
-            subtotal: item.price * nextQuantity,
-            product: {
-              ...item.product,
-              stock: selection.stockQuantity,
-              stockQuantity: selection.stockQuantity,
-            },
-          }
-        : item
-    ));
-  } else {
-    nextItems = [...currentItems, normalizeCartItem(selection, quantityValidation.quantity)];
-  }
-
-  saveCartByScope(scope, nextItems);
-  return toCartResponse(nextItems);
+  await requireCartStorage();
+  return requireCartResult(
+    await upsertDurableCartItem(scope, selection, quantityValidation.quantity, 'add')
+  );
 }
 
 export async function updateCartItem(scope, productId, quantity, variantId = null) {
@@ -127,87 +58,61 @@ export async function updateCartItem(scope, productId, quantity, variantId = nul
     return { code: 400, message: 'So luong vuot qua ton kho' };
   }
 
-  if (await hasDurableCartStorage()) {
-    const durableCart = await upsertDurableCartItem(scope, selection, quantityValidation.quantity, 'set');
-    if (durableCart) return durableCart;
-  }
-
-  const currentItems = getCartByScope(scope);
-  const exists = currentItems.some((item) => cartItemMatches(item, selection.productId, selection.variantId));
-  if (!exists) {
-    return { code: 404, message: 'San pham khong co trong gio hang' };
-  }
-
-  const nextItems = currentItems.map((item) => (
+  await requireCartStorage();
+  const currentCart = requireCartResult(await getDurableCart(scope));
+  const exists = currentCart.items.some((item) => (
     cartItemMatches(item, selection.productId, selection.variantId)
-      ? {
-          ...normalizeCartItem(selection, quantityValidation.quantity),
-          quantity: quantityValidation.quantity,
-        }
-      : item
   ));
-  saveCartByScope(scope, nextItems);
-  return toCartResponse(nextItems);
+  if (!exists) return { code: 404, message: 'San pham khong co trong gio hang' };
+
+  return requireCartResult(
+    await upsertDurableCartItem(scope, selection, quantityValidation.quantity, 'set')
+  );
 }
 
 export async function removeCartItem(scope, productId, variantId = null) {
-  if (await hasDurableCartStorage()) {
-    const durableCart = await removeDurableCartItem(scope, productId, variantId);
-    if (durableCart) return durableCart;
-  }
-
-  const currentItems = getCartByScope(scope);
-  const shouldRemoveAllProductVariants = variantId === null || variantId === undefined || variantId === '';
-  const nextItems = currentItems.filter((item) => {
-    if (Number(item.product.id) !== Number(productId)) return true;
-    if (shouldRemoveAllProductVariants) return false;
-    return !cartItemMatches(item, productId, variantId);
-  });
-  saveCartByScope(scope, nextItems);
-  return toCartResponse(nextItems);
+  await requireCartStorage();
+  return requireCartResult(await removeDurableCartItem(scope, productId, variantId));
 }
 
 export async function clearCart(scope) {
-  if (await hasDurableCartStorage()) {
-    const durableCart = await clearDurableCart(scope);
-    if (durableCart) return durableCart;
-  }
-
-  clearCartByScope(scope);
-  return toCartResponse([]);
+  await requireCartStorage();
+  return requireCartResult(await clearDurableCart(scope));
 }
 
 export async function markCartCheckedOut(scope) {
-  if (await hasDurableCartStorage()) {
-    const durableCart = await clearDurableCart(scope, 'CHECKED_OUT');
-    if (durableCart) return durableCart;
-  }
-
-  clearCartByScope(scope);
-  return toCartResponse([]);
+  await requireCartStorage();
+  return requireCartResult(await clearDurableCart(scope, 'CHECKED_OUT'));
 }
 
 export async function mergeGuestCartToUser(userId, cartToken) {
   const safeUserId = Number(userId);
   const safeCartToken = String(cartToken || '').trim();
+  const userScope = { type: 'user', key: safeUserId };
   if (!safeUserId || !safeCartToken) {
-    return getCart({ type: 'user', key: safeUserId });
+    return getCart(userScope);
   }
 
   const guestScope = { type: 'guest', key: safeCartToken };
-  const userScope = { type: 'user', key: safeUserId };
   const guestCart = await getCart(guestScope);
+  let userCart = await getCart(userScope);
 
   for (const item of guestCart.items || []) {
-    const result = await addToCart(
-      userScope,
-      Number(item.product?.id),
-      Number(item.quantity || 1),
-      item.product?.variantId ?? null
+    const selection = await getProductPurchaseOption(Number(item.product?.id), item.product?.variantId ?? null);
+    if (selection.code) return selection;
+
+    const existing = userCart.items.find((cartItem) => (
+      cartItemMatches(cartItem, selection.productId, selection.variantId)
+    ));
+    const mergedQuantity = Math.min(
+      Number(existing?.quantity || 0) + Number(item.quantity || 1),
+      Number(selection.stockQuantity || 0)
     );
-    if (result?.code) return result;
+    userCart = requireCartResult(
+      await upsertDurableCartItem(userScope, selection, mergedQuantity, 'set')
+    );
   }
 
   await clearCart(guestScope);
-  return getCart(userScope);
+  return userCart;
 }

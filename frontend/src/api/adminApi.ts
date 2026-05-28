@@ -17,6 +17,11 @@ export async function getAdminProducts() {
   return normalizeProductPage(unwrapApiData(data)).content;
 }
 
+export async function getAdminProduct(id: number) {
+  const { data } = await apiClient.get(`/admin/products/${id}`);
+  return unwrapApiData(data);
+}
+
 export async function createAdminProduct(payload: Record<string, unknown>) {
   const { data } = await apiClient.post('/admin/products', payload);
   return data;
@@ -32,8 +37,13 @@ export async function deleteAdminProduct(id: number) {
   return data;
 }
 
-export async function resetAdminProductStock(id: number) {
-  const { data } = await apiClient.post(`/admin/products/${id}/reset-stock`);
+export async function updateAdminProductStatus(id: number, status: boolean) {
+  const { data } = await apiClient.patch(`/admin/products/${id}/status`, { status });
+  return data;
+}
+
+export async function resetAdminProductStock(id: number, stock: number) {
+  const { data } = await apiClient.patch(`/admin/products/${id}/stock`, { stock });
   return data;
 }
 

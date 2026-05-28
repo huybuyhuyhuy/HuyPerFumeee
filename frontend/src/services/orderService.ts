@@ -22,4 +22,8 @@ export const orderService = {
     const { data } = await api.get(`/orders/${id}`);
     return normalizeOrder(unwrapApiData(data));
   },
+  async cancelOrder(id: number, note?: string) {
+    const { data } = await api.put(`/orders/${id}/cancel`, note ? { note } : {});
+    return unwrapApiData(data);
+  },
 };

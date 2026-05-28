@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { orderService } from '../services/orderService';
 import { formatVnCurrency } from '../utils/formatters';
 import { resolveProductImage } from '../utils/image';
+import { getOrderStatusLabel, getOrderTimelineIndex, ORDER_TIMELINE_STEPS } from '../constants/orderStatus';
 
 const paymentLabels = {
   COD: 'Thanh toán khi nhận hàng',
@@ -20,29 +21,14 @@ const paymentIcons = {
   BANKING: '🏛️',
 };
 
-const statusLabels = {
-  Waiting: 'Đang xử lý',
-  Processing: 'Đang xử lý',
-  Shipping: 'Đang giao hàng',
-  Delivered: 'Đã giao hàng',
-  Completed: 'Hoàn tất',
-  Cancelled: 'Đã hủy',
-  Canceled: 'Đã hủy',
-};
+const ORDER_STEPS = ORDER_TIMELINE_STEPS.map((step, index) => ({
+  key: step.value,
+  label: step.label,
+  icon: index < ORDER_TIMELINE_STEPS.length - 1 ? '✓' : '★',
+}));
 
-const ORDER_STEPS = [
-  { key: 'confirmed', label: 'Xác nhận', icon: '✓' },
-  { key: 'processing', label: 'Xử lý', icon: '⚙' },
-  { key: 'shipping', label: 'Giao hàng', icon: '🚚' },
-  { key: 'delivered', label: 'Hoàn tất', icon: '🎉' },
-];
-
-function getActiveStep(status) {
-  const s = (status || '').toLowerCase();
-  if (s === 'completed' || s === 'delivered') return 3;
-  if (s === 'shipping') return 2;
-  if (s === 'processing') return 1;
-  return 0;
+function getActiveStep(status, timeline) {
+  return getOrderTimelineIndex(status, timeline);
 }
 
 /* ─── Confetti Canvas ──────────────────────────────── */
@@ -239,7 +225,7 @@ export function OrderSuccessPage() {
               <path className="order-success-check-path" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
             </svg>
           </div>
-          <p className="section-eyebrow">Đơn hàng đã xác nhận</p>
+          <p className="section-eyebrow">Đơn hàng đã được tiếp nhận</p>
           <h1>Đặt hàng thành công!</h1>
           <p>
             Cảm ơn bạn đã lựa chọn <strong>Huy Perfume</strong>. Đơn hàng{' '}
@@ -258,7 +244,7 @@ export function OrderSuccessPage() {
 
         {/* ─── Timeline ────────────────────────────── */}
         <div className="os-anim os-anim-2">
-          <OrderTimeline activeStep={getActiveStep(order.status)} />
+          <OrderTimeline activeStep={getActiveStep(order.status, order.timeline)} />
         </div>
 
         {/* ─── Quick Stats ─────────────────────────── */}
@@ -309,7 +295,7 @@ export function OrderSuccessPage() {
               <div>
                 <span>Trạng thái</span>
                 <strong className="order-status-pill">
-                  {statusLabels[order.status] || order.status || statusLabels.Waiting}
+                  {getOrderStatusLabel(order.status)}
                 </strong>
               </div>
               <div>

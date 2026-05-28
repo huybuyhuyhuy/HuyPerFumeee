@@ -1,6 +1,7 @@
 import * as repo from './dashboard.repository.js';
 import * as mapper from './dashboard.mapper.js';
 import { getLowStockAlerts } from '../../models/adminInventoryModel.js';
+import { normalizeOrderStatus } from '../../constants/orderStatus.js';
 
 // ────────────────────────────────────────────────────────────
 //  Date helpers
@@ -33,6 +34,31 @@ function toDateString(date) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function toMonthStartString(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function buildRecentMonthStarts(months = 6) {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+  return Array.from({ length: months }, (_, index) => {
+    const date = new Date(start.getFullYear(), start.getMonth() + index, 1);
+    return toMonthStartString(date);
+  });
+}
+
+function normalizeMonthlySeries(rows = [], valueField, outputField) {
+  const values = new Map(
+    rows.map((row) => [toMonthStartString(row.monthStart), Number(row[valueField] || 0)])
+  );
+  return buildRecentMonthStarts(6).map((monthStart) => ({
+    monthStart,
+    [outputField]: values.get(monthStart) || 0,
+  }));
 }
 
 /**
@@ -187,7 +213,8 @@ export async function getStats() {
     chartSeries,
     orderTrendRows,
     topProductRows,
-    lowStockCount,
+    lowStockProducts,
+    recentOrderRows,
   ] = await Promise.all([
     repo.fetchOrderStats(),
     repo.fetchTotalProducts(),
@@ -196,19 +223,22 @@ export async function getStats() {
     repo.fetchStatsChartSeries(),
     repo.fetchRecentOrderTrend(14),
     repo.fetchTopProducts(10, null),
-    repo.fetchLowStockCount(),
+    repo.fetchLowStockProductCount(),
+    repo.fetchRecentOrders(8),
   ]);
 
+  const stats = mapper.toOrderStats(orderStats);
   return {
-    ...mapper.toOrderStats(orderStats),
+    ...stats,
     totalProducts,
     totalUsers,
     newUsersThisMonth,
-    lowStockCount,
+    lowStockProducts,
+    lowStockCount: lowStockProducts,
     charts: {
-      revenue: chartSeries.revenue,
-      orders: chartSeries.orders,
-      users: chartSeries.users,
+      revenue: normalizeMonthlySeries(chartSeries.revenue, 'revenue', 'revenue'),
+      orders: normalizeMonthlySeries(chartSeries.orders, 'orders', 'orders'),
+      users: normalizeMonthlySeries(chartSeries.users, 'users', 'users'),
     },
     orderGrowth: calcTrendGrowth(orderTrendRows),
     orderTrend: orderTrendRows.map((row) => ({
@@ -217,6 +247,13 @@ export async function getStats() {
       revenue: Number(row.revenue || 0),
     })),
     topProducts: topProductRows.map(mapper.toTopProduct),
+    recentOrders: recentOrderRows.map((row) => ({
+      id: row.id,
+      userName: row.customer_name || 'Khách vãng lai',
+      total: Number(row.total || 0),
+      status: normalizeOrderStatus(row.status),
+      createdAt: row.created_at,
+    })),
   };
 }
 

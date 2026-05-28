@@ -871,6 +871,51 @@
   white-space: nowrap;
 }
 
+.huy-admin-recent-orders {
+  grid-column: span 8;
+}
+
+.huy-admin-recent-list {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.huy-admin-recent-order {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto auto minmax(128px, auto);
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 253, 0.52);
+}
+
+.huy-admin-recent-order div {
+  display: grid;
+  min-width: 0;
+  gap: 0.16rem;
+}
+
+.huy-admin-recent-order strong {
+  color: var(--huy-admin-ink);
+  font-size: 0.86rem;
+}
+
+.huy-admin-recent-order span,
+.huy-admin-recent-order time {
+  overflow: hidden;
+  color: var(--huy-admin-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.huy-admin-recent-order b {
+  color: var(--huy-admin-ink);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
 .huy-admin-orders-overview {
   grid-column: span 12;
   min-height: 252px;
@@ -1266,6 +1311,72 @@
   gap: 0.75rem;
   padding: 1rem;
   border-radius: 1.25rem;
+}
+
+.admin-product-editor {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1rem, 1.8vw, 1.35rem);
+  border: 1px solid var(--huy-admin-border);
+  border-radius: 1.3rem;
+  background: var(--huy-admin-surface);
+  box-shadow: 0 12px 26px rgba(54, 65, 63, 0.04);
+}
+
+.admin-product-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.admin-product-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: #66716f;
+  font-size: 0.75rem;
+  font-weight: 720;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.admin-product-form .form-control,
+.admin-product-form .form-select {
+  border-color: var(--huy-admin-border);
+  border-radius: 0.85rem;
+  background-color: rgba(255, 255, 253, 0.76);
+  color: var(--huy-admin-ink);
+  box-shadow: none;
+  font-size: 0.9rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.admin-product-form .grow-2 {
+  grid-column: span 2;
+}
+
+.admin-product-form .grow-4,
+.admin-product-switches {
+  grid-column: 1 / -1;
+}
+
+.admin-product-switches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding-top: 0.25rem;
+}
+
+.admin-product-switches label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.admin-low-stock-badge {
+  margin-top: 0.42rem;
 }
 
 .admin-filter-field {
@@ -1914,6 +2025,7 @@
 
   .huy-admin-profit,
   .huy-admin-products,
+  .huy-admin-recent-orders,
   .huy-admin-orders-overview,
   .huy-admin-region {
     grid-column: 1;
@@ -1931,6 +2043,10 @@
   .admin-filter-field.grow,
   .admin-filter-field.compact {
     grid-column: auto;
+  }
+
+  .admin-product-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-insight-grid,
@@ -2044,6 +2160,11 @@
     min-height: 230px;
   }
 
+  .huy-admin-recent-order {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
   .admin-page {
     padding: 0.6rem;
   }
@@ -2066,6 +2187,19 @@
   .admin-filter-panel,
   .admin-stock-health {
     grid-template-columns: 1fr;
+  }
+
+  .admin-product-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-product-form .grow-2,
+  .admin-product-form .grow-4 {
+    grid-column: 1;
+  }
+
+  .admin-product-switches {
+    justify-content: flex-start;
   }
 
   .admin-mini-bar-chart,

@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import api from '../services/api';
+import { cartService } from '../services/cartService';
 import type { User } from '../types';
 
 interface AuthContextValue {
@@ -83,8 +84,7 @@ function getAuthPayload(responseData: any): AuthPayload {
 
 async function mergeGuestCartSilently() {
   try {
-    await api.post('/cart/merge');
-    window.dispatchEvent(new Event('huyperfume:cart-updated'));
+    await cartService.mergeGuestCart();
   } catch {
     // Login should never fail just because a guest cart could not be merged.
   }

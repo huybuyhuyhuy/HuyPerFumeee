@@ -1,3 +1,5 @@
+import { getOrderStatusLabel, getOrderStatusTone } from '../../constants/orderStatus';
+
 export function formatAdminCurrency(value) {
   return `₫${Math.round(Number(value || 0)).toLocaleString('vi-VN')}`;
 }
@@ -68,28 +70,21 @@ export function AdminEmptyState({ title, description }) {
 export function AdminStatusBadge({ status }) {
   const normalized = String(status || '').toLowerCase();
   const labelMap = {
-    waiting: 'Chờ xử lý',
-    paid: 'Đã thanh toán',
-    processing: 'Đang xử lý',
-    shipped: 'Đang giao',
-    delivered: 'Đã giao',
-    completed: 'Hoàn tất',
-    cancelled: 'Đã hủy',
-    failed: 'Thất bại',
-    refunded: 'Hoàn tiền',
     active: 'Đang hiển thị',
     disabled: 'Đã ẩn',
     locked: 'Đã khóa',
     pending_verification: 'Chờ xác minh',
   };
-  const tone = ['completed', 'delivered', 'paid', 'active'].includes(normalized)
+  const fallbackTone = ['active'].includes(normalized)
     ? 'positive'
-    : ['processing', 'shipped', 'pending_verification', 'waiting'].includes(normalized)
+    : ['pending_verification'].includes(normalized)
       ? 'progress'
-      : ['cancelled', 'failed', 'disabled', 'locked', 'refunded'].includes(normalized)
+      : ['disabled', 'locked'].includes(normalized)
         ? 'negative'
         : 'neutral';
-  return <span className={`admin-status-badge ${tone}`}>{labelMap[normalized] || status || '-'}</span>;
+  const label = labelMap[normalized] || getOrderStatusLabel(status);
+  const tone = labelMap[normalized] ? fallbackTone : getOrderStatusTone(status);
+  return <span className={`admin-status-badge ${tone}`}>{label}</span>;
 }
 
 export function AdminQuickNav({ items }) {

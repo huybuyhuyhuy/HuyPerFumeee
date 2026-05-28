@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { adminMiddleware } from '../middlewares/adminMiddleware.js';
+import { authMiddleware } from '../middlewares/authMiddleware.js';
+import { ROLES } from '../modules/auth/rbac.js';
 import { stats, summary, charts } from '../controllers/adminDashboardController.js';
 import { report } from '../controllers/adminReportController.js';
 import { listOrders, orderAnalytics, orderDetail, changeStatus } from '../controllers/adminOrderController.js';
@@ -9,6 +11,7 @@ import {
   detail,
   create,
   update,
+  updateStatus,
   remove,
   resetStock,
 } from '../controllers/adminProductController.js';
@@ -25,6 +28,7 @@ import upload from '../config/upload.js';
 import { auditLog } from '../config/logger.js';
 
 const router = Router();
+const adminProductsMiddleware = [...adminMiddleware, authMiddleware.requireRoles([ROLES.ADMIN])];
 
 // --- Dashboard ---
 router.get('/dashboard', adminMiddleware, stats);
@@ -34,12 +38,14 @@ router.get('/dashboard/charts', adminMiddleware, charts);
 router.get('/reports', adminMiddleware, report);
 
 // --- Products ---
-router.get('/products', adminMiddleware, listProducts);
-router.get('/products/:id', adminMiddleware, detail);
-router.post('/products', adminMiddleware, create);
-router.put('/products/:id', adminMiddleware, update);
-router.delete('/products/:id', adminMiddleware, remove);
-router.post('/products/:id/reset-stock', adminMiddleware, resetStock);
+router.get('/products', adminProductsMiddleware, listProducts);
+router.get('/products/:id', adminProductsMiddleware, detail);
+router.post('/products', adminProductsMiddleware, create);
+router.put('/products/:id', adminProductsMiddleware, update);
+router.patch('/products/:id/status', adminProductsMiddleware, updateStatus);
+router.patch('/products/:id/stock', adminProductsMiddleware, resetStock);
+router.delete('/products/:id', adminProductsMiddleware, remove);
+router.post('/products/:id/reset-stock', adminProductsMiddleware, resetStock);
 
 // --- Inventory ---
 router.get('/inventory', adminMiddleware, list);

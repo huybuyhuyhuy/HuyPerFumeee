@@ -1,4 +1,4 @@
-const DEFAULT_PRODUCT_IMAGE = '/assets/images/1.webp';
+export const DEFAULT_PRODUCT_IMAGE = '/assets/images/product-placeholder.svg';
 
 function preferOptimizedProductAsset(value: string) {
   if (/^\/assets\/images\/\d+\.png(?:[?#].*)?$/i.test(value)) {

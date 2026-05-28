@@ -25,46 +25,67 @@ const imageSchema = z.object({
 const scentNotesSchema = z.string().max(2000).optional().nullable();
 const scentGroupSchema = z.string().max(120).optional().nullable();
 
+function validateDiscountPrice(data, ctx) {
+  if (
+    data.discount_price !== undefined &&
+    data.discount_price !== null &&
+    data.price !== undefined &&
+    data.discount_price >= data.price
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['discount_price'],
+      message: 'Giá khuyến mãi phải nhỏ hơn giá bán',
+    });
+  }
+}
+
 export const createProductSchema = z.object({
-  name: z.string().min(1, 'Tên sản phẩm không được để trống').max(500),
-  price: z.number().positive('Giá sản phẩm phải là số dương'),
-  id_category: z.number().int().positive('Danh mục không hợp lệ'),
-  id_brand: z.number().int().positive('Thương hiệu không hợp lệ'),
+  name: z.string().trim().min(1, 'Tên sản phẩm không được để trống').max(500),
+  image: z.string().max(1000).optional().nullable(),
+  price: z.number().min(0, 'Giá sản phẩm không được âm'),
+  id_category: z.number().int().positive('Danh mục không hợp lệ').optional().nullable(),
+  id_brand: z.number().int().positive('Thương hiệu không hợp lệ').optional(),
   description: z.string().max(4000).optional().nullable(),
   scent_notes: scentNotesSchema,
   gender: genderEnum,
   concentration: concentrationEnum,
-  volume_ml: z.number().int().positive().optional().nullable(),
+  volume_ml: z.number().int().positive('Dung tích phải là số dương').optional().nullable(),
   is_decant: z.boolean().default(false),
-  discount_price: z.number().positive().optional().nullable(),
-  stock: z.number().int().min(0).default(0),
+  discount_price: z.number().min(0, 'Giá khuyến mãi không được âm').optional().nullable(),
+  stock: z.number().int().min(0, 'Tồn kho không được âm').default(0),
   status: z.boolean().default(true),
   sku: z.string().max(100).optional().nullable(),
   batch_code: z.string().max(120).optional().nullable(),
   scent_group: scentGroupSchema,
   variants: z.array(variantSchema).max(50).optional().default([]),
   images: z.array(imageSchema).max(20).optional().default([]),
-});
+}).superRefine(validateDiscountPrice);
 
 export const updateProductSchema = z.object({
-  name: z.string().min(1).max(500).optional(),
-  price: z.number().positive().optional(),
-  id_category: z.number().int().positive().optional(),
-  id_brand: z.number().int().positive().optional(),
+  name: z.string().trim().min(1, 'Tên sản phẩm không được để trống').max(500).optional(),
+  image: z.string().max(1000).optional().nullable(),
+  price: z.number().min(0, 'Giá sản phẩm không được âm').optional(),
+  id_category: z.number().int().positive('Danh mục không hợp lệ').optional().nullable(),
+  id_brand: z.number().int().positive('Thương hiệu không hợp lệ').optional(),
   description: z.string().max(4000).optional().nullable(),
   scent_notes: scentNotesSchema,
   gender: genderEnum,
   concentration: concentrationEnum,
-  volume_ml: z.number().int().positive().optional().nullable(),
+  volume_ml: z.number().int().positive('Dung tích phải là số dương').optional().nullable(),
   is_decant: z.boolean().optional(),
-  discount_price: z.number().positive().optional().nullable(),
-  stock: z.number().int().min(0).optional(),
+  discount_price: z.number().min(0, 'Giá khuyến mãi không được âm').optional().nullable(),
+  stock: z.number().int().min(0, 'Tồn kho không được âm').optional(),
   status: z.boolean().optional(),
   sku: z.string().max(100).optional().nullable(),
   batch_code: z.string().max(120).optional().nullable(),
   scent_group: scentGroupSchema,
   variants: z.array(variantSchema).max(50).optional(),
   images: z.array(imageSchema).max(20).optional(),
+}).superRefine(validateDiscountPrice);
+
+export const statusProductSchema = z.object({
+  status: z.boolean(),
 });
 
 export const stockAdjustmentSchema = z.object({
@@ -128,8 +149,6 @@ export const dashboardChartQuerySchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Định dạng ngày phải là YYYY-MM-DD').optional(),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Định dạng ngày phải là YYYY-MM-DD').optional(),
 });
-
-// ── decant inventory ────────────────────────────────────
 
 export const decantOpenBottlesSchema = z.object({
   productId: z.number().int().positive('ID sản phẩm không hợp lệ'),

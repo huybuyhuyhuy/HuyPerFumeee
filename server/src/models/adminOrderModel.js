@@ -1,14 +1,7 @@
 import { query } from '../config/database.js';
-import { cancelOrderForAdmin } from './orderModel.js';
+import { cancelOrderForAdmin, getOrderStatusTimeline, updateOrderStatusWithHistory } from './orderModel.js';
 import { getCheckoutStorageCapabilities, hasColumn } from '../modules/checkout/checkout.storage.js';
-
-function isCancelledStatus(status) {
-  return /cancelled|da huy|đã hủy/i.test(String(status || ''));
-}
-
-function isRefundedStatus(status) {
-  return /refunded|hoàn tiền|hoan tien/i.test(String(status || ''));
-}
+import { ORDER_STATUS, normalizeOrderStatus } from '../constants/orderStatus.js';
 
 function formatOrderCode(id) {
   return `ORD-${String(id).padStart(6, '0')}`;
@@ -154,10 +147,10 @@ export async function listAdminOrders({
     `SELECT COUNT(*) AS total,
             SUM(ISNULL(o.total, 0)) AS value,
             AVG(NULLIF(ISNULL(o.total, 0), 0)) AS average_value,
-            SUM(CASE WHEN LOWER(o.status) IN ('waiting', 'pending', N'đã xác nhận') THEN 1 ELSE 0 END) AS awaiting,
-            SUM(CASE WHEN LOWER(o.status) IN ('processing', 'shipped', N'đang giao') THEN 1 ELSE 0 END) AS processing,
-            SUM(CASE WHEN LOWER(o.status) IN ('paid', 'delivered', 'completed', N'giao hàng thành công') THEN 1 ELSE 0 END) AS completed,
-            SUM(CASE WHEN LOWER(o.status) IN ('cancelled', 'failed', 'refunded', N'đã hủy') THEN 1 ELSE 0 END) AS cancelled
+            SUM(CASE WHEN UPPER(o.status) IN ('PENDING', 'CONFIRMED') THEN 1 ELSE 0 END) AS awaiting,
+            SUM(CASE WHEN UPPER(o.status) IN ('PACKING', 'SHIPPING') THEN 1 ELSE 0 END) AS processing,
+            SUM(CASE WHEN UPPER(o.status) IN ('DELIVERED', 'COMPLETED') THEN 1 ELSE 0 END) AS completed,
+            SUM(CASE WHEN UPPER(o.status) IN ('CANCELLED', 'REFUNDED') THEN 1 ELSE 0 END) AS cancelled
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
      ${whereSql}`,
@@ -233,7 +226,7 @@ export async function listAdminOrders({
       userName: r.user_name,
       total: Number(r.total || 0),
       paymentMethod: r.payment_method,
-      status: r.status,
+      status: normalizeOrderStatus(r.status),
       createdAt: r.created_at,
     })),
     currentOrderPage: safePage,
@@ -248,7 +241,7 @@ export async function listAdminOrders({
       completed: Number(summary.completed || 0),
       cancelled: Number(summary.cancelled || 0),
       statusBreakdown: statusRows.map((row) => ({
-        status: row.status,
+        status: normalizeOrderStatus(row.status),
         total: Number(row.total || 0),
         value: Number(row.value || 0),
       })),
@@ -291,10 +284,10 @@ export async function getAdminOrderAnalytics({
       `SELECT COUNT(*) AS total,
               SUM(ISNULL(o.total, 0)) AS value,
               AVG(NULLIF(ISNULL(o.total, 0), 0)) AS average_value,
-              SUM(CASE WHEN LOWER(o.status) IN ('waiting', 'pending', N'đã xác nhận') THEN 1 ELSE 0 END) AS awaiting,
-              SUM(CASE WHEN LOWER(o.status) IN ('processing', 'shipped', N'đang giao') THEN 1 ELSE 0 END) AS processing,
-              SUM(CASE WHEN LOWER(o.status) IN ('paid', 'delivered', 'completed', N'giao hàng thành công') THEN 1 ELSE 0 END) AS completed,
-              SUM(CASE WHEN LOWER(o.status) IN ('cancelled', 'failed', 'refunded', N'đã hủy') THEN 1 ELSE 0 END) AS cancelled
+              SUM(CASE WHEN UPPER(o.status) IN ('PENDING', 'CONFIRMED') THEN 1 ELSE 0 END) AS awaiting,
+              SUM(CASE WHEN UPPER(o.status) IN ('PACKING', 'SHIPPING') THEN 1 ELSE 0 END) AS processing,
+              SUM(CASE WHEN UPPER(o.status) IN ('DELIVERED', 'COMPLETED') THEN 1 ELSE 0 END) AS completed,
+              SUM(CASE WHEN UPPER(o.status) IN ('CANCELLED', 'REFUNDED') THEN 1 ELSE 0 END) AS cancelled
        FROM orders o
        LEFT JOIN users u ON u.id = o.user_id
        ${whereSql}`,
@@ -368,7 +361,7 @@ export async function getAdminOrderAnalytics({
     },
     dailyRevenue,
     statusBreakdown: statusRows.map((row) => ({
-      status: row.status,
+      status: normalizeOrderStatus(row.status),
       total: Number(row.total || 0),
       value: Number(row.value || 0),
     })),
@@ -385,7 +378,7 @@ export async function getAdminOrderAnalytics({
       customerEmail: row.customer_email,
       totalAmount: Number(row.total || 0),
       paymentMethod: row.payment_method,
-      status: row.status,
+      status: normalizeOrderStatus(row.status),
       createdAt: row.created_at,
     })),
   };
@@ -436,7 +429,7 @@ export async function getAdminOrderById(orderId) {
     userId: order.user_id,
     total: Number(order.total || 0),
     paymentMethod: order.payment_method,
-    status: order.status,
+    status: normalizeOrderStatus(order.status),
     createdAt: order.created_at,
     userName: order.user_name,
     userEmail: order.user_email,
@@ -454,32 +447,26 @@ export async function getAdminOrderById(orderId) {
       selectedBatchCode: row.selected_batch_code || '',
       priceAtPurchase: Number(row.price_at_purchase || 0),
     })),
+    timeline: await getOrderStatusTimeline(orderId),
   };
 }
 
-export async function updateAdminOrderStatus(orderId, status) {
-  const normalizedStatus = String(status || '').trim();
-
-  if (isCancelledStatus(normalizedStatus)) {
-    const result = await cancelOrderForAdmin(orderId);
+export async function updateAdminOrderStatus(orderId, status, { changedBy = null, note = null } = {}) {
+  const normalizedStatus = normalizeOrderStatus(status);
+  if ([ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED].includes(normalizedStatus)) {
+    const result = await cancelOrderForAdmin(orderId, {
+      targetStatus: normalizedStatus,
+      changedBy,
+      note: note || (normalizedStatus === ORDER_STATUS.REFUNDED ? 'Admin hoàn tiền đơn hàng' : 'Admin hủy đơn hàng'),
+    });
     if (result.code) return result;
-    return { success: true, orderId, status: 'Cancelled', inventoryReleased: true };
+    return { success: true, orderId, status: normalizedStatus, inventoryReleased: true };
   }
 
-  if (isRefundedStatus(normalizedStatus)) {
-    const result = await cancelOrderForAdmin(orderId);
-    if (result.code) return result;
-    await query('UPDATE orders SET status = ? WHERE id = ?', ['refunded', orderId]);
-    return { success: true, orderId, status: 'refunded', inventoryReleased: true };
-  }
-
-  const currentRows = await query('SELECT TOP 1 status FROM orders WHERE id = ?', [orderId]);
-  const current = currentRows[0];
-  if (!current) return { code: 404, message: 'Không tìm thấy đơn hàng' };
-  if (isCancelledStatus(current.status) || isRefundedStatus(current.status)) {
-    return { code: 409, message: 'Đơn hàng đã hủy hoặc hoàn tiền không thể cập nhật sang trạng thái khác' };
-  }
-
-  await query('UPDATE orders SET status = ? WHERE id = ?', [normalizedStatus, orderId]);
-  return { success: true, orderId, status: normalizedStatus };
+  return updateOrderStatusWithHistory({
+    orderId,
+    newStatus: normalizedStatus,
+    changedBy,
+    note: note || 'Admin cập nhật trạng thái đơn hàng',
+  });
 }

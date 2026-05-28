@@ -112,6 +112,16 @@ export interface OrderItemInfo {
   priceAtPurchase: number;
 }
 
+export interface OrderStatusHistoryItem {
+  id: number;
+  oldStatus: string | null;
+  newStatus: string;
+  changedBy: number | null;
+  changedByName: string;
+  note: string;
+  createdAt: string;
+}
+
 export interface OrderResponse {
   id: number;
   userId: number;
@@ -126,6 +136,7 @@ export interface OrderResponse {
   status: string;
   createdAt: string;
   items: OrderItemInfo[];
+  timeline?: OrderStatusHistoryItem[];
   paymentUrl?: string;
 }
 

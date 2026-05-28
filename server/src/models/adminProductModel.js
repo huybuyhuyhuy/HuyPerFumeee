@@ -1,4 +1,5 @@
 import { query } from '../config/database.js';
+import { invalidateProductCache } from '../modules/products/product.service.js';
 
 let productCapabilitiesPromise = null;
 
@@ -39,6 +40,8 @@ export async function listAdminProducts({
   search = null,
   status = null,
   stockState = null,
+  categoryId = null,
+  brandId = null,
 } = {}) {
   const capabilities = await getProductCapabilities();
   const safePage = Math.max(1, Number(page));
@@ -60,6 +63,14 @@ export async function listAdminProducts({
   if (stockState === 'out') conditions.push('ISNULL(p.stock, 0) = 0');
   if (stockState === 'low') conditions.push('ISNULL(p.stock, 0) BETWEEN 1 AND 5');
   if (stockState === 'available') conditions.push('ISNULL(p.stock, 0) > 5');
+  if (Number(categoryId) > 0) {
+    conditions.push('p.id_category = ?');
+    params.push(Number(categoryId));
+  }
+  if (Number(brandId) > 0) {
+    conditions.push('p.id_brand = ?');
+    params.push(Number(brandId));
+  }
 
   const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const globalWhere = productBaseConditions(capabilities);
@@ -180,29 +191,92 @@ export async function listAdminProducts({
   };
 }
 
+export async function getAdminProductById(productId) {
+  const capabilities = await getProductCapabilities();
+  const conditions = ['p.id = ?'];
+  if (capabilities.columns.has('deleted_at')) conditions.push('p.deleted_at IS NULL');
+  const rows = await query(
+    `SELECT TOP 1 p.id, p.sku, p.batch_code, p.name, p.image, p.price, p.discount_price,
+            p.quantity, p.stock, p.status, p.id_category, p.id_brand, p.volume_ml,
+            p.description, p.scent_notes, p.is_decant, p.created_at,
+            ${productColumn(capabilities, 'updated_at')} AS updated_at,
+            c.name AS category_name, b.name AS brand_name
+     FROM products p
+     LEFT JOIN categories c ON c.id = p.id_category
+     LEFT JOIN brand b ON b.id = p.id_brand
+     WHERE ${conditions.join(' AND ')}`,
+    [Number(productId)]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    sku: row.sku || '',
+    batchCode: row.batch_code || '',
+    image: row.image || '',
+    price: Number(row.price || 0),
+    discountPrice: row.discount_price === null ? null : Number(row.discount_price),
+    stock: Number(row.stock || 0),
+    status: Boolean(row.status),
+    categoryId: row.id_category,
+    brandId: row.id_brand,
+    idCategory: row.id_category,
+    idBrand: row.id_brand,
+    categoryName: row.category_name || '',
+    brandName: row.brand_name || '',
+    volumeMl: row.volume_ml,
+    description: row.description || '',
+    scentNotes: row.scent_notes || '',
+    isDecant: Boolean(row.is_decant),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    category: row.category_name ? { id: row.id_category, name: row.category_name } : null,
+    brand: row.brand_name ? { id: row.id_brand, name: row.brand_name } : null,
+  };
+}
+
+export async function validateProductRelations(data) {
+  const errors = {};
+  if (data.id_category !== undefined && data.id_category !== null) {
+    const category = await query('SELECT TOP 1 id FROM categories WHERE id = ?', [data.id_category]);
+    if (!category.length) errors.id_category = ['Danh mục không tồn tại'];
+  }
+  if (data.id_brand !== undefined && data.id_brand !== null) {
+    const brand = await query('SELECT TOP 1 id FROM brand WHERE id = ?', [data.id_brand]);
+    if (!brand.length) errors.id_brand = ['Thương hiệu không tồn tại'];
+  }
+  return Object.keys(errors).length ? errors : null;
+}
+
 export async function createProduct(data) {
   const capabilities = await getProductCapabilities();
   const sku = data.sku || `PRF-${Date.now().toString(36).toUpperCase()}`;
   const image = data.image || data.images?.find((item) => item.is_thumbnail)?.image_url || data.images?.[0]?.image_url || '';
-  const columns = ['sku', 'batch_code', 'name', 'image', 'price', 'discount_price', 'quantity', 'stock', 'status', 'id_category', 'id_brand', 'volume_ml', 'description', 'scent_notes', 'is_decant', 'created_at'];
-  const values = ['?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', 'GETDATE()'];
+  const columns = ['sku', 'batch_code', 'name', 'image', 'price', 'discount_price', 'quantity', 'stock', 'status', 'id_category', 'volume_ml', 'description', 'scent_notes', 'is_decant', 'created_at'];
+  const values = ['?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', '?', 'GETDATE()'];
   const params = [
     sku,
     data.batch_code || null,
     data.name,
     image,
     data.price,
-    data.discount_price || null,
+    data.discount_price ?? null,
     data.stock || 0,
     data.stock || 0,
     data.status !== false ? 1 : 0,
     data.id_category,
-    data.id_brand,
     data.volume_ml || null,
     data.description || null,
     data.scent_notes || null,
     data.is_decant ? 1 : 0,
   ];
+
+  if (data.id_brand !== undefined) {
+    columns.splice(columns.length - 1, 0, 'id_brand');
+    values.splice(values.length - 1, 0, '?');
+    params.push(data.id_brand);
+  }
 
   const optionalFields = [
     ['gender', data.gender || null],
@@ -273,6 +347,7 @@ export async function createProduct(data) {
     await query('UPDATE products SET image = ? WHERE id = ?', [thumbnail.image_url, productId]);
   }
 
+  await invalidateProductCache(productId);
   return { id: productId, sku };
 }
 
@@ -288,6 +363,7 @@ export async function updateProduct(productId, data) {
     name: 'name',
     sku: 'sku',
     batch_code: 'batch_code',
+    image: 'image',
     price: 'price',
     discount_price: 'discount_price',
     stock: 'stock',
@@ -429,6 +505,7 @@ export async function updateProduct(productId, data) {
     }
   }
 
+  await invalidateProductCache(productId);
   return { id: productId, updated: true };
 }
 
@@ -441,6 +518,7 @@ export async function softDeleteProduct(productId) {
   if (capabilities.columns.has('deleted_at')) updates.push('deleted_at = GETDATE()');
   if (capabilities.columns.has('updated_at')) updates.push('updated_at = GETDATE()');
   await query(`UPDATE products SET ${updates.join(', ')} WHERE id = ?`, [productId]);
+  await invalidateProductCache(productId);
   return { id: productId, deleted: true };
 }
 
@@ -451,5 +529,6 @@ export async function resetProductStock(productId, stock) {
 
   const updatedAt = capabilities.columns.has('updated_at') ? ', updated_at = GETDATE()' : '';
   await query(`UPDATE products SET stock = ?, quantity = ?${updatedAt} WHERE id = ?`, [stock, stock, productId]);
+  await invalidateProductCache(productId);
   return { id: productId, stock };
 }

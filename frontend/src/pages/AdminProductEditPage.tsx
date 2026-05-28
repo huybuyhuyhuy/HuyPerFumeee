@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../services/api';
 import { AdminEmptyState, AdminPageHeader, AdminStatusBadge, formatAdminCurrency, formatAdminDate } from '../components/Admin/AdminUi';
+import { useToast } from '../store/ToastContext';
 
 function unwrapApiData(payload) {
   return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload;
@@ -13,18 +14,22 @@ function normalizeProduct(raw) {
     id: raw.id,
     name: raw.name || '',
     sku: raw.sku || '',
+    batchCode: raw.batchCode || '',
     description: raw.description || '',
     image: raw.image || '',
     price: raw.price ?? 0,
     discountPrice: raw.discountPrice ?? 0,
     stock: raw.stock ?? 0,
     status: Boolean(raw.status),
+    categoryId: raw.categoryId ?? raw.idCategory ?? raw.category?.id ?? '',
+    brandId: raw.brandId ?? raw.idBrand ?? raw.brand?.id ?? '',
     categoryName: raw.categoryName || raw.category?.name || '',
     brandName: raw.brandName || raw.brand?.name || '',
     scentNotes: raw.scentNotes || '',
     gender: raw.gender || '',
     concentration: raw.concentration || '',
     volumeMl: raw.volumeMl || '',
+    isDecant: Boolean(raw.isDecant),
     createdAt: raw.createdAt || raw.created_at || null,
     updatedAt: raw.updatedAt || raw.updated_at || null,
   };
@@ -33,28 +38,33 @@ function normalizeProduct(raw) {
 export function AdminProductEditPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { pushToast } = useToast();
   const numericId = Number(id);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
-  const [feedback, setFeedback] = useState('');
   const [product, setProduct] = useState(null);
   const [form, setForm] = useState({
     name: '',
     sku: '',
+    batchCode: '',
     description: '',
     price: '',
     discountPrice: '',
     stock: '',
     status: true,
+    categoryId: '',
+    brandId: '',
     categoryName: '',
     brandName: '',
     scentNotes: '',
     gender: '',
     concentration: '',
     volumeMl: '',
+    isDecant: false,
   });
+  const [options, setOptions] = useState<{ brands: any[]; categories: any[] }>({ brands: [], categories: [] });
   const [decantInventory, setDecantInventory] = useState<any>(null);
   const [decantPopup, setDecantPopup] = useState<'open' | 'restock' | 'adjust' | null>(null);
   const [decantQty, setDecantQty] = useState('1');
@@ -85,22 +95,35 @@ export function AdminProductEditPage() {
         setForm({
           name: data.name,
           sku: data.sku,
+          batchCode: data.batchCode,
           description: data.description,
           price: String(data.price ?? ''),
           discountPrice: String(data.discountPrice ?? ''),
           stock: String(data.stock ?? ''),
           status: data.status,
+          categoryId: data.categoryId,
+          brandId: data.brandId,
           categoryName: data.categoryName,
           brandName: data.brandName,
           scentNotes: data.scentNotes,
           gender: data.gender,
           concentration: data.concentration,
           volumeMl: String(data.volumeMl ?? ''),
+          isDecant: data.isDecant,
         });
       })
       .catch((err) => setError(err?.response?.data?.message || err?.message || 'Không tải được chi tiết sản phẩm.'))
       .finally(() => setLoading(false));
   }, [numericId]);
+
+  useEffect(() => {
+    Promise.all([api.get('/brands'), api.get('/categories')])
+      .then(([brands, categories]) => setOptions({
+        brands: unwrapApiData(brands.data) || [],
+        categories: unwrapApiData(categories.data) || [],
+      }))
+      .catch(() => pushToast('Không tải được danh mục hoặc thương hiệu.', 'error'));
+  }, [pushToast]);
 
   useEffect(() => {
     if (!Number.isFinite(numericId)) return;
@@ -136,7 +159,7 @@ export function AdminProductEditPage() {
   const displayPrice = useMemo(() => formatAdminCurrency(form.discountPrice || form.price), [form.discountPrice, form.price]);
 
   const updateField = (field) => (event) => {
-    const value = field === 'status' ? event.target.checked : event.target.value;
+    const value = ['status', 'isDecant'].includes(field) ? event.target.checked : event.target.value;
     setForm((current) => ({ ...current, [field]: value }));
   };
 
@@ -144,16 +167,17 @@ export function AdminProductEditPage() {
     event.preventDefault();
     setSaving(true);
     setError('');
-    setFeedback('');
     try {
       await api.put(`/admin/products/${numericId}`, {
         ...form,
         price: Number(form.price || 0),
-        discountPrice: Number(form.discountPrice || 0),
+        discountPrice: form.discountPrice === '' ? null : Number(form.discountPrice),
         stock: Number(form.stock || 0),
         volumeMl: form.volumeMl === '' ? null : Number(form.volumeMl),
+        categoryId: form.categoryId === '' ? null : Number(form.categoryId),
+        brandId: Number(form.brandId),
       });
-      setFeedback('Đã cập nhật sản phẩm thành công.');
+      pushToast('Đã cập nhật sản phẩm thành công.', 'success');
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Không cập nhật được sản phẩm.');
     } finally {
@@ -167,9 +191,9 @@ export function AdminProductEditPage() {
 
     setDeleting(true);
     setError('');
-    setFeedback('');
     try {
       await api.delete(`/admin/products/${numericId}`);
+      pushToast('Đã xóa sản phẩm.', 'success');
       navigate('/admin/products');
     } catch (err) {
       setError(err?.response?.data?.message || err?.message || 'Không xóa được sản phẩm.');
@@ -206,8 +230,6 @@ export function AdminProductEditPage() {
         <div className="col-xl-8">
           <form className="luxury-surface p-4 p-lg-5" onSubmit={handleSubmit}>
             {error && <div className="alert alert-danger">{error}</div>}
-            {feedback && <div className="alert alert-success">{feedback}</div>}
-
             <div className="row g-3">
               <div className="col-md-8">
                 <label className="form-label">Tên sản phẩm</label>
@@ -217,13 +239,23 @@ export function AdminProductEditPage() {
                 <label className="form-label">SKU</label>
                 <input className="form-control" value={form.sku} onChange={updateField('sku')} />
               </div>
+              <div className="col-md-4">
+                <label className="form-label">Mã lô</label>
+                <input className="form-control" value={form.batchCode} onChange={updateField('batchCode')} />
+              </div>
               <div className="col-md-6">
                 <label className="form-label">Thương hiệu</label>
-                <input className="form-control" value={form.brandName} onChange={updateField('brandName')} />
+                <select className="form-select" value={form.brandId} onChange={updateField('brandId')} required>
+                  <option value="">Chọn thương hiệu</option>
+                  {options.brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                </select>
               </div>
               <div className="col-md-6">
                 <label className="form-label">Danh mục</label>
-                <input className="form-control" value={form.categoryName} onChange={updateField('categoryName')} />
+                <select className="form-select" value={form.categoryId} onChange={updateField('categoryId')}>
+                  <option value="">Chưa phân loại</option>
+                  {options.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
               </div>
               <div className="col-md-6">
                 <label className="form-label">Giá bán</label>
@@ -247,6 +279,12 @@ export function AdminProductEditPage() {
                   <label className="form-check-label" htmlFor="admin-product-status-switch">Đang hiển thị</label>
                 </div>
               </div>
+              <div className="col-md-4 d-flex align-items-end">
+                <div className="form-check form-switch">
+                  <input className="form-check-input" type="checkbox" role="switch" checked={form.isDecant} onChange={updateField('isDecant')} id="admin-product-decant-switch" />
+                  <label className="form-check-label" htmlFor="admin-product-decant-switch">Sản phẩm chiết</label>
+                </div>
+              </div>
               <div className="col-md-4">
                 <label className="form-label">Giới tính</label>
                 <input className="form-control" value={form.gender} onChange={updateField('gender')} />
@@ -258,6 +296,10 @@ export function AdminProductEditPage() {
               <div className="col-md-4">
                 <label className="form-label">Nhóm hương</label>
                 <input className="form-control" value={form.scentNotes} onChange={updateField('scentNotes')} />
+              </div>
+              <div className="col-12">
+                <label className="form-label">Ảnh sản phẩm</label>
+                <input className="form-control" value={form.image} onChange={updateField('image')} placeholder="/assets/images/..." />
               </div>
               <div className="col-12">
                 <label className="form-label">Mô tả</label>

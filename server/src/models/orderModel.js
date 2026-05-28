@@ -15,6 +15,12 @@ import {
   releaseRedisReservations,
   withInventoryReservationLocks,
 } from '../modules/checkout/reservation.redis.js';
+import {
+  ORDER_STATUS,
+  canCustomerCancelOrder,
+  canTransitionOrderStatus,
+  normalizeOrderStatus,
+} from '../constants/orderStatus.js';
 
 function toPositivePrice(value) {
   const parsed = Number(value);
@@ -62,10 +68,118 @@ function toOrder(row, items = []) {
     momoOrderId: row.momo_order_id || '',
     momoTransId: row.momo_trans_id || '',
     zalopayAppTransId: row.zalopay_app_trans_id || '',
-    status: row.status || '',
+    status: normalizeOrderStatus(row.status),
     createdAt: row.created_at,
     items,
   };
+}
+
+async function insertOrderStatusHistory(transaction, {
+  orderId,
+  oldStatus = null,
+  newStatus,
+  changedBy = null,
+  note = null,
+}) {
+  const request = transaction ? new sql.Request(transaction) : null;
+  const normalizedOldStatus = oldStatus ? normalizeOrderStatus(oldStatus) : null;
+  const normalizedNewStatus = normalizeOrderStatus(newStatus);
+  const statement = `INSERT INTO order_status_history
+    (order_id, old_status, new_status, changed_by, note, created_at)
+    VALUES (?, ?, ?, ?, ?, GETDATE())`;
+  const params = [orderId, normalizedOldStatus, normalizedNewStatus, changedBy, note];
+
+  if (!request) {
+    await query(statement, params);
+    return;
+  }
+
+  request.input('orderId', sql.Int, orderId);
+  request.input('oldStatus', sql.NVarChar, normalizedOldStatus);
+  request.input('newStatus', sql.NVarChar, normalizedNewStatus);
+  request.input('changedBy', sql.Int, changedBy);
+  request.input('note', sql.NVarChar, note);
+  await request.query(
+    `INSERT INTO order_status_history
+      (order_id, old_status, new_status, changed_by, note, created_at)
+     VALUES (@orderId, @oldStatus, @newStatus, @changedBy, @note, GETDATE())`
+  );
+}
+
+export async function getOrderStatusTimeline(orderId) {
+  const rows = await query(
+    `SELECT h.id, h.old_status, h.new_status, h.changed_by, h.note, h.created_at,
+            COALESCE(u.name, '') AS changed_by_name
+     FROM order_status_history h
+     LEFT JOIN users u ON u.id = h.changed_by
+     WHERE h.order_id = ?
+     ORDER BY h.created_at ASC, h.id ASC`,
+    [orderId]
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    oldStatus: row.old_status ? normalizeOrderStatus(row.old_status) : null,
+    newStatus: normalizeOrderStatus(row.new_status),
+    changedBy: row.changed_by || null,
+    changedByName: row.changed_by_name || '',
+    note: row.note || '',
+    createdAt: row.created_at,
+  }));
+}
+
+export async function updateOrderStatusWithHistory({
+  orderId,
+  newStatus,
+  changedBy = null,
+  note = null,
+}) {
+  const targetStatus = normalizeOrderStatus(newStatus);
+  const pool = await getDbPool();
+  const transaction = new sql.Transaction(pool);
+  await transaction.begin();
+
+  try {
+    const selectRequest = new sql.Request(transaction);
+    selectRequest.input('orderId', sql.Int, orderId);
+    const result = await selectRequest.query(
+      `SELECT TOP 1 id, status
+       FROM orders WITH (UPDLOCK, ROWLOCK)
+       WHERE id = @orderId`
+    );
+    const order = result.recordset?.[0];
+    if (!order) {
+      await transaction.rollback();
+      return { code: 404, message: 'Không tìm thấy đơn hàng' };
+    }
+
+    const currentStatus = normalizeOrderStatus(order.status);
+    if (currentStatus === targetStatus) {
+      await transaction.commit();
+      return { success: true, orderId, status: targetStatus, unchanged: true };
+    }
+    if (!canTransitionOrderStatus(currentStatus, targetStatus)) {
+      await transaction.rollback();
+      return { code: 409, message: `Không thể chuyển trạng thái từ ${currentStatus} sang ${targetStatus}` };
+    }
+
+    const updateRequest = new sql.Request(transaction);
+    updateRequest.input('orderId', sql.Int, orderId);
+    updateRequest.input('status', sql.NVarChar, targetStatus);
+    await updateRequest.query('UPDATE orders SET status = @status WHERE id = @orderId');
+    await insertOrderStatusHistory(transaction, {
+      orderId,
+      oldStatus: currentStatus,
+      newStatus: targetStatus,
+      changedBy,
+      note,
+    });
+    await transaction.commit();
+    return { success: true, orderId, oldStatus: currentStatus, status: targetStatus };
+  } catch (error) {
+    try { await transaction.rollback(); } catch {}
+    throw error;
+  }
 }
 
 function validatePaymentMethod(paymentMethod) {
@@ -422,7 +536,7 @@ export async function checkoutOrder({ userId, shippingAddress, phone, paymentMet
       request.input('shippingAddress', sql.NVarChar, String(shippingAddress).trim());
       request.input('phone', sql.NVarChar, String(phone).trim());
       request.input('paymentMethod', sql.NVarChar, String(paymentMethod).trim().toUpperCase());
-      request.input('status', sql.NVarChar, 'Waiting');
+      request.input('status', sql.NVarChar, ORDER_STATUS.PENDING);
 
       const orderColumns = ['user_id', 'total', 'shipping_address', 'phone', 'payment_method', 'status'];
       const orderValues = ['@userId', '@total', '@shippingAddress', '@phone', '@paymentMethod', '@status'];
@@ -445,6 +559,13 @@ export async function checkoutOrder({ userId, shippingAddress, phone, paymentMet
 
       const orderId = orderResult.recordset?.[0]?.id;
       if (!orderId) throw new Error('Khong tao duoc don hang');
+
+      await insertOrderStatusHistory(transaction, {
+        orderId,
+        newStatus: ORDER_STATUS.PENDING,
+        changedBy: userId,
+        note: 'Đơn hàng được tạo',
+      });
 
       for (const item of preparedItems) {
         const reservation = await createInventoryReservation(transaction, item, {
@@ -482,7 +603,7 @@ export async function checkoutOrder({ userId, shippingAddress, phone, paymentMet
           quantity: 0,
           stockBefore: stockAfter,
           stockAfter,
-          metadata: { orderStatus: 'Waiting' },
+          metadata: { orderStatus: ORDER_STATUS.PENDING },
         });
       }
 
@@ -563,7 +684,8 @@ export async function getOrderByIdForUser(orderId, userId) {
     [orderId]
   );
 
-  return toOrder(order, itemRows.map(toOrderItem));
+  const timeline = await getOrderStatusTimeline(orderId);
+  return { ...toOrder(order, itemRows.map(toOrderItem)), timeline };
 }
 
 export async function listOrderHistory(userId) {
@@ -658,15 +780,14 @@ async function findReservationForOrderItem(transaction, orderId, item, checkoutC
   return result.recordset?.[0]?.id || null;
 }
 
-function isCancelledStatus(status) {
-  return /cancelled|da huy|đã hủy/i.test(String(status || ''));
-}
-
-function isRefundedStatus(status) {
-  return /refunded|hoàn tiền|hoan tien/i.test(String(status || ''));
-}
-
-async function releaseCancelledOrderInventory({ orderId, userId = null, enforceCustomerWindow = false }) {
+async function releaseCancelledOrderInventory({
+  orderId,
+  userId = null,
+  customerInitiated = false,
+  targetStatus = ORDER_STATUS.CANCELLED,
+  changedBy = null,
+  note = null,
+}) {
   const capabilities = await getProductStorageCapabilities();
   const checkoutCapabilities = await getCheckoutStorageCapabilities();
   const pool = await getDbPool();
@@ -689,27 +810,36 @@ async function releaseCancelledOrderInventory({ orderId, userId = null, enforceC
       await transaction.rollback();
       return { code: 404, message: 'Khong tim thay don hang' };
     }
-    if (isCancelledStatus(order.status) || isRefundedStatus(order.status)) {
+    const currentStatus = normalizeOrderStatus(order.status);
+    if ([ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED].includes(currentStatus)) {
       await transaction.rollback();
       return { code: 400, message: 'Đơn hàng đã bị hủy hoặc hoàn tiền' };
     }
 
-    if (enforceCustomerWindow) {
-      const createdAt = new Date(order.created_at);
-      const diffMinutes = (Date.now() - createdAt.getTime()) / (1000 * 60);
-      if (diffMinutes > 5) {
-        await transaction.rollback();
-        return { code: 400, message: 'Chi co the huy don trong 5 phut dau' };
-      }
+    if (customerInitiated && !canCustomerCancelOrder(currentStatus)) {
+      await transaction.rollback();
+      return { code: 409, message: 'Đơn đang giao hoặc đã hoàn tất, không thể hủy' };
+    }
+    if (!canTransitionOrderStatus(currentStatus, targetStatus)) {
+      await transaction.rollback();
+      return { code: 409, message: `Không thể chuyển trạng thái từ ${currentStatus} sang ${targetStatus}` };
     }
 
     const statusRequest = new sql.Request(transaction);
     statusRequest.input('orderId', sql.Int, orderId);
+    statusRequest.input('status', sql.NVarChar, targetStatus);
     await statusRequest.query(
       hasColumn(checkoutCapabilities.orderColumns, 'inventory_status')
-        ? "UPDATE orders SET status = 'Cancelled', inventory_status = 'RELEASED' WHERE id = @orderId"
-        : "UPDATE orders SET status = 'Cancelled' WHERE id = @orderId"
+        ? "UPDATE orders SET status = @status, inventory_status = 'RELEASED' WHERE id = @orderId"
+        : 'UPDATE orders SET status = @status WHERE id = @orderId'
     );
+    await insertOrderStatusHistory(transaction, {
+      orderId,
+      oldStatus: currentStatus,
+      newStatus: targetStatus,
+      changedBy,
+      note,
+    });
 
     const variantSelect = hasOrderItemVariantColumn(capabilities)
       ? 'oi.product_variant_id'
@@ -750,7 +880,7 @@ async function releaseCancelledOrderInventory({ orderId, userId = null, enforceC
         quantity: Number(item.quantity || 0),
         stockBefore: stock?.stock_before ?? null,
         stockAfter: stock?.stock_after ?? null,
-        metadata: { reason: 'order_cancelled' },
+        metadata: { reason: targetStatus === ORDER_STATUS.REFUNDED ? 'order_refunded' : 'order_cancelled' },
       });
     }
 
@@ -779,10 +909,16 @@ async function releaseCancelledOrderInventory({ orderId, userId = null, enforceC
   }
 }
 
-export async function cancelOrder(userId, orderId) {
-  return releaseCancelledOrderInventory({ orderId, userId, enforceCustomerWindow: true });
+export async function cancelOrder(userId, orderId, note = null) {
+  return releaseCancelledOrderInventory({
+    orderId,
+    userId,
+    customerInitiated: true,
+    changedBy: userId,
+    note: note || 'Khách hàng hủy đơn',
+  });
 }
 
-export async function cancelOrderForAdmin(orderId) {
-  return releaseCancelledOrderInventory({ orderId });
+export async function cancelOrderForAdmin(orderId, options = {}) {
+  return releaseCancelledOrderInventory({ orderId, ...options });
 }

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 880" role="img" aria-labelledby="title desc">
+  <title id="title">HuyPerfume product placeholder</title>
+  <desc id="desc">Product image is not available.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#fbf6ee"/>
+      <stop offset="1" stop-color="#efe5d7"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="880" fill="url(#background)"/>
+  <rect x="184" y="246" width="352" height="366" rx="42" fill="none" stroke="#c0a270" stroke-width="5"/>
+  <rect x="276" y="190" width="168" height="64" rx="14" fill="none" stroke="#c0a270" stroke-width="5"/>
+  <rect x="292" y="168" width="136" height="23" rx="6" fill="#c0a270"/>
+  <path d="M229 518c70-116 190-145 262-56" fill="none" stroke="#d5bf98" stroke-width="4"/>
+  <text x="360" y="683" text-anchor="middle" fill="#3b2b23" font-family="Georgia, serif" font-size="38" letter-spacing="4">HUYPERFUME</text>
+  <text x="360" y="726" text-anchor="middle" fill="#7a685d" font-family="Arial, sans-serif" font-size="16" letter-spacing="3">IMAGE COMING SOON</text>
+</svg>

@@ -187,6 +187,17 @@ export function normalizeOrder(raw: any): OrderResponse {
       priceAtPurchase: asNumber(item.priceAtPurchase ?? item.price_at_purchase ?? item.price),
     }))
     : [];
+  const timeline = Array.isArray(raw?.timeline)
+    ? raw.timeline.map((event: any) => ({
+      id: asNumber(event.id),
+      oldStatus: event.oldStatus ?? event.old_status ?? null,
+      newStatus: asString(event.newStatus ?? event.new_status),
+      changedBy: event.changedBy ?? event.changed_by ?? null,
+      changedByName: asString(event.changedByName ?? event.changed_by_name),
+      note: asString(event.note),
+      createdAt: asString(event.createdAt ?? event.created_at),
+    }))
+    : [];
 
   return {
     id: asNumber(raw?.id),
@@ -202,6 +213,7 @@ export function normalizeOrder(raw: any): OrderResponse {
     status: asString(raw?.status),
     createdAt: asString(raw?.createdAt ?? raw?.created_at),
     items,
+    timeline,
     paymentUrl: raw?.paymentUrl ?? raw?.payUrl ?? raw?.orderUrl,
   };
 }

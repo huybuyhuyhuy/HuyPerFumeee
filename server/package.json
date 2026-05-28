@@ -8,6 +8,9 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "db:migrate:auth": "node scripts/run-sql-migration.js migrations/20260524_auth_user_system.sql",
+    "db:migrate:cart": "node scripts/run-sql-migration.js migrations/001_create_cart_tables.sql",
+    "db:migrate:admin-products": "node scripts/run-sql-migration.js migrations/002_admin_products_soft_delete.sql",
+    "db:migrate:order-status": "node scripts/run-sql-migration.js migrations/002_create_order_status_history.sql",
     "db:migrate:cart-variants": "node scripts/run-sql-migration.js migrations/20260526_cart_items_variant_compat.sql"
   },
   "dependencies": {

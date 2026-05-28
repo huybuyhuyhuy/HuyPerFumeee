@@ -1,8 +1,9 @@
 import { errorResponse, successResponse } from '../utils/response.js';
 import { getAdminOrderAnalytics, getAdminOrderById, listAdminOrders, updateAdminOrderStatus } from '../models/adminOrderModel.js';
 import { auditLog } from '../config/logger.js';
+import { ORDER_STATUS_VALUES } from '../constants/orderStatus.js';
 
-const ALLOWED_ORDER_STATUSES = new Set(['Waiting', 'Paid', 'Processing', 'Delivered', 'Completed', 'Cancelled', 'refunded']);
+const ALLOWED_ORDER_STATUSES = new Set(ORDER_STATUS_VALUES);
 
 export async function listOrders(req, res) {
   try {
@@ -77,7 +78,8 @@ export async function changeStatus(req, res) {
     }
 
     const orderId = Number(req.params.id);
-    const status = String(req.body?.status || '').trim();
+    const status = String(req.body?.status || '').trim().toUpperCase();
+    const note = String(req.body?.note || '').trim().slice(0, 500) || null;
     if (!orderId || !status) {
       return errorResponse(res, 400, 'Dữ liệu cập nhật không hợp lệ');
     }
@@ -85,7 +87,7 @@ export async function changeStatus(req, res) {
       return errorResponse(res, 400, 'Trạng thái đơn hàng không hợp lệ');
     }
 
-    const result = await updateAdminOrderStatus(orderId, status);
+    const result = await updateAdminOrderStatus(orderId, status, { changedBy: req.user.id, note });
     if (result.code) {
       return errorResponse(res, result.code, result.message);
     }

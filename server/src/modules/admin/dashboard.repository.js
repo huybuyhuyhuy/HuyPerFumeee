@@ -64,7 +64,7 @@ export async function fetchOrderStats() {
   // Re-using the same placeholder string (e.g. for REVENUE in both SUM and AVG)
   // would create ? markers with no corresponding param values → SQL error.
   const revSum = collectInClause(STATUS_GROUPS.REVENUE, p);
-  const valid = collectInClause(STATUS_GROUPS.VALID_ORDERS, p);
+  const excluded = collectInClause(STATUS_GROUPS.EXCLUDED_NON_ORDERS, p);
   const completed = collectInClause(STATUS_GROUPS.COMPLETED_MAPPING, p);
   const pending = collectInClause(STATUS_GROUPS.PENDING, p);
   const cancelled = collectInClause(STATUS_GROUPS.CANCELLED_OR_FAILED, p);
@@ -74,7 +74,7 @@ export async function fetchOrderStats() {
   const [row] = await query(
     `SELECT
        COALESCE(SUM(CASE WHEN o.status IN (${revSum}) THEN o.total ELSE 0 END), 0)   AS totalRevenue,
-       COUNT(CASE WHEN o.status IN (${valid}) THEN 1 END)                             AS totalOrders,
+       COUNT(CASE WHEN ISNULL(o.status, '') NOT IN (${excluded}) THEN 1 END)          AS totalOrders,
        COUNT(CASE WHEN o.status IN (${completed}) THEN 1 END)                         AS completedOrders,
        COUNT(CASE WHEN o.status IN (${pending}) THEN 1 END)                           AS pendingOrders,
        COUNT(CASE WHEN o.status IN (${cancelled}) THEN 1 END)                         AS cancelledOrders,
@@ -235,6 +235,17 @@ export async function fetchLowStockCount() {
       )
     : [];
   return Number(products[0]?.total || 0) + Number(variants[0]?.total || 0);
+}
+
+export async function fetchLowStockProductCount() {
+  const { product } = await getDashboardCapabilities();
+  const [row] = await query(
+    `SELECT COUNT(*) AS total
+     FROM products p
+     WHERE ${activeProductCondition(product)}
+       AND ISNULL(p.stock, 0) <= 5`,
+  );
+  return Number(row?.total || 0);
 }
 
 // ────────────────────────────────────────────────────────────

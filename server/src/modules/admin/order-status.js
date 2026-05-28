@@ -1,113 +1,73 @@
-const ORDER_STATUS = {
-  // Current English values in DB
+import { ORDER_STATUS } from '../../constants/orderStatus.js';
+
+const LEGACY = {
   WAITING: 'Waiting',
   PAID: 'Paid',
+  PROCESSING: 'Processing',
+  SHIPPED: 'Shipped',
   DELIVERED: 'Delivered',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
-
-  // Vietnamese (legacy data / manual admin updates)
-  GIAO_HANG_THANH_CONG: 'Giao hàng thành công',
-  DA_XAC_NHAN: 'Đã xác nhận',
-  DANG_GIAO: 'Đang giao',
-  DA_HUY: 'Đã hủy',
-
-  // Future standardized (forward-compatible)
-  PENDING_TITLE: 'Pending',
-  PROCESSING_TITLE: 'Processing',
-  SHIPPED_TITLE: 'Shipped',
-  PENDING: 'pending',
-  PROCESSING: 'processing',
-  SHIPPED: 'shipped',
-  DELIVERED_LOWER: 'delivered',
-  COMPLETED_LOWER: 'completed',
-  CANCELLED_LOWER: 'cancelled',
-  FAILED_TITLE: 'Failed',
-  FAILED: 'failed',
-  REFUNDED_TITLE: 'Refunded',
   REFUNDED: 'refunded',
-
-  // Non-order
+  VI_PENDING: 'Chờ xác nhận',
+  VI_SHIPPING: 'Đang giao',
+  VI_DELIVERED: 'Giao hàng thành công',
+  VI_CANCELLED: 'Đã hủy',
+  VI_REFUNDED: 'Đã hoàn tiền',
   CART: 'Cart',
 };
 
 const STATUS_GROUPS = {
-  // Revenue = payment received AND delivery completed.
-  // Excludes 'Đã xác nhận' (confirmed, possibly unpaid) and 'Đang giao' (in transit).
   REVENUE: [
-    ORDER_STATUS.PAID,
     ORDER_STATUS.DELIVERED,
     ORDER_STATUS.COMPLETED,
-    ORDER_STATUS.GIAO_HANG_THANH_CONG,
-    ORDER_STATUS.DELIVERED_LOWER,
-    ORDER_STATUS.COMPLETED_LOWER,
+    LEGACY.PAID,
+    LEGACY.DELIVERED,
+    LEGACY.COMPLETED,
+    LEGACY.VI_DELIVERED,
   ],
-
-  // Orders in flight — not completed, not cancelled, not refunded
   PENDING: [
-    ORDER_STATUS.WAITING,
-    ORDER_STATUS.DA_XAC_NHAN,
-    ORDER_STATUS.DANG_GIAO,
-    ORDER_STATUS.PENDING_TITLE,
-    ORDER_STATUS.PROCESSING_TITLE,
-    ORDER_STATUS.SHIPPED_TITLE,
     ORDER_STATUS.PENDING,
-    ORDER_STATUS.PROCESSING,
-    ORDER_STATUS.SHIPPED,
+    ORDER_STATUS.CONFIRMED,
+    ORDER_STATUS.PACKING,
+    ORDER_STATUS.SHIPPING,
+    LEGACY.WAITING,
+    LEGACY.PROCESSING,
+    LEGACY.SHIPPED,
+    LEGACY.VI_PENDING,
+    LEGACY.VI_SHIPPING,
   ],
-
-  // Terminal completed states
   COMPLETED_MAPPING: [
     ORDER_STATUS.DELIVERED,
     ORDER_STATUS.COMPLETED,
-    ORDER_STATUS.GIAO_HANG_THANH_CONG,
-    ORDER_STATUS.DELIVERED_LOWER,
-    ORDER_STATUS.COMPLETED_LOWER,
+    LEGACY.DELIVERED,
+    LEGACY.COMPLETED,
+    LEGACY.VI_DELIVERED,
   ],
-
-  // Cancelled at any stage
   CANCELLED_OR_FAILED: [
     ORDER_STATUS.CANCELLED,
-    ORDER_STATUS.DA_HUY,
-    ORDER_STATUS.CANCELLED_LOWER,
-    ORDER_STATUS.FAILED_TITLE,
-    ORDER_STATUS.FAILED,
+    LEGACY.CANCELLED,
+    LEGACY.VI_CANCELLED,
   ],
-
-  // Refunded orders
   REFUNDED: [
-    ORDER_STATUS.REFUNDED_TITLE,
     ORDER_STATUS.REFUNDED,
+    LEGACY.REFUNDED,
+    LEGACY.VI_REFUNDED,
   ],
-
-  // Statuses that are not real orders
-  EXCLUDED_NON_ORDERS: [
-    ORDER_STATUS.CART,
-  ],
+  EXCLUDED_NON_ORDERS: [LEGACY.CART],
 };
 
-// All statuses that represent a valid (non-cart, non-cancelled, non-refunded) order
-STATUS_GROUPS.VALID_ORDERS = dedupe([
-  ...STATUS_GROUPS.REVENUE,
-  ...STATUS_GROUPS.PENDING,
-]);
-
-// All non-valid statuses (cart + cancelled + failed + refunded)
+STATUS_GROUPS.VALID_ORDERS = dedupe([...STATUS_GROUPS.REVENUE, ...STATUS_GROUPS.PENDING]);
 STATUS_GROUPS.CANCELLED_REFUNDED_FAILED = dedupe([
   ...STATUS_GROUPS.EXCLUDED_NON_ORDERS,
   ...STATUS_GROUPS.CANCELLED_OR_FAILED,
   ...STATUS_GROUPS.REFUNDED,
 ]);
 
-function dedupe(arr) {
-  return [...new Set(arr)];
+function dedupe(values) {
+  return [...new Set(values)];
 }
 
-/**
- * Build comma-separated `?` placeholders for parameterized IN clauses.
- * @param {string[]} statuses
- * @returns {string} e.g. "?, ?, ?"
- */
 function sqlInClause(statuses) {
   return statuses.map(() => '?').join(', ');
 }

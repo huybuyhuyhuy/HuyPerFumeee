@@ -9,7 +9,7 @@ import {
   formatAdminCurrency,
   formatAdminDate,
 } from '../components/Admin/AdminUi';
-import { resolveProductImage } from '../utils/image';
+import { DEFAULT_PRODUCT_IMAGE, resolveProductImage } from '../utils/image';
 
 const RANGE_OPTIONS = [
   { value: '7d', label: '7 ngày' },
@@ -83,7 +83,7 @@ function chartLabel(value, range) {
 
 function productFallbackImage(event) {
   event.currentTarget.onerror = null;
-  event.currentTarget.src = '/assets/images/1.webp';
+  event.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
 }
 
 export function AdminReportsPage() {
