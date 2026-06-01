@@ -550,13 +550,17 @@ export function ProductListPage() {
           </div>
         </header>
 
-        <div className="luxury-listing-summary">
+        <div className="luxury-listing-summary luxury-listing-summary-elevated">
           <div>
             <span className="luxury-summary-kicker">Danh sách sản phẩm</span>
             <strong>{resultCount.toLocaleString('vi-VN')}</strong>
             <span>sản phẩm</span>
           </div>
-          {search && <p>Kết quả cho: “{search}”</p>}
+          <div className="luxury-summary-pill-row">
+            {search && <span className="luxury-summary-pill">Kết quả cho: “{search}”</span>}
+            {priceRange && <span className="luxury-summary-pill">Khoảng giá: {PRICE_RANGES.find((range) => range.value === priceRange)?.label || priceRange}</span>}
+            {sort && <span className="luxury-summary-pill">Sắp xếp: {SORT_OPTIONS.find((option) => option.value === sort)?.label || sort}</span>}
+          </div>
         </div>
 
         <section className="luxury-listing-layout">

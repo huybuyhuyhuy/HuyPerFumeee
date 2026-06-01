@@ -21,6 +21,25 @@ export interface ProductVariant {
   isAvailable: boolean;
 }
 
+export interface DecantOption {
+  id: number;
+  productId: number;
+  volumeMl: number;
+  price: number;
+  status: boolean;
+}
+
+export interface ProductBatch {
+  id: number;
+  productId: number;
+  batchCode: string;
+  totalVolumeMl: number;
+  remainingVolumeMl: number;
+  importPrice: number | null;
+  status: string;
+  createdAt?: string | null;
+}
+
 export interface User {
   id: number;
   name: string;
@@ -55,6 +74,8 @@ export interface Product {
   gender?: string;
   concentration?: string;
   isDecant: boolean;
+  itemType?: 'FULL_BOTTLE' | 'DECANT' | string;
+  selectedVolumeMl?: number | null;
   status: boolean;
   stockQuantity?: number;
   stock: number;
@@ -70,6 +91,9 @@ export interface Product {
   thumbnailImage?: string | null;
   selectedVariant?: ProductVariant | null;
   variants?: ProductVariant[];
+  decantOptions?: DecantOption[];
+  availableVolumeMl?: number;
+  batches?: ProductBatch[];
   category: { id: number; name: string } | null;
   brand: { id: number; name: string } | null;
   decantInventory?: DecantInventory | null;
@@ -110,6 +134,9 @@ export interface OrderItemInfo {
   price: number;
   selectedBatchCode: string;
   priceAtPurchase: number;
+  itemType?: 'FULL_BOTTLE' | 'DECANT' | string;
+  selectedVolumeMl?: number | null;
+  sourceBatchId?: number | null;
 }
 
 export interface OrderStatusHistoryItem {
@@ -127,6 +154,12 @@ export interface OrderResponse {
   userId: number;
   userName: string;
   total: number;
+  subtotal?: number;
+  voucherId?: number | null;
+  voucherCode?: string;
+  voucherDiscountType?: string;
+  voucherDiscountValue?: number | null;
+  voucherDiscountAmount?: number;
   shippingAddress: string;
   phone: string;
   paymentMethod: string;

@@ -7,7 +7,7 @@ import { resolveProductImage } from '../utils/image';
 import { formatVnCurrency } from '../utils/formatters';
 
 export function WishlistPage() {
-  const { items, removeFromWishlist, clearWishlist } = useWishlist();
+  const { items, loading, error, refreshWishlist, removeFromWishlist, clearWishlist } = useWishlist();
   const { isLoggedIn } = useAuth();
   const { pushToast } = useToast();
   const navigate = useNavigate();
@@ -28,6 +28,11 @@ export function WishlistPage() {
     }
   };
 
+  const handleToggleWishlist = async (productId: number) => {
+    const ok = await removeFromWishlist(productId);
+    if (ok) pushToast('Đã xóa khỏi wishlist.', 'success');
+  };
+
   return (
     <main className="luxury-page wishlist-page">
       <div className="container">
@@ -43,7 +48,20 @@ export function WishlistPage() {
           </div>
         </section>
 
-        {items.length === 0 ? (
+        {loading ? (
+          <div className="luxury-cart-empty luxury-surface text-center">
+            <p className="section-eyebrow justify-content-center">Đang tải</p>
+            <h2>Đang đồng bộ wishlist</h2>
+            <p>Vui lòng chờ một lát, chúng tôi đang tải danh sách yêu thích của bạn.</p>
+          </div>
+        ) : error && items.length === 0 ? (
+          <div className="luxury-cart-empty luxury-surface text-center">
+            <p className="section-eyebrow justify-content-center">Lỗi đồng bộ</p>
+            <h2>Không tải được wishlist</h2>
+            <p>{error}</p>
+            <button type="button" className="btn luxury-primary-btn" onClick={refreshWishlist}>Thử lại</button>
+          </div>
+        ) : items.length === 0 ? (
           <div className="luxury-cart-empty luxury-surface text-center">
             <p className="section-eyebrow justify-content-center">Chưa có hương thơm nào</p>
             <h2>Chưa có sản phẩm yêu thích</h2>
@@ -53,7 +71,7 @@ export function WishlistPage() {
         ) : (
           <>
             <div className="luxury-wishlist-toolbar">
-              <span>Shortlist đã được lưu trên trình duyệt này.</span>
+              <span>{isLoggedIn ? 'Danh sách yêu thích đang đồng bộ với tài khoản của bạn.' : 'Shortlist đã được lưu trên trình duyệt này.'}</span>
               <button type="button" className="btn luxury-link-btn" onClick={clearWishlist}>Xóa tất cả</button>
             </div>
 
@@ -80,7 +98,7 @@ export function WishlistPage() {
                       <button type="button" className="btn luxury-primary-btn" disabled={product.stock <= 0} onClick={() => handleAddToCart(Number(product.id))}>
                         {product.stock <= 0 ? 'Hết hàng' : 'Thêm vào giỏ'}
                       </button>
-                      <button type="button" className="btn luxury-secondary-btn" onClick={() => removeFromWishlist(Number(product.id))}>Bỏ lưu</button>
+                      <button type="button" className="btn luxury-secondary-btn" onClick={() => handleToggleWishlist(Number(product.id))}>Bỏ lưu</button>
                       <button type="button" className="btn luxury-link-btn" onClick={() => navigate(`/products/${product.id}`)}>Xem chi tiết</button>
                     </div>
                   </article>

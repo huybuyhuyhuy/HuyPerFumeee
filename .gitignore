@@ -20,3 +20,7 @@ Thumbs.db
 
 # Local runtime state and startup logs
 .runtime/
+.codex-screens/
+.chrome-*/
+*.out.log
+*.err.log

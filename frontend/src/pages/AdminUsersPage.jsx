@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -8,14 +8,31 @@ import {
   AdminPagination,
   AdminStatGrid,
   AdminStatusBadge,
+  formatAdminCurrency,
   formatAdminDate,
 } from '../components/Admin/AdminUi';
 
 const PAGE_SIZE = 12;
 const DEFAULT_FILTERS = { search: '', role: '', status: '' };
+const ROLE_OPTIONS = [
+  { value: '', label: 'Tất cả' },
+  { value: 'USER', label: 'Khách hàng' },
+  { value: 'STAFF', label: 'Nhân viên' },
+  { value: 'ADMIN', label: 'Quản trị' },
+];
+const STATUS_OPTIONS = [
+  { value: '', label: 'Tất cả' },
+  { value: 'ACTIVE', label: 'ACTIVE' },
+  { value: 'LOCKED', label: 'LOCKED' },
+  { value: 'DISABLED', label: 'DISABLED' },
+];
 
 function unwrapApiData(payload) {
   return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload;
+}
+
+function initials(value) {
+  return String(value || '?').trim().charAt(0).toUpperCase();
 }
 
 export function AdminUsersPage() {
@@ -27,7 +44,7 @@ export function AdminUsersPage() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
   const [page, setPage] = useState(1);
-  const [busyId, setBusyId] = useState(null);
+  const [busy, setBusy] = useState({});
   const [feedback, setFeedback] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,26 +52,27 @@ export function AdminUsersPage() {
   const load = () => {
     setLoading(true);
     setError('');
-    api
-      .get('/admin/users', { params: { page, pageSize: PAGE_SIZE, ...appliedFilters } })
+    api.get('/admin/users', { params: { page, pageSize: PAGE_SIZE, ...appliedFilters } })
       .then((res) => {
         const data = unwrapApiData(res.data) || {};
         setUsers(Array.isArray(data.content) ? data.content : []);
         setSummary(data.summary || {});
         setFeatures(data.features || { canManageStatus: false });
-        setPagination({
-          page: Number(data.page || page),
-          totalPages: Number(data.totalPages || 1),
-          totalElements: Number(data.totalElements || 0),
-        });
+        setPagination({ page: Number(data.page || page), totalPages: Number(data.totalPages || 1), totalElements: Number(data.totalElements || 0) });
       })
-      .catch((err) => setError(err?.message || 'Không tải được danh sách người dùng.'))
+      .catch((err) => setError(err?.message || 'Không tải được danh sách khách hàng.'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    load();
-  }, [page, appliedFilters]);
+  useEffect(() => { load(); }, [page, appliedFilters]);
+
+  const stats = useMemo(() => ([
+    { label: 'Tài khoản', value: Number(summary.total || 0).toLocaleString('vi-VN'), hint: 'Toàn hệ thống' },
+    { label: 'Khách hàng', value: Number(summary.customers || 0).toLocaleString('vi-VN'), hint: 'Vai trò USER', tone: 'positive' },
+    { label: 'Quản trị viên', value: Number(summary.admins || 0).toLocaleString('vi-VN'), hint: 'Vai trò ADMIN' },
+    { label: 'Đang hoạt động', value: Number(summary.active || 0).toLocaleString('vi-VN'), hint: 'ACTIVE', tone: 'positive' },
+    { label: 'Bị khóa', value: Number(summary.locked || 0).toLocaleString('vi-VN'), hint: 'LOCKED', tone: 'negative' },
+  ]), [summary]);
 
   const applyFilters = (event) => {
     event.preventDefault();
@@ -68,78 +86,62 @@ export function AdminUsersPage() {
     setAppliedFilters(DEFAULT_FILTERS);
   };
 
-  const toggleAccountStatus = async (account) => {
-    const nextStatus = account.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED';
-    const verb = nextStatus === 'DISABLED' ? 'vô hiệu hóa' : 'mở lại';
-    if (!window.confirm(`Bạn chắc chắn muốn ${verb} tài khoản ${account.name || account.email}?`)) return;
-    setBusyId(account.id);
+  const updateUser = async (userId, endpoint, payload, successText) => {
+    setBusy((state) => ({ ...state, [userId]: true }));
     setFeedback('');
+    setError('');
     try {
-      await api.put(`/admin/users/${account.id}`, { status: nextStatus });
-      setFeedback(`Đã ${verb} tài khoản ${account.name || account.email}.`);
+      await api.patch(`/admin/users/${userId}/${endpoint}`, payload);
+      setFeedback(successText);
       load();
     } catch (err) {
-      setError(err?.message || 'Không cập nhật được trạng thái tài khoản.');
+      setError(err?.message || 'Cập nhật thất bại.');
     } finally {
-      setBusyId(null);
+      setBusy((state) => ({ ...state, [userId]: false }));
     }
   };
 
-  const stats = [
-    { label: 'Tài khoản', value: Number(summary.total || 0).toLocaleString('vi-VN'), hint: 'Toàn hệ thống' },
-    { label: 'Khách hàng', value: Number(summary.customers || 0).toLocaleString('vi-VN'), hint: 'Vai trò USER', tone: 'positive' },
-    { label: 'Quản trị viên', value: Number(summary.admins || 0).toLocaleString('vi-VN'), hint: 'Vai trò ADMIN' },
-    { label: 'Đang hoạt động', value: Number(summary.active || 0).toLocaleString('vi-VN'), hint: features.canManageStatus ? 'Có thể truy cập' : 'Schema hiện tại', tone: 'positive' },
-  ];
+  const toggleStatus = (account) => {
+    const nextStatus = account.status === 'LOCKED' ? 'ACTIVE' : 'LOCKED';
+    const verb = nextStatus === 'LOCKED' ? 'khóa' : 'mở khóa';
+    if (!window.confirm(`Bạn chắc chắn muốn ${verb} ${account.name || account.email}?`)) return;
+    updateUser(account.id, 'status', { status: nextStatus }, `Đã ${verb} tài khoản ${account.name || account.email}.`);
+  };
+
+  const changeRole = (account) => {
+    const nextRole = window.prompt('Nhập vai trò mới (USER, STAFF, ADMIN):', account.role || 'USER');
+    if (!nextRole) return;
+    updateUser(account.id, 'role', { role: nextRole.toUpperCase() }, `Đã đổi vai trò của ${account.name || account.email}.`);
+  };
 
   return (
     <div className="admin-page">
       <AdminPageHeader
-        eyebrow="Danh sách khách hàng"
-        title="Quản lý người dùng"
-        description="Tìm kiếm tài khoản, xem vai trò và truy cập nhanh lịch sử đơn hàng của khách."
+        eyebrow="Khách hàng & tài khoản"
+        title="Quản lý khách hàng HuyPerFumeee"
+        description="Tìm nhanh theo tên, email, số điện thoại; kiểm soát vai trò, trạng thái và truy cập chi tiết khách hàng."
         action={<button type="button" className="btn btn-outline-dark" onClick={load}>Làm mới dữ liệu</button>}
       />
 
       <AdminStatGrid items={stats} />
 
-      {!features.canManageStatus && !loading && (
-        <div className="admin-capability-note">
-          Trạng thái khóa tài khoản sẽ khả dụng sau khi chạy migration hệ thống xác thực; dữ liệu người dùng hiện vẫn xem và lọc theo vai trò bình thường.
-        </div>
-      )}
-
       <form className="admin-filter-panel" onSubmit={applyFilters}>
         <div className="admin-filter-field grow">
-          <label htmlFor="admin-user-search">Tìm người dùng</label>
-          <input
-            id="admin-user-search"
-            className="form-control"
-            value={filters.search}
-            onChange={(event) => setFilters({ ...filters, search: event.target.value })}
-            placeholder="Tên, email hoặc số điện thoại"
-          />
+          <label htmlFor="admin-user-search">Tìm khách hàng</label>
+          <input id="admin-user-search" className="form-control" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} placeholder="Tên, email hoặc số điện thoại" />
         </div>
         <div className="admin-filter-field">
           <label htmlFor="admin-user-role">Vai trò</label>
-          <select id="admin-user-role" className="form-select" value={filters.role} onChange={(event) => setFilters({ ...filters, role: event.target.value })}>
-            <option value="">Tất cả</option>
-            <option value="USER">Khách hàng</option>
-            <option value="STAFF">Nhân viên</option>
-            <option value="ADMIN">Quản trị</option>
+          <select id="admin-user-role" className="form-select" value={filters.role} onChange={(e) => setFilters({ ...filters, role: e.target.value })}>
+            {ROLE_OPTIONS.map((opt) => <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>)}
           </select>
         </div>
-        {features.canManageStatus && (
-          <div className="admin-filter-field">
-            <label htmlFor="admin-user-status">Trạng thái</label>
-            <select id="admin-user-status" className="form-select" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}>
-              <option value="">Tất cả</option>
-              <option value="ACTIVE">Đang hoạt động</option>
-              <option value="DISABLED">Đã khóa</option>
-              <option value="LOCKED">Tạm khóa</option>
-            </select>
-          </div>
-        )}
+        <div className="admin-filter-field">
+          <label htmlFor="admin-user-status">Trạng thái</label>
+          <select id="admin-user-status" className="form-select" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+            {STATUS_OPTIONS.map((opt) => <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </div>
         <button className="btn luxury-primary-btn" type="submit">Lọc</button>
         <button className="btn btn-outline-dark" type="button" onClick={clearFilters}>Xóa lọc</button>
       </form>
@@ -148,20 +150,19 @@ export function AdminUsersPage() {
       {feedback && <div className="alert alert-success admin-alert">{feedback}</div>}
 
       <section className="admin-table-panel">
-        {loading ? (
-          <div className="admin-loading"><div className="spinner-border" /> Đang tải người dùng...</div>
-        ) : users.length === 0 ? (
-          <AdminEmptyState title="Không tìm thấy tài khoản" description="Thử tìm bằng email hoặc thay đổi bộ lọc vai trò." />
+        {loading ? <div className="admin-loading"><div className="spinner-border" /> Đang tải khách hàng...</div> : users.length === 0 ? (
+          <AdminEmptyState title="Không tìm thấy khách hàng" description="Thử thay đổi điều kiện tìm kiếm hoặc bộ lọc vai trò/trạng thái." />
         ) : (
           <>
             <div className="table-responsive">
               <table className="table admin-table align-middle">
                 <thead>
                   <tr>
-                    <th>Người dùng</th>
+                    <th>Khách hàng</th>
                     <th>Liên hệ</th>
                     <th>Vai trò</th>
                     <th>Trạng thái</th>
+                    <th>Đăng nhập cuối</th>
                     <th>Ngày tạo</th>
                     <th className="text-end">Hành động</th>
                   </tr>
@@ -171,39 +172,24 @@ export function AdminUsersPage() {
                     <tr key={account.id}>
                       <td>
                         <div className="admin-user-cell">
-                          <span>{String(account.name || account.email || '?').charAt(0)}</span>
-                          <div>
-                            <strong>{account.name || '-'}</strong>
-                            <small>#{account.id}</small>
-                          </div>
+                          <span>{initials(account.name || account.email)}</span>
+                          <div><strong>{account.name || '-'}</strong><small>#{account.id}</small></div>
                         </div>
                       </td>
-                      <td>
-                        <div className="admin-contact-cell">
-                          <span>{account.email}</span>
-                          <small>{account.phone || '-'}</small>
-                        </div>
-                      </td>
+                      <td><div className="admin-contact-cell"><span>{account.email}</span><small>{account.phone || '-'}</small></div></td>
                       <td><span className="admin-role-badge">{account.role}</span></td>
                       <td><AdminStatusBadge status={account.status} /></td>
+                      <td>{formatAdminDate(account.lastLoginAt)}</td>
                       <td>{formatAdminDate(account.created_at)}</td>
                       <td>
                         <div className="admin-row-actions justify-content-end">
-                          <Link
-                            to={`/admin/orders?userId=${account.id}&userName=${encodeURIComponent(account.name || account.email || '')}`}
-                            className="btn btn-sm btn-outline-dark"
-                          >
-                            Xem đơn
-                          </Link>
+                          <Link to={`/admin/users/${account.id}`} className="btn btn-sm btn-outline-dark">Xem chi tiết</Link>
+                          <Link to={`/admin/orders?userId=${account.id}&userName=${encodeURIComponent(account.name || account.email || '')}`} className="btn btn-sm btn-outline-dark">Xem đơn</Link>
                           {features.canManageStatus && Number(currentUser?.id) !== Number(account.id) && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-dark"
-                              disabled={busyId === account.id}
-                              onClick={() => toggleAccountStatus(account)}
-                            >
-                              {account.status === 'DISABLED' ? 'Mở lại' : 'Khóa'}
-                            </button>
+                            <button type="button" className="btn btn-sm btn-outline-dark" disabled={busy[account.id]} onClick={() => toggleStatus(account)}>{account.status === 'LOCKED' ? 'Mở khóa' : 'Khóa'}</button>
+                          )}
+                          {features.canManageStatus && Number(currentUser?.id) !== Number(account.id) && (
+                            <button type="button" className="btn btn-sm btn-outline-dark" disabled={busy[account.id]} onClick={() => changeRole(account)}>Đổi role</button>
                           )}
                         </div>
                       </td>

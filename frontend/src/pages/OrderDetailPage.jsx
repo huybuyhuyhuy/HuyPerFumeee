@@ -21,6 +21,11 @@ function StatusBadge({ status }) {
   );
 }
 
+function getOrderItemLabel(item) {
+  const isDecant = String(item?.itemType || '').toUpperCase() === 'DECANT';
+  return isDecant ? `Chiết ${item?.selectedVolumeMl || ''}ml`.trim() : 'Full chai';
+}
+
 function OrderProgress({ order }) {
   const activeStep = getOrderTimelineIndex(order.status, order.timeline);
   const terminalStatus = [ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED].includes(order.status);
@@ -152,11 +157,12 @@ export function OrderDetailPage() {
           {Array.isArray(order.items) && order.items.length > 0 ? (
             <>
               {order.items.map((item) => (
-                <article key={item.id} className="order-detail-item">
+                <article key={`${item.id}-${item.itemType || 'FULL_BOTTLE'}-${item.selectedVolumeMl || 'full'}`} className="order-detail-item">
                   <div className="d-flex align-items-center gap-3">
                     <img src={resolveProductImage(item.productImage)} alt={item.productName} loading="lazy" decoding="async" />
                     <div>
                       <strong>{item.productName}</strong>
+                      <small>{getOrderItemLabel(item)}</small>
                       <small>Số lượng: {item.quantity}</small>
                     </div>
                   </div>

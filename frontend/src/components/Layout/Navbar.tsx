@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth.js';
 import { useCart } from '../../hooks/useCart';
@@ -55,8 +55,16 @@ export function Navbar() {
   const [categories, setCategories] = useState<NavbarCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [searchDraft, setSearchDraft] = useState('');
 
   const handleLogout = () => { logout(); navigate('/home'); };
+
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const keyword = searchDraft.trim();
+    setMobileOpen(false);
+    navigate(keyword ? `/products?search=${encodeURIComponent(keyword)}` : '/products');
+  };
 
   useEffect(() => {
     const onScroll = () => {
@@ -74,6 +82,10 @@ export function Navbar() {
     setMobileOpen(false);
     setCategoriesOpen(false);
   }, [location.pathname, location.search, location.hash]);
+
+  useEffect(() => {
+    setSearchDraft(new URLSearchParams(location.search).get('search') || '');
+  }, [location.search]);
 
   useEffect(() => {
     let active = true;
@@ -238,11 +250,20 @@ export function Navbar() {
             </div>
 
             <div className="navbar-quick-actions">
-              <Link className="icon-pill navbar-search-action text-decoration-none" to="/products" aria-label="Tìm kiếm sản phẩm">
+              <form className="navbar-search-form" role="search" onSubmit={handleSearchSubmit}>
                 <SearchIcon />
-                <span className="navbar-search-label">Tìm mùi hương</span>
-                <span className="navbar-mobile-label">Tìm kiếm</span>
-              </Link>
+                <input
+                  className="navbar-search-input"
+                  type="search"
+                  value={searchDraft}
+                  onChange={(event) => setSearchDraft(event.target.value)}
+                  placeholder="Tìm mùi hương"
+                  aria-label="Tìm kiếm sản phẩm"
+                />
+                <button type="submit" className="navbar-search-submit" aria-label="Tìm kiếm">
+                  Tìm
+                </button>
+              </form>
               <Link className="icon-pill text-decoration-none" to="/wishlist" aria-label="Yêu thích">
                 <HeartIcon />
                 <span className="navbar-mobile-label">Yêu thích</span>

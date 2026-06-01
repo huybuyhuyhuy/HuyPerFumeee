@@ -7,7 +7,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$serverPath = Join-Path $root 'server'
+$serverPath = Join-Path $root 'backend'
 $frontendPath = Join-Path $root 'frontend'
 $runtimePath = Join-Path $root '.runtime'
 $logPath = Join-Path $runtimePath 'logs'
@@ -107,7 +107,7 @@ function Start-ManagedProcess {
 }
 
 if (-not (Test-Path (Join-Path $serverPath 'node_modules'))) {
-    throw 'Server dependencies are missing. Run npm install --prefix server once.'
+    throw 'Backend dependencies are missing. Run npm install --prefix backend once.'
 }
 if (-not (Test-Path (Join-Path $frontendPath 'node_modules'))) {
     throw 'Frontend dependencies are missing. Run npm install --prefix frontend once.'

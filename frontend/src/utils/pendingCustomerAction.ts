@@ -8,6 +8,8 @@ export type PendingCustomerAction =
       productId: number;
       quantity?: number;
       variantId?: number | string | null;
+      itemType?: string | null;
+      volumeMl?: number | string | null;
       returnTo: string;
     }
   | {

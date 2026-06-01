@@ -1,9 +1,0 @@
-node_modules/
-.env
-logs/
-*.log
-.git/
-.vscode/
-ARCHITECTURE*.md
-generate_mssql_script.js
-migrate_to_sqlserver.js

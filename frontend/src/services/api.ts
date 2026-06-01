@@ -25,12 +25,44 @@ const api = axios.create({
 const TOKEN_KEY = 'token';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 const USER_KEY = 'user';
+const AUTH_TRANSFER_KEY = 'huyperfume-auth-transfer';
 const VIEW_TOKEN_KEY = 'huyperfumeViewToken';
 const CART_TOKEN_KEY = 'huyperfumeCartToken';
 let refreshInFlight: Promise<string | null> | null = null;
 
+function readAuthTransferToken() {
+  try {
+    const raw = typeof window === 'undefined' ? '' : window.name || '';
+    if (!raw.includes(AUTH_TRANSFER_KEY)) return null;
+
+    const payload = JSON.parse(raw);
+    window.name = '';
+
+    if (
+      payload?.type !== AUTH_TRANSFER_KEY ||
+      !(payload?.token || payload?.accessToken) ||
+      Number(payload?.expiresAt || 0) < Date.now()
+    ) {
+      return null;
+    }
+
+    const token = payload.token || payload.accessToken;
+    sessionStorage.setItem(TOKEN_KEY, token);
+    if (payload.refreshToken) sessionStorage.setItem(REFRESH_TOKEN_KEY, payload.refreshToken);
+    if (payload.user) sessionStorage.setItem(USER_KEY, JSON.stringify(payload.user));
+    return token;
+  } catch {
+    if (typeof window !== 'undefined') window.name = '';
+    return null;
+  }
+}
+
+function getAccessToken() {
+  return sessionStorage.getItem(TOKEN_KEY) || readAuthTransferToken() || localStorage.getItem(TOKEN_KEY);
+}
+
 async function refreshAccessToken() {
-  const refreshToken = sessionStorage.getItem(REFRESH_TOKEN_KEY);
+  const refreshToken = sessionStorage.getItem(REFRESH_TOKEN_KEY) || localStorage.getItem(REFRESH_TOKEN_KEY);
   if (!refreshToken) return null;
 
   const { data } = await axios.post(
@@ -86,7 +118,7 @@ function getOrCreateCartToken() {
 }
 
 api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem(TOKEN_KEY);
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

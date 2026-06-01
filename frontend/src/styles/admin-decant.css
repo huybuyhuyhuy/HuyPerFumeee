@@ -1,0 +1,272 @@
+.admin-decant-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-decant-page .admin-page-header {
+  margin-bottom: 0.25rem;
+}
+
+.admin-decant-page .admin-decant-summary-hero {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.admin-decant-page .admin-decant-stat {
+  padding: 1rem 1.05rem;
+  border-radius: 1.2rem;
+  border: 1px solid rgba(215, 221, 216, 0.8);
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(249,250,247,0.94));
+  box-shadow: 0 14px 28px rgba(44, 55, 53, 0.06);
+}
+
+.admin-decant-page .admin-decant-stat span {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #6b7674;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.admin-decant-page .admin-decant-stat strong {
+  color: #15201f;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.admin-decant-page .admin-decant-stat.warning { border-color: rgba(217, 166, 63, 0.35); }
+.admin-decant-page .admin-decant-stat.success { border-color: rgba(87, 152, 87, 0.35); }
+
+.admin-decant-page .admin-decant-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.admin-decant-page .admin-decant-cards > .admin-decant-card {
+  min-width: 0;
+}
+
+.admin-decant-page .admin-decant-card {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-decant-page .admin-decant-card .admin-list-stack,
+.admin-decant-page .admin-decant-card .admin-decant-option-grid,
+.admin-decant-page .admin-decant-card .admin-movement-timeline {
+  margin-top: auto;
+}
+
+.admin-decant-page .admin-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.admin-decant-page .admin-surface-card {
+  padding: 1.1rem;
+  border-radius: 1.35rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(251,252,248,0.92));
+  box-shadow: 0 18px 36px rgba(48, 58, 56, 0.08);
+}
+
+.admin-decant-page .admin-decant-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-decant-page .admin-surface-card h3,
+.admin-decant-page .admin-surface-card h4 {
+  margin-bottom: 0.5rem;
+}
+
+.admin-decant-page .admin-list-stack {
+  gap: 0.7rem;
+  flex: 1;
+}
+
+.admin-decant-page .admin-list-item {
+  align-items: center;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid rgba(215, 221, 216, 0.8);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.admin-decant-page .admin-list-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(159, 190, 67, 0.5);
+  box-shadow: 0 12px 24px rgba(52, 62, 60, 0.08);
+}
+
+.admin-decant-page .admin-list-item.active {
+  background: rgba(233, 239, 228, 0.62);
+}
+
+.admin-decant-page .admin-inventory-product {
+  gap: 0.15rem;
+}
+
+.admin-decant-page .admin-inventory-product strong {
+  font-size: 0.95rem;
+}
+
+.admin-decant-page .admin-inventory-product small {
+  font-size: 0.78rem;
+}
+
+.admin-decant-page .admin-decant-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.admin-decant-page .admin-decant-summary > div:last-child {
+  grid-column: 1 / -1;
+}
+
+.admin-decant-page .admin-decant-summary > div {
+  padding: 0.8rem 0.85rem;
+  border: 1px solid rgba(215, 221, 216, 0.72);
+  border-radius: 1rem;
+  background: rgba(248, 250, 246, 0.95);
+}
+
+.admin-decant-page .admin-decant-summary span {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #6f7978;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.admin-decant-page .admin-decant-summary strong {
+  color: #17201f;
+  font-size: 1rem;
+}
+
+.admin-decant-page .admin-decant-option-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 0.9rem;
+}
+
+.admin-decant-page .admin-decant-option-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.admin-decant-page .admin-decant-option-card {
+  padding: 0.9rem 0.95rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(215, 221, 216, 0.8);
+  background: rgba(252, 252, 250, 0.96);
+  box-shadow: 0 10px 22px rgba(44, 55, 53, 0.05);
+}
+
+.admin-decant-page .admin-decant-option-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.admin-decant-page .admin-decant-option-card p {
+  margin: 0 0 0.15rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #182322;
+}
+
+.admin-decant-page .admin-decant-option-card small {
+  color: var(--huy-admin-muted);
+}
+
+.admin-decant-page .admin-empty-state.compact {
+  padding: 0.9rem 1rem;
+  border-radius: 1rem;
+  border: 1px dashed rgba(159, 190, 67, 0.35);
+  background: rgba(248, 250, 245, 0.96);
+  color: #66706e;
+  font-size: 0.92rem;
+}
+
+.admin-decant-page .admin-movement-timeline {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.admin-decant-page .admin-movement-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.8rem 0.9rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(215, 221, 216, 0.78);
+  background: rgba(252, 252, 250, 0.95);
+}
+
+.admin-decant-page .admin-movement-badge {
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(159, 190, 67, 0.15);
+  color: #51611b;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.admin-decant-page .admin-movement-body strong {
+  display: block;
+  color: #182322;
+  margin-bottom: 0.15rem;
+}
+
+.admin-decant-page .admin-movement-body small {
+  color: var(--huy-admin-muted);
+}
+
+.admin-decant-page .admin-decant-option-row .btn {
+  min-width: 5.5rem;
+  border-radius: 999px;
+}
+
+.admin-decant-page .admin-list-item .btn {
+  border-radius: 999px;
+}
+
+@media (max-width: 992px) {
+  .admin-decant-page .admin-decant-summary-hero,
+  .admin-decant-page .admin-detail-grid,
+  .admin-decant-page .admin-decant-option-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-decant-page .admin-decant-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-decant-page .admin-decant-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-decant-page .admin-list-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

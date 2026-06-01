@@ -36,6 +36,7 @@ function transferAuthTo(url, authPayload) {
   window.name = JSON.stringify({
     type: AUTH_TRANSFER_KEY,
     token: authPayload.token,
+    refreshToken: authPayload.refreshToken,
     user: authPayload.user,
     expiresAt: Date.now() + 30_000,
   });
@@ -47,12 +48,13 @@ function transferAuthTo(url, authPayload) {
 
 function transferStoredAuthTo(url, user) {
   const token = sessionStorage.getItem('token');
+  const refreshToken = sessionStorage.getItem('refreshToken');
   if (!token) {
     window.location.assign(url);
     return;
   }
 
-  transferAuthTo(url, { token, user });
+  transferAuthTo(url, { token, refreshToken, user });
 }
 
 export function LoginPage() {
@@ -80,13 +82,16 @@ export function LoginPage() {
 
     try {
       if (pendingAction.type === 'cart') {
-        await cartService.addItem(pendingAction.productId, pendingAction.quantity || 1, pendingAction.variantId ?? null);
+        await cartService.addItem(pendingAction.productId, pendingAction.quantity || 1, pendingAction.variantId ?? null, {
+          itemType: pendingAction.itemType,
+          volumeMl: pendingAction.volumeMl,
+        });
         pushToast('Đã thêm sản phẩm vào giỏ hàng.', 'success');
         return;
       }
 
       if (pendingAction.type === 'wishlist') {
-        addToWishlist(pendingAction.product);
+        await addToWishlist(pendingAction.product);
         pushToast('Đã thêm sản phẩm vào danh sách yêu thích.', 'success');
       }
     } catch (err) {

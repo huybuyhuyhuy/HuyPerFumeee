@@ -6,7 +6,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MIGRATIONS_DIR="${SCRIPT_DIR}/../server/migrations"
+MIGRATIONS_DIR="${SCRIPT_DIR}/../backend/migrations"
 
 if [ ! -d "$MIGRATIONS_DIR" ]; then
   echo "ERROR: Migrations directory not found: $MIGRATIONS_DIR"

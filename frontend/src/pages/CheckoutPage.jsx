@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { orderService } from '../services/orderService';
+import { voucherService } from '../services/voucherService';
+import { clearCartVoucher, readCartVoucher, saveCartVoucher } from '../utils/cartVoucherStorage';
 import { resolveProductImage } from '../utils/image';
 import { formatVnCurrency } from '../utils/formatters';
 import { siteContact } from '../config/siteConfig';
@@ -13,6 +15,28 @@ const paymentMethods = [
   { value: 'ZALOPAY', label: 'ZaloPay', note: 'Chuyển sang cổng ZaloPay sau khi tạo đơn.' },
 ];
 
+function getCartItemLabel(product) {
+  const itemType = String(product?.itemType || '').toUpperCase();
+  const variantType = String(product?.selectedVariant?.type || '').toUpperCase();
+  const isDecant = itemType === 'DECANT' || variantType === 'DECANT';
+  const volumeMl = product?.selectedVolumeMl || product?.selectedVariant?.volumeMl || null;
+  return isDecant ? `Chiết ${volumeMl || ''}ml`.trim() : (product?.selectedVariant?.volume || product?.selectedVariant?.label || 'Full chai');
+}
+
+function formatVoucherDiscount(voucher) {
+  if (!voucher) return '';
+  if (voucher.discountType === 'PERCENT') {
+    const percent = Number(voucher.discountValue || voucher.discountPercent || 0);
+    return `${Number.isInteger(percent) ? percent : percent.toLocaleString('vi-VN')}%`;
+  }
+  return formatVnCurrency(voucher.discountValue);
+}
+
+function getVoucherErrorMessage(error) {
+  const responseData = error?.response?.data || {};
+  return responseData?.data?.message || responseData?.message || error?.message || 'Không áp dụng được mã voucher.';
+}
+
 export function CheckoutPage() {
   const { cart, loading: cartLoading, clearCart } = useCart();
   const { user } = useAuth();
@@ -22,8 +46,14 @@ export function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState('COD');
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState(() => readCartVoucher());
+  const [voucherMessage, setVoucherMessage] = useState('');
 
   const normalizedPhone = useMemo(() => phone.replace(/\D/g, ''), [phone]);
+  const cartTotal = Math.round(Number(cart?.total || 0));
+  const voucherMatchesSubtotal = Boolean(appliedVoucher && Number(appliedVoucher.subtotal || 0) === cartTotal);
+  const voucherDiscount = voucherMatchesSubtotal ? Number(appliedVoucher.discountAmount || 0) : 0;
+  const checkoutTotal = Math.max(0, cartTotal - voucherDiscount);
 
   useEffect(() => {
     if (!cartLoading && (!cart || cart.items.length === 0)) {
@@ -35,6 +65,36 @@ export function CheckoutPage() {
     setPhone((current) => current || user?.phone || '');
     setAddress((current) => current || user?.address || '');
   }, [user?.phone, user?.address]);
+
+  useEffect(() => {
+    if (!cartTotal) return;
+
+    const storedVoucher = readCartVoucher();
+    if (!storedVoucher?.code) {
+      setAppliedVoucher(null);
+      setVoucherMessage('');
+      return;
+    }
+
+    let ignore = false;
+    voucherService.validateVoucher({ code: storedVoucher.code, subtotal: cartTotal })
+      .then((voucher) => {
+        if (ignore) return;
+        setAppliedVoucher(voucher);
+        saveCartVoucher(voucher);
+        setVoucherMessage('');
+      })
+      .catch((err) => {
+        if (ignore) return;
+        setAppliedVoucher(null);
+        clearCartVoucher();
+        setVoucherMessage(getVoucherErrorMessage(err));
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [cartTotal]);
 
   if (cartLoading) {
     return (
@@ -68,9 +128,11 @@ export function CheckoutPage() {
         shippingAddress: address.trim(),
         phone: normalizedPhone,
         paymentMethod,
+        voucherCode: voucherMatchesSubtotal ? appliedVoucher.code : '',
       });
 
       await clearCart();
+      clearCartVoucher();
 
       if (paymentMethod === 'MOMO') {
         const paymentResponse = await orderService.createMomoPayment(order.id);
@@ -153,11 +215,14 @@ export function CheckoutPage() {
               {cart.items.map((item) => {
                 const product = item.product;
                 const price = product.discountPrice > 0 ? product.discountPrice : product.price;
+                const itemLabel = getCartItemLabel(product);
+                const key = `${product.id}-${product.variantId || 'default'}-${product.itemType || 'FULL_BOTTLE'}-${product.selectedVolumeMl || 'full'}`;
                 return (
-                  <div key={`${product.id}-${product.variantId || 'default'}`} className="luxury-checkout-item">
+                  <div key={key} className="luxury-checkout-item">
                     <img src={resolveProductImage(product.image)} alt={product.name} loading="lazy" decoding="async" />
                     <div>
                       <strong>{product.name}</strong>
+                      {itemLabel && <small>{itemLabel}</small>}
                       <span>x{item.quantity}</span>
                     </div>
                     <b>{formatVnCurrency(price * item.quantity)}</b>
@@ -165,11 +230,22 @@ export function CheckoutPage() {
                 );
               })}
             </div>
-            <div className="luxury-summary-total">
-              <span>Tổng cộng</span>
+            <div className="luxury-summary-line">
+              <span>Tạm tính</span>
               <strong>{formatVnCurrency(cart.total)}</strong>
             </div>
-            {formError && <p className="luxury-checkout-error" role="alert">{formError}</p>}
+            {voucherMatchesSubtotal && (
+              <div className="luxury-summary-line luxury-summary-discount">
+                <span>Voucher {appliedVoucher.code} ({formatVoucherDiscount(appliedVoucher)})</span>
+                <strong>-{formatVnCurrency(voucherDiscount)}</strong>
+              </div>
+            )}
+            {voucherMessage && <div className="luxury-checkout-voucher-note">{voucherMessage}</div>}
+            <div className="luxury-summary-total">
+              <span>Tổng cộng</span>
+              <strong>{formatVnCurrency(checkoutTotal)}</strong>
+            </div>
+            {formError && <div className="luxury-checkout-error" role="alert">{formError}</div>}
             <button className="btn luxury-primary-btn w-100" disabled={loading} onClick={handleCheckout}>
               {loading ? 'Đang xử lý...' : 'Đặt hàng'}
             </button>

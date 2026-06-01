@@ -31,6 +31,11 @@ function getActiveStep(status, timeline) {
   return getOrderTimelineIndex(status, timeline);
 }
 
+function getOrderItemLabel(item) {
+  const isDecant = String(item?.itemType || '').toUpperCase() === 'DECANT';
+  return isDecant ? `Chiết ${item?.selectedVolumeMl || ''}ml`.trim() : 'Full chai';
+}
+
 /* ─── Confetti Canvas ──────────────────────────────── */
 function ConfettiCanvas() {
   const canvasRef = useRef(null);
@@ -330,7 +335,7 @@ export function OrderSuccessPage() {
               {(order.items || []).map((item, index) => (
                 <div
                   className="order-success-item"
-                  key={`${item.productId || index}-${item.variantId || 'default'}`}
+                  key={`${item.productId || index}-${item.variantId || 'default'}-${item.itemType || 'FULL_BOTTLE'}-${item.selectedVolumeMl || 'full'}`}
                   style={{ animationDelay: `${1.1 + index * 0.08}s` }}
                 >
                   <img
@@ -341,6 +346,7 @@ export function OrderSuccessPage() {
                   />
                   <div>
                     <strong>{item.productName}</strong>
+                    <small>{getOrderItemLabel(item)}</small>
                     <span>Số lượng: {item.quantity}</span>
                   </div>
                   <b>{formatVnCurrency((item.priceAtPurchase || 0) * item.quantity)}</b>

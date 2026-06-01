@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import {
@@ -22,39 +22,24 @@ const FALLBACK_REPORT = {
   range: '30d',
   generatedAt: new Date().toISOString(),
   summary: {
-    totalRevenue: 68837000,
-    totalOrders: 12485,
-    totalCustomers: 4263,
-    totalProducts: 326,
-    lowStockCount: 18,
-    completionRate: 78,
-    refundRate: 2,
-    averageOrderValue: 1650000,
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalCustomers: 0,
+    totalProducts: 0,
+    lowStockCount: 0,
+    completionRate: 0,
+    refundRate: 0,
+    averageOrderValue: 0,
   },
   trend: {
-    revenueGrowth: 12,
-    orderGrowth: 8,
-    customerGrowth: 5,
-    productGrowth: 3,
+    revenueGrowth: 0,
+    orderGrowth: 0,
+    customerGrowth: 0,
+    productGrowth: 0,
   },
-  revenueSeries: [
-    { date: '2026-05-01', revenue: 4200000, orders: 32, customers: 18 },
-    { date: '2026-05-05', revenue: 6100000, orders: 44, customers: 27 },
-    { date: '2026-05-10', revenue: 5300000, orders: 37, customers: 21 },
-    { date: '2026-05-15', revenue: 7800000, orders: 52, customers: 33 },
-    { date: '2026-05-20', revenue: 8600000, orders: 58, customers: 36 },
-    { date: '2026-05-25', revenue: 9400000, orders: 63, customers: 39 },
-  ],
-  topProducts: [
-    { id: 1, name: 'Dior Sauvage EDP', image: '/assets/images/1.webp', revenue: 18600000, totalSold: 64, price: 2950000 },
-    { id: 2, name: 'Chanel Coco Mademoiselle', image: '/assets/images/9.webp', revenue: 15200000, totalSold: 42, price: 3650000 },
-    { id: 3, name: 'YSL Libre', image: '/assets/images/14.webp', revenue: 12100000, totalSold: 38, price: 3200000 },
-  ],
-  topCategories: [
-    { id: 1, name: 'Nước hoa nam', totalSold: 128 },
-    { id: 2, name: 'Nước hoa nữ', totalSold: 104 },
-    { id: 3, name: 'Luxury collection', totalSold: 72 },
-  ],
+  revenueSeries: [],
+  topProducts: [],
+  topCategories: [],
   recentOrders: [],
   alerts: [],
 };
@@ -72,18 +57,79 @@ function formatGrowth(value) {
   return `${number >= 0 ? '+' : ''}${number}%`;
 }
 
+function clampPercent(value) {
+  return Math.max(0, Math.min(100, Number(value || 0)));
+}
+
 function chartLabel(value, range) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
-  if (range === '12m' || range === '90d') {
-    return `T${date.getMonth() + 1}`;
-  }
+  if (range === '12m' || range === '90d') return `T${date.getMonth() + 1}`;
   return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+}
+
+function chartFullLabel(value, range) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  if (range === '12m' || range === '90d') {
+    return date.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' });
+  }
+  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function productFallbackImage(event) {
   event.currentTarget.onerror = null;
   event.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
+}
+
+function ReportChartItem({ item, range, maxRevenue, index }) {
+  const revenue = Number(item.revenue || 0);
+  const orders = Number(item.orders || 0);
+  const customers = Number(item.customers || 0);
+  const height = Math.max((revenue / maxRevenue) * 100, revenue > 0 ? 8 : 3);
+  const edgeClass = index < 3 ? ' is-start' : '';
+
+  return (
+    <div className={`admin-report-chart-item${edgeClass}`} tabIndex={0}>
+      <div className="admin-report-chart-tooltip" role="tooltip">
+        <strong>{chartFullLabel(item.date, range)}</strong>
+        <span><b>Doanh thu</b>{formatAdminCurrency(revenue)}</span>
+        <span><b>Đơn hàng</b>{formatNumber(orders)}</span>
+        <span><b>Khách hàng</b>{formatNumber(customers)}</span>
+      </div>
+      <span
+        className="admin-report-chart-bar"
+        style={{
+          height: `${height}%`,
+          '--bar-delay': `${index * 65}ms`,
+        }}
+        aria-label={`${chartFullLabel(item.date, range)}: ${formatAdminCurrency(revenue)}, ${formatNumber(orders)} đơn hàng`}
+      />
+      <small>{chartLabel(item.date, range)}</small>
+    </div>
+  );
+}
+
+function CategoryBar({ item, maxSold }) {
+  const totalSold = Number(item.totalSold ?? item.total ?? item.quantity ?? 0);
+  const percent = maxSold > 0 ? clampPercent((totalSold / maxSold) * 100) : 0;
+  const name = item.name || item.category || 'Chưa phân loại';
+
+  return (
+    <div className="admin-category-bar report" tabIndex={0}>
+      <div>
+        <span>{name}</span>
+        <strong>{formatNumber(totalSold)} đã bán</strong>
+      </div>
+      <i aria-label={`${name}: ${formatNumber(totalSold)} sản phẩm đã bán`}>
+        <span style={{ width: `${Math.max(percent, totalSold > 0 ? 8 : 0)}%` }} />
+      </i>
+      <em>{Math.round(percent)}%</em>
+      <p className="admin-category-tooltip">
+        {name}: {formatNumber(totalSold)} sản phẩm, chiếm {Math.round(percent)}% so với danh mục đứng đầu.
+      </p>
+    </div>
+  );
 }
 
 export function AdminReportsPage() {
@@ -99,7 +145,7 @@ export function AdminReportsPage() {
       .get('/admin/reports', { params: { range } })
       .then((res) => setReport(unwrapApiData(res.data) || FALLBACK_REPORT))
       .catch((err) => {
-        setError(err?.message || 'Không tải được báo cáo. Đang hiển thị dữ liệu mẫu.');
+        setError(err?.response?.data?.message || err?.message || 'Không tải được báo cáo. Đang hiển thị dữ liệu trống.');
         setReport(FALLBACK_REPORT);
       })
       .finally(() => setLoading(false));
@@ -116,17 +162,22 @@ export function AdminReportsPage() {
   const topCategories = Array.isArray(report.topCategories) ? report.topCategories : [];
   const recentOrders = Array.isArray(report.recentOrders) ? report.recentOrders : [];
   const alerts = Array.isArray(report.alerts) ? report.alerts : [];
-  const maxRevenue = Math.max(...series.map((item) => Number(item.revenue || 0)), 1);
 
-  const stats = [
+  const maxRevenue = Math.max(...series.map((item) => Number(item.revenue || 0)), 1);
+  const maxCategorySold = Math.max(
+    ...topCategories.map((item) => Number(item.totalSold ?? item.total ?? item.quantity ?? 0)),
+    0,
+  );
+
+  const stats = useMemo(() => [
     { label: 'Doanh thu', value: formatAdminCurrency(summary.totalRevenue), hint: `${formatGrowth(trend.revenueGrowth)} so với kỳ trước`, tone: 'positive', icon: 'VND' },
     { label: 'Đơn hàng', value: formatNumber(summary.totalOrders), hint: `${formatGrowth(trend.orderGrowth)} tăng trưởng`, icon: 'ORD' },
     { label: 'Khách hàng', value: formatNumber(summary.totalCustomers), hint: `${formatGrowth(trend.customerGrowth)} khách mới`, icon: 'CUS' },
     { label: 'Tỉ lệ hoàn tất', value: `${formatNumber(summary.completionRate)}%`, hint: `Hoàn tiền ${formatNumber(summary.refundRate)}%`, tone: 'positive', icon: 'OK' },
-  ];
+  ], [summary, trend]);
 
   return (
-    <div className="admin-page huy-admin-ops-page">
+    <div className="admin-page huy-admin-ops-page admin-reports-page">
       <AdminPageHeader
         eyebrow="Báo cáo kinh doanh"
         title="Báo cáo kinh doanh"
@@ -156,19 +207,16 @@ export function AdminReportsPage() {
             </div>
             <strong>{formatAdminCurrency(summary.averageOrderValue)} / đơn</strong>
           </div>
-          <div className="admin-report-chart" role="img" aria-label="Biểu đồ báo cáo doanh thu">
-            {series.map((item, index) => (
-              <div className="admin-report-chart-item" key={`${item.date}-${item.revenue}`}>
-                <span
-                  style={{
-                    height: `${Math.max((Number(item.revenue || 0) / maxRevenue) * 100, 8)}%`,
-                    '--bar-delay': `${index * 65}ms`,
-                  }}
-                >
-                  <i>{formatAdminCurrency(item.revenue)}</i>
-                </span>
-                <small>{chartLabel(item.date, range)}</small>
-              </div>
+          <div
+            className="admin-report-chart"
+            role="img"
+            aria-label="Biểu đồ báo cáo doanh thu"
+            style={{ '--chart-count': Math.max(series.length, 1) }}
+          >
+            {series.length === 0 ? (
+              <AdminEmptyState title="Chưa có dữ liệu biểu đồ" description="Dữ liệu sẽ hiển thị khi có đơn hàng hợp lệ." />
+            ) : series.map((item, index) => (
+              <ReportChartItem key={`${item.date}-${index}`} item={item} range={range} maxRevenue={maxRevenue} index={index} />
             ))}
           </div>
         </article>
@@ -201,7 +249,9 @@ export function AdminReportsPage() {
             </div>
           </div>
           <div className="admin-report-product-list">
-            {topProducts.slice(0, 5).map((product) => (
+            {topProducts.length === 0 ? (
+              <AdminEmptyState title="Chưa có sản phẩm bán chạy" description="Dữ liệu sẽ hiển thị khi có doanh thu trong khoảng đã chọn." />
+            ) : topProducts.slice(0, 5).map((product) => (
               <div className="admin-report-product" key={product.id}>
                 <img src={resolveProductImage(product.image)} alt={product.name} loading="lazy" onError={productFallbackImage} />
                 <div>
@@ -214,7 +264,7 @@ export function AdminReportsPage() {
           </div>
         </article>
 
-        <article className="admin-insight-card">
+        <article className="admin-insight-card admin-report-categories">
           <div className="admin-insight-head compact">
             <div>
               <span className="admin-eyebrow">Danh mục</span>
@@ -222,14 +272,10 @@ export function AdminReportsPage() {
             </div>
           </div>
           <div className="admin-category-bars report">
-            {topCategories.length === 0 ? <span className="admin-muted">Chưa có dữ liệu</span> : topCategories.map((item) => (
-              <div className="admin-category-bar" key={item.id || item.name}>
-                <div>
-                  <span>{item.name}</span>
-                  <strong>{formatNumber(item.totalSold)}</strong>
-                </div>
-                <i><span style={{ width: `${Math.min(Math.max(Number(item.totalSold || 0), 8), 100)}%` }} /></i>
-              </div>
+            {topCategories.length === 0 ? (
+              <AdminEmptyState title="Chưa có dữ liệu danh mục" description="Danh mục nổi bật sẽ xuất hiện khi có sản phẩm được bán trong kỳ." />
+            ) : topCategories.map((item) => (
+              <CategoryBar item={item} maxSold={maxCategorySold} key={item.id || item.name || item.category} />
             ))}
           </div>
         </article>

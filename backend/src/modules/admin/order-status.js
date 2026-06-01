@@ -1,0 +1,74 @@
+import { ORDER_STATUS } from '../../constants/orderStatus.js';
+
+const LEGACY = {
+  WAITING: 'Waiting',
+  PAID: 'Paid',
+  PROCESSING: 'Processing',
+  SHIPPED: 'Shipped',
+  DELIVERED: 'Delivered',
+  COMPLETED: 'Completed',
+  CANCELLED: 'Cancelled',
+  REFUNDED: 'refunded',
+  VI_PENDING: 'Chờ xác nhận',
+  VI_SHIPPING: 'Đang giao',
+  VI_DELIVERED: 'Giao hàng thành công',
+  VI_CANCELLED: 'Đã hủy',
+  VI_REFUNDED: 'Đã hoàn tiền',
+  CART: 'Cart',
+};
+
+const STATUS_GROUPS = {
+  REVENUE: [
+    ORDER_STATUS.DELIVERED,
+    ORDER_STATUS.COMPLETED,
+    LEGACY.DELIVERED,
+    LEGACY.COMPLETED,
+    LEGACY.VI_DELIVERED,
+  ],
+  PENDING: [
+    ORDER_STATUS.PENDING,
+    ORDER_STATUS.CONFIRMED,
+    ORDER_STATUS.PACKING,
+    ORDER_STATUS.SHIPPING,
+    LEGACY.WAITING,
+    LEGACY.PROCESSING,
+    LEGACY.SHIPPED,
+    LEGACY.VI_PENDING,
+    LEGACY.VI_SHIPPING,
+  ],
+  COMPLETED_MAPPING: [
+    ORDER_STATUS.DELIVERED,
+    ORDER_STATUS.COMPLETED,
+    LEGACY.DELIVERED,
+    LEGACY.COMPLETED,
+    LEGACY.VI_DELIVERED,
+  ],
+  CANCELLED_OR_FAILED: [
+    ORDER_STATUS.CANCELLED,
+    LEGACY.CANCELLED,
+    LEGACY.VI_CANCELLED,
+  ],
+  REFUNDED: [
+    ORDER_STATUS.REFUNDED,
+    LEGACY.REFUNDED,
+    LEGACY.VI_REFUNDED,
+  ],
+  EXCLUDED_NON_ORDERS: [LEGACY.CART],
+};
+
+STATUS_GROUPS.VALID_ORDERS = dedupe([...STATUS_GROUPS.REVENUE, ...STATUS_GROUPS.PENDING]);
+STATUS_GROUPS.CANCELLED_REFUNDED_FAILED = dedupe([
+  ...STATUS_GROUPS.EXCLUDED_NON_ORDERS,
+  ...STATUS_GROUPS.CANCELLED_OR_FAILED,
+  ...STATUS_GROUPS.REFUNDED,
+]);
+
+function dedupe(values) {
+  return [...new Set(values)];
+}
+
+function sqlInClause(statuses) {
+  return statuses.map(() => '?').join(', ');
+}
+
+export { ORDER_STATUS, STATUS_GROUPS, sqlInClause };

@@ -45,10 +45,6 @@ export function AdminProductAddPage() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!form.brandId) {
-      pushToast('Vui lòng chọn thương hiệu.', 'error');
-      return;
-    }
     setSaving(true);
     try {
       const { data } = await api.post('/admin/products', {
@@ -58,7 +54,7 @@ export function AdminProductAddPage() {
         stock: Number(form.stock),
         volumeMl: form.volumeMl === '' ? null : Number(form.volumeMl),
         categoryId: form.categoryId === '' ? null : Number(form.categoryId),
-        brandId: Number(form.brandId),
+        brandId: form.brandId === '' ? null : Number(form.brandId),
       });
       const created = unwrapApiData<any>(data);
       pushToast('Đã tạo sản phẩm thành công.', 'success');
@@ -89,8 +85,8 @@ export function AdminProductAddPage() {
           <input className="form-control" value={form.batchCode} onChange={update('batchCode')} />
         </label>
         <label>Thương hiệu
-          <select className="form-select" value={form.brandId} onChange={update('brandId')} required>
-            <option value="">Chọn thương hiệu</option>
+          <select className="form-select" value={form.brandId} onChange={update('brandId')}>
+            <option value="">Chưa có thương hiệu</option>
             {options.brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
           </select>
         </label>

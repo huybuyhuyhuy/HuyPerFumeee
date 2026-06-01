@@ -7,6 +7,7 @@ import { Footer } from './Footer';
 
 export function MainLayout() {
   const location = useLocation();
+  const isHomePage = location.pathname === '/' || location.pathname === '/home';
 
   useEffect(() => {
     if (!location.hash) return;
@@ -45,7 +46,7 @@ export function MainLayout() {
   return (
     <>
       <Navbar />
-      <main className="app-main">
+      <main className={`app-main ${isHomePage ? 'app-main-home' : ''}`}>
         <Outlet />
       </main>
       <Footer />

@@ -31,20 +31,37 @@ export const ORDER_TIMELINE_STEPS = [
 const LABELS = Object.fromEntries(ORDER_STATUS_OPTIONS.map((item) => [item.value, item.label]));
 const LEGACY = {
   WAITING: ORDER_STATUS.PENDING,
+  'CHO XAC NHAN': ORDER_STATUS.PENDING,
   PAID: ORDER_STATUS.CONFIRMED,
+  'DA XAC NHAN': ORDER_STATUS.CONFIRMED,
   PROCESSING: ORDER_STATUS.PACKING,
   SHIPPED: ORDER_STATUS.SHIPPING,
+  'DANG GIAO': ORDER_STATUS.SHIPPING,
   SHIPPING: ORDER_STATUS.SHIPPING,
   DELIVERED: ORDER_STATUS.DELIVERED,
+  'GIAO HANG THANH CONG': ORDER_STATUS.DELIVERED,
   COMPLETED: ORDER_STATUS.COMPLETED,
   CANCELLED: ORDER_STATUS.CANCELLED,
   CANCELED: ORDER_STATUS.CANCELLED,
+  'DA HUY': ORDER_STATUS.CANCELLED,
   REFUNDED: ORDER_STATUS.REFUNDED,
+  'DANG HOAN TIEN': ORDER_STATUS.REFUNDED,
+  'DA HOAN TIEN': ORDER_STATUS.REFUNDED,
 };
+
+function normalizeStatusKey(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\u0110/g, 'D')
+    .replace(/\u0111/g, 'D')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
 
 export function normalizeOrderStatus(value) {
   const normalized = String(value || '').trim().toUpperCase();
-  return LEGACY[normalized] || normalized || ORDER_STATUS.PENDING;
+  return LEGACY[normalized] || LEGACY[normalizeStatusKey(value)] || normalized || ORDER_STATUS.PENDING;
 }
 
 export function getOrderStatusLabel(status) {

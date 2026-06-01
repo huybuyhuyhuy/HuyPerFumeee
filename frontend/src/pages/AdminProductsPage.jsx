@@ -96,7 +96,6 @@ function validateForm(form) {
     return 'Giá khuyến mãi phải không âm và nhỏ hơn giá bán.';
   }
   if (!Number.isInteger(stock) || stock < 0) return 'Tồn kho phải là số nguyên không âm.';
-  if (!form.brandId) return 'Vui lòng chọn thương hiệu.';
   return '';
 }
 
@@ -323,8 +322,8 @@ export function AdminProductsPage() {
                 <input className="form-control" value={form.batchCode} onChange={updateForm('batchCode')} />
               </label>
               <label>Thương hiệu
-                <select className="form-select" value={form.brandId} onChange={updateForm('brandId')} required>
-                  <option value="">Chọn thương hiệu</option>
+                <select className="form-select" value={form.brandId} onChange={updateForm('brandId')}>
+                  <option value="">Chưa có thương hiệu</option>
                   {options.brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
                 </select>
               </label>

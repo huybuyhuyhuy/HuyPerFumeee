@@ -17,13 +17,19 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage').then((module) => ({
 const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage').then((module) => ({ default: module.OrderHistoryPage })));
 const OrderDetailPage = lazy(() => import('./pages/OrderDetailPage').then((module) => ({ default: module.OrderDetailPage })));
 const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage').then((module) => ({ default: module.OrderSuccessPage })));
+const PaymentReturnPage = lazy(() => import('./pages/PaymentReturnPage').then((module) => ({ default: module.PaymentReturnPage })));
 const WishlistPage = lazy(() => import('./pages/WishlistPage').then((module) => ({ default: module.WishlistPage })));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then((module) => ({ default: module.AdminDashboardPage })));
 const AdminProductsPage = lazy(() => import('./pages/AdminProductsPage').then((module) => ({ default: module.AdminProductsPage })));
 const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage').then((module) => ({ default: module.AdminOrdersPage })));
 const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage').then((module) => ({ default: module.AdminReportsPage })));
+const AdminVouchersPage = lazy(() => import('./pages/AdminVouchersPage').then((module) => ({ default: module.AdminVouchersPage })));
+const AdminAuditLogsPage = lazy(() => import('./pages/AdminAuditLogsPage').then((module) => ({ default: module.AdminAuditLogsPage })));
 const AdminOrderDetailPage = lazy(() => import('./pages/AdminOrderDetailPage').then((module) => ({ default: module.AdminOrderDetailPage })));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then((module) => ({ default: module.AdminUsersPage })));
+const AdminUserDetailPage = lazy(() => import('./pages/AdminUserDetailPage').then((module) => ({ default: module.AdminUserDetailPage })));
+const AdminDecantPage = lazy(() => import('./pages/AdminDecantPage').then((module) => ({ default: module.AdminDecantPage })));
+const AdminInventoryPage = lazy(() => import('./pages/AdminInventoryPage').then((module) => ({ default: module.AdminInventoryPage })));
 const AdminProductAddPage = lazy(() => import('./pages/AdminProductAddPage').then((module) => ({ default: module.AdminProductAddPage })));
 const AdminProductEditPage = lazy(() => import('./pages/AdminProductEditPage').then((module) => ({ default: module.AdminProductEditPage })));
 const AdminProductManagementPage = lazy(() => import('./pages/AdminProductManagementPage').then((module) => ({ default: module.AdminProductManagementPage })));
@@ -55,11 +61,17 @@ function AdminRoutes() {
     <Routes>
       <Route path="/admin" element={<ProtectedRoute adminOnly unauthorizedTo="/login"><AdminLayout /></ProtectedRoute>}>
         <Route index element={<AdminDashboardPage />} />
+        <Route path="dashboard" element={<AdminDashboardPage />} />
         <Route path="products" element={<AdminProductsPage />} />
         <Route path="orders" element={<AdminOrdersPage />} />
+        <Route path="voucher" element={<AdminVouchersPage />} />
         <Route path="reports" element={<AdminReportsPage />} />
+        <Route path="audit-logs" element={<AdminAuditLogsPage />} />
         <Route path="orders/:id" element={<AdminOrderDetailPage />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="inventory" element={<AdminInventoryPage />} />
+        <Route path="decant" element={<AdminDecantPage />} />
+        <Route path="users/:id" element={<AdminUserDetailPage />} />
         <Route path="products/add" element={<AdminProductAddPage />} />
         <Route path="products/:id/edit" element={<AdminProductEditPage />} />
         <Route path="products/manage" element={<AdminProductManagementPage />} />
@@ -71,7 +83,8 @@ function AdminRoutes() {
       <Route path="/orders" element={<Navigate to="/admin/orders" replace />} />
       <Route path="/reports" element={<Navigate to="/admin/reports" replace />} />
       <Route path="/users" element={<Navigate to="/admin/users" replace />} />
-      <Route path="*" element={<Navigate to="/admin" replace />} />
+      <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
     </Routes>
   );
 }
@@ -92,9 +105,11 @@ function UserRoutes() {
         <Route path="/orders" element={<ProtectedRoute><OrderHistoryPage /></ProtectedRoute>} />
         <Route path="/orders/:id/success" element={<ProtectedRoute><OrderSuccessPage /></ProtectedRoute>} />
         <Route path="/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
+        <Route path="/payment/return" element={<PaymentReturnPage />} />
         <Route path="/wishlist" element={<ProtectedRoute><WishlistPage /></ProtectedRoute>} />
       </Route>
 
+      <Route path="/admin" element={<ExternalRedirect to={`${adminHomeUrl.replace(/\/admin$/, '')}/admin`} />} />
       <Route path="/admin/*" element={<ExternalRedirect to={adminHomeUrl} />} />
       <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>

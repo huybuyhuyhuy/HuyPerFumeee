@@ -2,7 +2,7 @@ import api, { unwrapApiData } from './api';
 import { normalizeOrder, normalizeOrderList } from './dataMappers';
 
 export const orderService = {
-  async checkout(payload: { shippingAddress: string; phone: string; paymentMethod: string }) {
+  async checkout(payload: { shippingAddress: string; phone: string; paymentMethod: string; voucherCode?: string }) {
     const { data } = await api.post('/orders/checkout', payload);
     return normalizeOrder(unwrapApiData(data));
   },

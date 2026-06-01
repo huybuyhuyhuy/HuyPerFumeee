@@ -4,7 +4,7 @@
     {
       "label": "Install active app dependencies",
       "type": "shell",
-      "command": "npm.cmd install && npm.cmd install --prefix server && npm.cmd install --prefix frontend",
+      "command": "npm.cmd install && npm.cmd install --prefix backend && npm.cmd install --prefix frontend",
       "options": {
         "shell": {
           "executable": "cmd.exe",

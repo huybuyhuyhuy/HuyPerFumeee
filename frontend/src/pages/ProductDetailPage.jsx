@@ -26,6 +26,18 @@ function getProductPrice(product, variant) {
   return { salePrice: finalPrice, originalPrice: safeOriginal, discountPercent };
 }
 
+function getVariantIdForCart(activeVariant) {
+  if (!activeVariant || activeVariant.itemType === 'DECANT') return null;
+  return activeVariant.variantId ?? activeVariant.raw?.variantId ?? activeVariant.raw?.id ?? null;
+}
+
+function getCartSelection(activeVariant) {
+  return {
+    itemType: activeVariant?.itemType || (activeVariant?.isDecant ? 'DECANT' : 'FULL_BOTTLE'),
+    volumeMl: activeVariant?.itemType === 'DECANT' || activeVariant?.isDecant ? activeVariant?.volumeMl : null,
+  };
+}
+
 function pickRelated(products, current, count = 4) {
   return (products || []).filter((item) => item.id !== current?.id).slice(0, count);
 }
@@ -113,6 +125,7 @@ export function ProductDetailPage() {
   const [cartFeedback, setCartFeedback] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [inventoryMismatch, setInventoryMismatch] = useState('');
   const loadRequestRef = useRef(0);
   const { isLoggedIn } = useAuth();
   const { pushToast } = useToast();
@@ -140,6 +153,7 @@ export function ProductDetailPage() {
       if (loadRequestRef.current !== requestId) return;
 
       setProduct(detail || null);
+      setInventoryMismatch('');
       setLoading(false);
 
       if (!detail) return;
@@ -153,6 +167,10 @@ export function ProductDetailPage() {
 
       setRelatedProducts(related?.length ? related : pickRelated(fallbackList?.content || [], detail, 8));
       setReviews(reviewPage?.content || []);
+      const normalizedStock = Number(detail?.stock ?? 0);
+      if (Number.isFinite(normalizedStock) && normalizedStock !== Number(detail?.stockQuantity ?? normalizedStock)) {
+        setInventoryMismatch(`Sản phẩm này đang hiển thị ${normalizedStock} tồn kho trên trang chi tiết, nhưng dữ liệu backend có thể đang dùng trường stockQuantity khác.`);
+      }
     } catch (err) {
       if (loadRequestRef.current !== requestId) return;
       const msg = err?.response?.data?.message || err?.message || 'Không tải được sản phẩm.';
@@ -179,6 +197,8 @@ export function ProductDetailPage() {
   const invalidVariant = !activeVariant;
   const invalidStock = !Number.isFinite(stock) || stock < 0;
   const canBuy = !invalidPrice && !invalidStock && stock > 0 && (activeVariant?.isAvailable ?? true);
+  const cartVariantId = getVariantIdForCart(activeVariant);
+  const cartSelection = getCartSelection(activeVariant);
 
   useEffect(() => { if (!product) return; setQuantity((current) => Math.min(Math.max(1, current), Math.max(stock, 1))); }, [product, stock]);
 
@@ -188,7 +208,9 @@ export function ProductDetailPage() {
         type: 'cart',
         productId: Number(id),
         quantity,
-        variantId: product?.hasVariants ? activeVariant?.id : null,
+        variantId: cartVariantId,
+        itemType: cartSelection.itemType,
+        volumeMl: cartSelection.volumeMl,
         returnTo: currentPath,
       });
       pushToast('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.', 'info');
@@ -198,7 +220,7 @@ export function ProductDetailPage() {
 
     setActionLoading('cart');
     try {
-      await cartService.addItem(Number(id), quantity, product?.hasVariants ? activeVariant?.id : null);
+      await cartService.addItem(Number(id), quantity, cartVariantId, cartSelection);
       setCartFeedback(true);
       window.setTimeout(() => setCartFeedback(false), 1300);
       pushToast('Đã thêm vào giỏ hàng.', 'success');
@@ -215,7 +237,9 @@ export function ProductDetailPage() {
         type: 'cart',
         productId: Number(id),
         quantity,
-        variantId: product?.hasVariants ? activeVariant?.id : null,
+        variantId: cartVariantId,
+        itemType: cartSelection.itemType,
+        volumeMl: cartSelection.volumeMl,
         returnTo: '/checkout',
       });
       pushToast('Vui lòng đăng nhập để tiếp tục thanh toán.', 'info');
@@ -225,7 +249,7 @@ export function ProductDetailPage() {
 
     setActionLoading('buy');
     try {
-      await cartService.addItem(Number(id), quantity, product?.hasVariants ? activeVariant?.id : null);
+      await cartService.addItem(Number(id), quantity, cartVariantId, cartSelection);
       if (isLoggedIn) {
         navigate('/checkout');
       } else {
@@ -255,10 +279,14 @@ export function ProductDetailPage() {
   if (error) return <ProductErrorState message={error} onRetry={load} />;
   if (!product) return <ProductErrorState onRetry={load} />;
 
-  const stockState = invalidStock ? 'Dữ liệu tồn kho không hợp lệ' : canBuy ? `${stock} sản phẩm có sẵn` : stock === 0 ? 'Tạm hết hàng' : 'Sắp về hàng';
+  const stockUnitLabel = activeVariant?.isDecant ? 'phần chiết có sẵn' : 'chai có sẵn';
+  const stockState = invalidStock ? 'Dữ liệu tồn kho không hợp lệ' : canBuy ? `${stock} ${stockUnitLabel}` : stock === 0 ? 'Tạm hết hàng' : 'Sắp về hàng';
   const displayImage = activeVariant?.image || product.image;
   const sameBrand = relatedProducts.filter((item) => item.brand?.id && product.brand?.id && item.brand.id === product.brand.id).slice(0, 4);
   const sameScent = relatedProducts.filter((item) => item.scentNotes && product.scentNotes && item.scentNotes === product.scentNotes).slice(0, 4);
+  const decantStockNote = activeVariant?.isDecant && Number(product.availableVolumeMl || 0) > 0
+    ? `Hiện còn ${Number(product.availableVolumeMl || 0)}ml có thể chiết.`
+    : '';
 
   return (
     <div className="luxury-page product-detail-page">
@@ -294,6 +322,7 @@ export function ProductDetailPage() {
                 <div className="product-purchase-section">
                   <p className="product-option-label">Chọn phiên bản</p>
                   <ProductVariants variants={variants} activeVariantId={activeVariant?.id} onChange={(variant) => { setActiveVariant(variant); setQuantity(1); }} />
+                  {decantStockNote && <small className="d-block mt-2 luxury-muted">{decantStockNote}</small>}
                 </div>
                 {!isLoggedIn && (
                   <div className="product-login-cta product-login-cta-inline">
@@ -317,6 +346,8 @@ export function ProductDetailPage() {
                   {product.concentration ? <div><strong>Nồng độ</strong><span>{product.concentration}</span></div> : null}
                   {product.scentNotes ? <div><strong>Tầng hương</strong><span>{String(product.scentNotes).replaceAll('|', ' · ')}</span></div> : null}
                   {product.category ? <div><strong>Danh mục</strong><span>{product.category.name}</span></div> : null}
+                  {activeVariant?.isDecant ? <div><strong>Có thể chiết</strong><span>{Number(product.availableVolumeMl || 0)}ml</span></div> : null}
+                  {activeVariant?.isDecant && activeVariant?.volumeMl ? <div><strong>Mỗi đơn vị</strong><span>{activeVariant.volumeMl}ml / lần mua</span></div> : null}
                   {activeVariant?.isDecant && product.decantInventory ? <div><strong>Chai nguyên seal</strong><span>{product.decantInventory.sealedBottles} chai</span></div> : null}
                   {activeVariant?.isDecant && product.decantInventory ? <div><strong>Đã mở còn</strong><span>{product.decantInventory.openedMl}ml</span></div> : null}
                   <div><strong>Tồn kho</strong><span className={canBuy ? 'text-success' : 'text-danger'} aria-live="polite">{stockState}</span></div>

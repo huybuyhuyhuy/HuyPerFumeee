@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { cartService } from '../services/cartService';
+import { cartService, type CartSelectionOptions } from '../services/cartService';
 import type { CartSummary } from '../types';
 
 export const CART_UPDATED_EVENT = 'huyperfume:cart-updated';
@@ -28,16 +28,25 @@ export function useCart() {
     }
   }, []);
 
-  const updateQuantity = useCallback(async (productId: number, quantity: number, variantId?: number | string | null) => {
+  const updateQuantity = useCallback(async (
+    productId: number,
+    quantity: number,
+    variantId?: number | string | null,
+    options: CartSelectionOptions = {}
+  ) => {
     const nextCart = quantity < 1
-      ? await cartService.removeItem(productId, variantId)
-      : await cartService.updateItem(productId, quantity, variantId);
+      ? await cartService.removeItem(productId, variantId, options)
+      : await cartService.updateItem(productId, quantity, variantId, options);
     setCart(nextCart);
     setError('');
   }, []);
 
-  const removeItem = useCallback(async (productId: number, variantId?: number | string | null) => {
-    setCart(await cartService.removeItem(productId, variantId));
+  const removeItem = useCallback(async (
+    productId: number,
+    variantId?: number | string | null,
+    options: CartSelectionOptions = {}
+  ) => {
+    setCart(await cartService.removeItem(productId, variantId, options));
     setError('');
   }, []);
 

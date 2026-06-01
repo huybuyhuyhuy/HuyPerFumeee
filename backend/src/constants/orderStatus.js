@@ -1,0 +1,88 @@
+export const ORDER_STATUS = Object.freeze({
+  PENDING: 'PENDING',
+  CONFIRMED: 'CONFIRMED',
+  PACKING: 'PACKING',
+  SHIPPING: 'SHIPPING',
+  DELIVERED: 'DELIVERED',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+  REFUNDED: 'REFUNDED',
+});
+
+export const ORDER_STATUS_VALUES = Object.freeze(Object.values(ORDER_STATUS));
+
+const LEGACY_STATUS_MAP = new Map([
+  ['WAITING', ORDER_STATUS.PENDING],
+  ['PENDING', ORDER_STATUS.PENDING],
+  ['CHO XAC NHAN', ORDER_STATUS.PENDING],
+  ['CHỜ XÁC NHẬN', ORDER_STATUS.PENDING],
+  ['PAID', ORDER_STATUS.CONFIRMED],
+  ['CONFIRMED', ORDER_STATUS.CONFIRMED],
+  ['DA XAC NHAN', ORDER_STATUS.CONFIRMED],
+  ['ĐÃ XÁC NHẬN', ORDER_STATUS.CONFIRMED],
+  ['PROCESSING', ORDER_STATUS.PACKING],
+  ['PACKING', ORDER_STATUS.PACKING],
+  ['SHIPPED', ORDER_STATUS.SHIPPING],
+  ['SHIPPING', ORDER_STATUS.SHIPPING],
+  ['DANG GIAO', ORDER_STATUS.SHIPPING],
+  ['ĐANG GIAO', ORDER_STATUS.SHIPPING],
+  ['DELIVERED', ORDER_STATUS.DELIVERED],
+  ['GIAO HANG THANH CONG', ORDER_STATUS.DELIVERED],
+  ['GIAO HÀNG THÀNH CÔNG', ORDER_STATUS.DELIVERED],
+  ['COMPLETED', ORDER_STATUS.COMPLETED],
+  ['CANCELLED', ORDER_STATUS.CANCELLED],
+  ['CANCELED', ORDER_STATUS.CANCELLED],
+  ['DA HUY', ORDER_STATUS.CANCELLED],
+  ['ĐÃ HỦY', ORDER_STATUS.CANCELLED],
+  ['FAILED', ORDER_STATUS.CANCELLED],
+  ['REFUNDED', ORDER_STATUS.REFUNDED],
+  ['RETURNED', ORDER_STATUS.REFUNDED],
+  ['DANG HOAN TIEN', ORDER_STATUS.REFUNDED],
+  ['ĐANG HOÀN TIỀN', ORDER_STATUS.REFUNDED],
+  ['DA HOAN TIEN', ORDER_STATUS.REFUNDED],
+  ['ĐÃ HOÀN TIỀN', ORDER_STATUS.REFUNDED],
+]);
+
+const TRANSITIONS = Object.freeze({
+  [ORDER_STATUS.PENDING]: [ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED],
+  [ORDER_STATUS.CONFIRMED]: [ORDER_STATUS.PACKING, ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED],
+  [ORDER_STATUS.PACKING]: [ORDER_STATUS.SHIPPING, ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED, ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED],
+  [ORDER_STATUS.SHIPPING]: [ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED, ORDER_STATUS.REFUNDED],
+  [ORDER_STATUS.DELIVERED]: [ORDER_STATUS.COMPLETED, ORDER_STATUS.REFUNDED],
+  [ORDER_STATUS.COMPLETED]: [ORDER_STATUS.REFUNDED],
+  [ORDER_STATUS.CANCELLED]: [],
+  [ORDER_STATUS.REFUNDED]: [],
+});
+
+function normalizeStatusKey(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\u0110/g, 'D')
+    .replace(/\u0111/g, 'D')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+export function normalizeOrderStatus(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return ORDER_STATUS.PENDING;
+  const upper = raw.toUpperCase();
+  return LEGACY_STATUS_MAP.get(upper) || LEGACY_STATUS_MAP.get(normalizeStatusKey(raw)) || upper;
+}
+
+export function isCanonicalOrderStatus(value) {
+  return ORDER_STATUS_VALUES.includes(normalizeOrderStatus(value));
+}
+
+export function canTransitionOrderStatus(currentStatus, nextStatus) {
+  const current = normalizeOrderStatus(currentStatus);
+  const next = normalizeOrderStatus(nextStatus);
+  if (current === next) return true;
+  return Boolean(TRANSITIONS[current]?.includes(next));
+}
+
+export function canCustomerCancelOrder(status) {
+  return [ORDER_STATUS.PENDING, ORDER_STATUS.CONFIRMED, ORDER_STATUS.PACKING]
+    .includes(normalizeOrderStatus(status));
+}

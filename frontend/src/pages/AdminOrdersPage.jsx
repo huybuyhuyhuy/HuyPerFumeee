@@ -13,7 +13,7 @@ import {
 import { ORDER_STATUS_OPTIONS } from '../constants/orderStatus';
 
 const PAGE_SIZE = 12;
-const PAYMENT_METHODS = ['COD', 'Banking', 'MoMo', 'ZaloPay'];
+const PAYMENT_METHODS = ['COD', 'BANKING', 'MOMO', 'ZALOPAY'];
 const ORDER_STATUS_VALUES = ORDER_STATUS_OPTIONS.map((status) => status.value);
 
 function unwrapApiData(payload) {
@@ -109,7 +109,7 @@ export function AdminOrdersPage() {
     setFeedback('');
     setError('');
     try {
-      await api.put(`/admin/orders/${orderId}/status`, { status });
+      await api.patch(`/admin/orders/${orderId}/status`, { status });
       setFeedback(`Đã cập nhật trạng thái đơn #${orderId}.`);
       load();
     } catch (err) {

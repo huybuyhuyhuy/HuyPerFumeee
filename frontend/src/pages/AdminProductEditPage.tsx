@@ -4,11 +4,11 @@ import api from '../services/api';
 import { AdminEmptyState, AdminPageHeader, AdminStatusBadge, formatAdminCurrency, formatAdminDate } from '../components/Admin/AdminUi';
 import { useToast } from '../store/ToastContext';
 
-function unwrapApiData(payload) {
+function unwrapApiData(payload: any): any {
   return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload;
 }
 
-function normalizeProduct(raw) {
+function normalizeProduct(raw: any): any {
   if (!raw) return null;
   return {
     id: raw.id,
@@ -44,12 +44,13 @@ export function AdminProductEditPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
-  const [product, setProduct] = useState(null);
-  const [form, setForm] = useState({
+  const [product, setProduct] = useState<any>(null);
+  const [form, setForm] = useState<any>({
     name: '',
     sku: '',
     batchCode: '',
     description: '',
+    image: '',
     price: '',
     discountPrice: '',
     stock: '',
@@ -97,6 +98,7 @@ export function AdminProductEditPage() {
           sku: data.sku,
           batchCode: data.batchCode,
           description: data.description,
+          image: data.image,
           price: String(data.price ?? ''),
           discountPrice: String(data.discountPrice ?? ''),
           stock: String(data.stock ?? ''),
@@ -112,7 +114,7 @@ export function AdminProductEditPage() {
           isDecant: data.isDecant,
         });
       })
-      .catch((err) => setError(err?.response?.data?.message || err?.message || 'Không tải được chi tiết sản phẩm.'))
+      .catch((err: any) => setError(err?.response?.data?.message || err?.message || 'Không tải được chi tiết sản phẩm.'))
       .finally(() => setLoading(false));
   }, [numericId]);
 
@@ -158,12 +160,12 @@ export function AdminProductEditPage() {
 
   const displayPrice = useMemo(() => formatAdminCurrency(form.discountPrice || form.price), [form.discountPrice, form.price]);
 
-  const updateField = (field) => (event) => {
+  const updateField = (field: string) => (event: any) => {
     const value = ['status', 'isDecant'].includes(field) ? event.target.checked : event.target.value;
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current: any) => ({ ...current, [field]: value }));
   };
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = async (event: any) => {
     event.preventDefault();
     setSaving(true);
     setError('');
@@ -175,10 +177,10 @@ export function AdminProductEditPage() {
         stock: Number(form.stock || 0),
         volumeMl: form.volumeMl === '' ? null : Number(form.volumeMl),
         categoryId: form.categoryId === '' ? null : Number(form.categoryId),
-        brandId: Number(form.brandId),
+        brandId: form.brandId === '' ? null : Number(form.brandId),
       });
       pushToast('Đã cập nhật sản phẩm thành công.', 'success');
-    } catch (err) {
+    } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Không cập nhật được sản phẩm.');
     } finally {
       setSaving(false);
@@ -195,7 +197,7 @@ export function AdminProductEditPage() {
       await api.delete(`/admin/products/${numericId}`);
       pushToast('Đã xóa sản phẩm.', 'success');
       navigate('/admin/products');
-    } catch (err) {
+    } catch (err: any) {
       setError(err?.response?.data?.message || err?.message || 'Không xóa được sản phẩm.');
     } finally {
       setDeleting(false);
@@ -245,8 +247,8 @@ export function AdminProductEditPage() {
               </div>
               <div className="col-md-6">
                 <label className="form-label">Thương hiệu</label>
-                <select className="form-select" value={form.brandId} onChange={updateField('brandId')} required>
-                  <option value="">Chọn thương hiệu</option>
+                <select className="form-select" value={form.brandId} onChange={updateField('brandId')}>
+                  <option value="">Chưa có thương hiệu</option>
                   {options.brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
                 </select>
               </div>
@@ -303,7 +305,7 @@ export function AdminProductEditPage() {
               </div>
               <div className="col-12">
                 <label className="form-label">Mô tả</label>
-                <textarea className="form-control" rows="5" value={form.description} onChange={updateField('description')} />
+                <textarea className="form-control" rows={5} value={form.description} onChange={updateField('description')} />
               </div>
             </div>
 

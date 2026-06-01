@@ -58,7 +58,7 @@ export async function getAdminOrderDetail(id: number) {
 }
 
 export async function updateAdminOrderStatus(id: number, status: string) {
-  const { data } = await apiClient.put(`/admin/orders/${id}/status`, { status });
+  const { data } = await apiClient.patch(`/admin/orders/${id}/status`, { status });
   return data;
 }
 

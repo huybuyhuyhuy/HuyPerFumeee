@@ -5,7 +5,7 @@
       "type": "node",
       "name": "Debug Express API",
       "request": "launch",
-      "cwd": "${workspaceFolder}/server",
+      "cwd": "${workspaceFolder}/backend",
       "runtimeExecutable": "npm.cmd",
       "runtimeArgs": ["run", "dev"],
       "console": "integratedTerminal",

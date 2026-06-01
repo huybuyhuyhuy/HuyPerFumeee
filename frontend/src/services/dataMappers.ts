@@ -42,7 +42,7 @@ function normalizeRef(raw: any, idKey: string, nameKey: string) {
 }
 
 function normalizeProductVariant(raw: any): ProductVariant {
-  const salePrice = asNullableNumber(raw?.salePrice ?? raw?.discountPrice ?? raw?.discount_price);
+  const salePrice = asNullableNumber(raw?.salePrice ?? raw?.discountPrice ?? raw?.discount_price ?? raw?.discovery_min_price);
   const originalPrice = asNumber(raw?.originalPrice ?? raw?.original_price ?? raw?.price);
   const stockQuantity = asNumber(raw?.stockQuantity ?? raw?.stock_quantity ?? raw?.stock);
 
@@ -70,6 +70,29 @@ function normalizeProductVariant(raw: any): ProductVariant {
   };
 }
 
+function normalizeDecantOption(raw: any) {
+  return {
+    id: asNumber(raw?.id),
+    productId: asNumber(raw?.productId ?? raw?.product_id),
+    volumeMl: asNumber(raw?.volumeMl ?? raw?.volume_ml),
+    price: asNumber(raw?.price),
+    status: asBoolean(raw?.status, true),
+  };
+}
+
+function normalizeProductBatch(raw: any) {
+  return {
+    id: asNumber(raw?.id),
+    productId: asNumber(raw?.productId ?? raw?.product_id),
+    batchCode: asString(raw?.batchCode ?? raw?.batch_code),
+    totalVolumeMl: asNumber(raw?.totalVolumeMl ?? raw?.total_volume_ml),
+    remainingVolumeMl: asNumber(raw?.remainingVolumeMl ?? raw?.remaining_volume_ml),
+    importPrice: asNullableNumber(raw?.importPrice ?? raw?.import_price),
+    status: asString(raw?.status, 'ACTIVE'),
+    createdAt: raw?.createdAt ?? raw?.created_at ?? null,
+  };
+}
+
 export function normalizeProduct(raw: any): Product {
   raw = raw?.product && typeof raw.product === 'object' ? raw.product : raw;
   const category = raw?.category
@@ -79,8 +102,8 @@ export function normalizeProduct(raw: any): Product {
   const brand = raw?.brand
     ? { id: asNumber(raw.brand.id), name: asString(raw.brand.name) }
     : normalizeRef(raw, 'id_brand', 'brandName');
-  const salePrice = asNullableNumber(raw?.salePrice ?? raw?.discountPrice ?? raw?.discount_price);
-  const stockQuantity = asNumber(raw?.stockQuantity ?? raw?.stock_quantity ?? raw?.stock ?? raw?.quantity);
+  const salePrice = asNullableNumber(raw?.salePrice ?? raw?.discountPrice ?? raw?.discount_price ?? raw?.discovery_min_price);
+  const stockQuantity = asNumber(raw?.stockQuantity ?? raw?.stock_quantity ?? raw?.variant_stock_quantity ?? raw?.stock ?? raw?.quantity);
 
   const decantInventory = raw?.decantInventory
     ? {
@@ -98,7 +121,7 @@ export function normalizeProduct(raw: any): Product {
     name: asString(raw?.name ?? raw?.productName),
     price: asNumber(raw?.price),
     salePrice,
-    effectivePrice: asNullableNumber(raw?.effectivePrice ?? raw?.effective_price),
+    effectivePrice: asNullableNumber(raw?.effectivePrice ?? raw?.effective_price ?? raw?.discovery_min_price ?? salePrice),
     discountPrice: asNumber(salePrice),
     originalPrice: asNumber(raw?.originalPrice ?? raw?.original_price ?? raw?.price),
     discountPercent: asNumber(raw?.discountPercent ?? raw?.discount_percent),
@@ -110,10 +133,12 @@ export function normalizeProduct(raw: any): Product {
     gender: asString(raw?.gender ?? raw?.targetGender ?? raw?.target_gender),
     concentration: asString(raw?.concentration ?? raw?.perfumeConcentration ?? raw?.perfume_concentration),
     isDecant: asBoolean(raw?.isDecant ?? raw?.is_decant),
+    itemType: asString(raw?.itemType ?? raw?.item_type, ''),
+    selectedVolumeMl: asNullableNumber(raw?.selectedVolumeMl ?? raw?.selected_volume_ml),
     status: asBoolean(raw?.status, true),
     stockQuantity,
     stock: stockQuantity,
-    hasVariants: asBoolean(raw?.hasVariants ?? raw?.has_variants),
+    hasVariants: asBoolean(raw?.hasVariants ?? raw?.has_variants ?? raw?.variant_count > 0),
     volumeMl: asNumber(raw?.volumeMl ?? raw?.volume_ml),
     rating: asNumber(raw?.rating),
     reviewCount: asNumber(raw?.reviewCount ?? raw?.review_count),
@@ -125,6 +150,11 @@ export function normalizeProduct(raw: any): Product {
     thumbnailImage: raw?.thumbnailImage ?? raw?.thumbnail_image ?? null,
     selectedVariant: raw?.selectedVariant ? normalizeProductVariant(raw.selectedVariant) : null,
     variants: Array.isArray(raw?.variants) ? raw.variants.map(normalizeProductVariant) : [],
+    decantOptions: Array.isArray(raw?.decantOptions ?? raw?.decant_options)
+      ? (raw.decantOptions ?? raw.decant_options).map(normalizeDecantOption)
+      : [],
+    availableVolumeMl: asNumber(raw?.availableVolumeMl ?? raw?.available_volume_ml),
+    batches: Array.isArray(raw?.batches) ? raw.batches.map(normalizeProductBatch) : [],
     category,
     brand,
     decantInventory,
@@ -185,6 +215,9 @@ export function normalizeOrder(raw: any): OrderResponse {
       price: asNumber(item.price),
       selectedBatchCode: asString(item.selectedBatchCode ?? item.selected_batch_code),
       priceAtPurchase: asNumber(item.priceAtPurchase ?? item.price_at_purchase ?? item.price),
+      itemType: asString(item.itemType ?? item.item_type, 'FULL_BOTTLE'),
+      selectedVolumeMl: asNullableNumber(item.selectedVolumeMl ?? item.selected_volume_ml),
+      sourceBatchId: asNullableNumber(item.sourceBatchId ?? item.source_batch_id),
     }))
     : [];
   const timeline = Array.isArray(raw?.timeline)
@@ -204,6 +237,12 @@ export function normalizeOrder(raw: any): OrderResponse {
     userId: asNumber(raw?.userId ?? raw?.user_id),
     userName: asString(raw?.userName ?? raw?.user_name),
     total: asNumber(raw?.total),
+    subtotal: asNumber(raw?.subtotal ?? raw?.orderSubtotal ?? raw?.order_subtotal ?? raw?.total),
+    voucherId: asNullableNumber(raw?.voucherId ?? raw?.voucher_id),
+    voucherCode: asString(raw?.voucherCode ?? raw?.voucher_code),
+    voucherDiscountType: asString(raw?.voucherDiscountType ?? raw?.voucher_discount_type),
+    voucherDiscountValue: asNullableNumber(raw?.voucherDiscountValue ?? raw?.voucher_discount_value),
+    voucherDiscountAmount: asNumber(raw?.voucherDiscountAmount ?? raw?.voucher_discount_amount),
     shippingAddress: asString(raw?.shippingAddress ?? raw?.shipping_address),
     phone: asString(raw?.phone),
     paymentMethod: asString(raw?.paymentMethod ?? raw?.payment_method),

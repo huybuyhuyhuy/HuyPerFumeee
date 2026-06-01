@@ -15,6 +15,7 @@ const EMPTY_DASHBOARD = {
   totalProducts: 0,
   lowStockProducts: 0,
   charts: { revenue: [], orders: [], users: [] },
+  trend: { revenueGrowth: 0, orderGrowth: 0, customerGrowth: 0, productGrowth: 0 },
   topProducts: [],
   recentOrders: [],
 };
@@ -38,6 +39,11 @@ function formatCurrency(value) {
 
 function formatNumber(value) {
   return Math.round(asNumber(value)).toLocaleString('vi-VN');
+}
+
+function formatGrowth(value) {
+  const number = asNumber(value);
+  return `${number > 0 ? '+' : ''}${number}%`;
 }
 
 function formatMonth(value) {
@@ -92,6 +98,7 @@ function MetricCard({ metric }) {
       <strong>{metric.value}</strong>
       <div className="huy-admin-metric-meta">
         <small>{metric.hint}</small>
+        {metric.delta !== undefined && <span className={metric.delta >= 0 ? 'positive' : 'negative'}>{formatGrowth(metric.delta)}</span>}
       </div>
       <Link to={metric.to}>Xem chi tiết <span aria-hidden="true">↗</span></Link>
     </article>
@@ -155,7 +162,7 @@ function TopProducts({ products }) {
           <img src={resolveProductImage(product.image)} alt={product.name} loading="lazy" onError={productFallbackImage} />
           <div>
             <strong>{product.name}</strong>
-            <small>{formatNumber(product.totalSold)} đã bán · {formatCurrency(product.revenue)}</small>
+            <small>{formatNumber(product.soldQuantity ?? product.totalSold)} đã bán · {formatCurrency(product.revenue)}</small>
           </div>
           <b>{formatCurrency(product.discountPrice > 0 ? product.discountPrice : product.price)}</b>
         </article>
@@ -194,14 +201,19 @@ export function AdminDashboardPage() {
   useEffect(() => {
     setLoading(true);
     setError('');
-    api
-      .get('/admin/dashboard')
-      .then((res) => {
-        const data = unwrapApiData(res.data) || {};
+    Promise.allSettled([
+      api.get('/admin/dashboard'),
+      api.get('/admin/dashboard/summary', { params: { range: '30d' } }),
+    ])
+      .then(([dashboardResult, summaryResult]) => {
+        if (dashboardResult.status === 'rejected') throw dashboardResult.reason;
+        const data = unwrapApiData(dashboardResult.value.data) || {};
+        const summaryData = summaryResult.status === 'fulfilled' ? unwrapApiData(summaryResult.value.data) || {} : {};
         setDashboard({
           ...EMPTY_DASHBOARD,
           ...data,
           charts: { ...EMPTY_DASHBOARD.charts, ...(data.charts || {}) },
+          trend: { ...EMPTY_DASHBOARD.trend, ...(data.trend || {}), ...(summaryData.trend || {}) },
           topProducts: asArray(data.topProducts),
           recentOrders: asArray(data.recentOrders),
         });
@@ -215,6 +227,7 @@ export function AdminDashboardPage() {
     {
       label: 'Doanh thu',
       value: formatCurrency(dashboard.totalRevenue),
+      delta: dashboard.trend?.revenueGrowth,
       hint: 'Đơn đã giao, hoàn tất hoặc thanh toán hợp lệ',
       icon: '₫',
       tone: 'gold',
@@ -223,6 +236,7 @@ export function AdminDashboardPage() {
     {
       label: 'Tổng đơn',
       value: formatNumber(dashboard.totalOrders),
+      delta: dashboard.trend?.orderGrowth ?? dashboard.orderGrowth,
       hint: `${formatNumber(dashboard.completedOrders)} đơn hoàn thành`,
       icon: '↗',
       tone: 'sage',
@@ -255,6 +269,7 @@ export function AdminDashboardPage() {
     {
       label: 'User mới tháng này',
       value: formatNumber(dashboard.newUsersThisMonth),
+      delta: dashboard.trend?.customerGrowth,
       hint: `${formatNumber(dashboard.totalUsers)} user đang theo dõi`,
       icon: '●',
       tone: 'blue',

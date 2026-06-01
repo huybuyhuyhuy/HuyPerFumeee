@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent, type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, useMotionValue, useReducedMotion, useSpring, useTransform, type Transition } from 'framer-motion';
 import { productService } from '../services/productService.js';
 import { cartService } from '../services/cartService.js';
 import { contactService } from '../services/contactService';
@@ -12,8 +13,8 @@ import { resolveProductImage } from '../utils/image';
 import { siteContact } from '../config/siteConfig';
 
 const luxuryCollectionSections = [
-  { title: 'Cho Nam', subtitle: 'Gỗ trầm, da thuộc, bản lĩnh', copy: 'Các mùi hương nam tính có độ sâu, dễ mặc nhưng vẫn đủ nổi bật trong những buổi gặp quan trọng.', image: '/assets/images/4.webp', to: '/products?categoryId=1', badge: 'Tuyển chọn nam', note: 'Gỗ / Thơm nồng' },
-  { title: 'Cho Nữ', subtitle: 'Hoa trắng, musk, nét mềm sang', copy: 'Một tuyển tập nữ tính hiện đại: sạch, mượt, lưu hương đẹp và hợp cả ngày thường lẫn dịp đặc biệt.', image: '/assets/images/5.webp', to: '/products?categoryId=2', badge: 'Tuyển chọn nữ', note: 'Hoa / Xạ hương' },
+  { title: 'Cho Nam', subtitle: 'Gỗ trầm, da thuộc, bản lĩnh', copy: 'Các mùi hương nam tính có độ sâu, dễ dùng nhưng vẫn đủ nổi bật trong những buổi gặp quan trọng.', image: '/assets/images/4.webp', to: '/products?categoryId=1', badge: 'Tuyển chọn nam', note: 'Gỗ · Thơm nồng' },
+  { title: 'Cho Nữ', subtitle: 'Hoa trắng, xạ hương, nét mềm sang', copy: 'Một tuyển tập nữ tính hiện đại: sạch, mượt, lưu hương đẹp và hợp cả ngày thường lẫn dịp đặc biệt.', image: '/assets/images/5.webp', to: '/products?categoryId=2', badge: 'Tuyển chọn nữ', note: 'Hoa · Xạ hương' },
   { title: 'Hương đặc trưng', subtitle: 'Mùi hương tạo dấu ấn riêng', copy: 'Những lựa chọn có độ cân bằng tốt giữa độ sang, độ bền và khả năng trở thành mùi hương nhận diện.', image: '/assets/images/7.webp', to: '/products?sort=best_seller', badge: 'Lựa chọn của HuyPerfume', note: 'Bán chạy nhất' },
   { title: 'Bộ sưu tập độc quyền', subtitle: 'Tinh tuyển, khác biệt, khó quên', copy: 'Dành cho người thích một cấu trúc mùi có cá tính rõ ràng, giàu lớp lang và không đại trà.', image: '/assets/images/12.webp', to: '/products?categoryId=4', badge: 'Độc bản', note: 'Hàng hiếm' },
 ];
@@ -21,11 +22,31 @@ const luxuryCollectionSections = [
 const categoryCards = [
   { name: 'Hương hoa', cat: 2, fallbackImage: '/assets/images/5.webp', desc: 'Mềm mại, nữ tính và sáng bừng như một chiến dịch mùa xuân.', tone: 'Sắc hoa' },
   { name: 'Hương gỗ', cat: 1, fallbackImage: '/assets/images/4.webp', desc: 'Trầm ấm, bản lĩnh và có chiều sâu theo tinh thần sang trọng nam tính.', tone: 'Gỗ thành thị' },
-  { name: 'Hổ phách', cat: 4, fallbackImage: '/assets/images/7.webp', desc: 'Ấm, sang và cuốn hút đúng chất luxury evening.', tone: 'Hổ phách vàng' },
+  { name: 'Hổ phách', cat: 4, fallbackImage: '/assets/images/7.webp', desc: 'Ấm, sang và cuốn hút đúng chất buổi tối sang trọng.', tone: 'Hổ phách vàng' },
   { name: 'Tươi mát', cat: 3, fallbackImage: '/assets/images/6.webp', desc: 'Sạch, sáng, thoáng và hiện đại cho nhịp sống mỗi ngày.', tone: 'Không khí sạch' },
   { name: 'Phương Đông', cat: 4, fallbackImage: '/assets/images/12.webp', desc: 'Dày dặn, gợi cảm và đầy cảm xúc như một khung hình điện ảnh.', tone: 'Nhung quyến rũ' },
   { name: 'Cam chanh', cat: 5, fallbackImage: '/assets/images/3.webp', desc: 'Bùng nổ tươi mát, giàu năng lượng và rất dễ yêu.', tone: 'Tia sáng' },
 ];
+
+const categoryCardLinks = [
+  '/products?scent=hoa',
+  '/products?scent=go',
+  '/products?scent=ho%20phach',
+  '/products?scent=chanh',
+  '/products?scent=amber',
+  '/products?scent=cam',
+];
+
+const homepageGalleryImageIds = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+  11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+  21, 22, 23, 25, 30, 31, 32, 33, 34, 35,
+  36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
+  46, 47, 48, 49, 50, 51, 52, 53, 54, 55,
+  56, 57, 58, 59, 60,
+];
+
+const homepageGalleryImages = homepageGalleryImageIds.map((id) => `/assets/images/${id}.webp`);
 
 type HeroSlide = {
   id: string | number;
@@ -34,12 +55,9 @@ type HeroSlide = {
   tagline: string;
   image: string;
   badge: string;
+  family: string;
+  notes: string;
   to: string;
-};
-
-type ProductWithCategoryAliases = Product & {
-  categoryId?: number | string | null;
-  id_category?: number | string | null;
 };
 
 type ContactFormState = {
@@ -84,35 +102,54 @@ const contactNeedOptions = [
   { value: 'signature', label: 'Tìm mùi hương signature' },
 ];
 
-const fallbackHeroSlides: HeroSlide[] = [
+const heroProductSelections: HeroSlide[] = [
   {
-    id: 'signature',
-    name: 'HuyPerfume Signature',
-    brand: 'Bộ sưu tập 2026',
-    tagline: 'Những mùi hương được chọn lọc cho phong cách thanh lịch, tự tin và khác biệt.',
-    image: '/assets/images/7.png',
-    badge: 'Tuyển chọn',
-    to: '/products',
-  },
-  {
-    id: 'modern-oud',
-    name: 'Hương gỗ trầm ấm',
-    brand: 'Bộ sưu tập nam',
-    tagline: 'Sâu lắng, sang trọng và có độ lưu hương bền bỉ cho những khoảnh khắc quan trọng.',
-    image: '/assets/images/4.png',
+    id: 'bleu-de-chanel-edp',
+    name: 'Bleu de Chanel EDP',
+    brand: 'Chanel',
+    tagline: 'Sạch, sâu và sang trọng với sắc xanh gỗ thơm hiện đại.',
+    image: '/assets/images/2.png',
     badge: 'Bán chạy',
-    to: '/products?categoryId=1',
+    family: 'Woody Aromatic',
+    notes: 'Bưởi chùm · Amber · Xạ hương',
+    to: '/products/2',
   },
   {
-    id: 'floral-muse',
-    name: 'Hương hoa thanh lịch',
-    brand: 'Bộ sưu tập nữ',
-    tagline: 'Mềm mại, tinh tế và hiện đại, dành cho vẻ đẹp nữ tính không cần phô trương.',
-    image: '/assets/images/5.png',
-    badge: 'Mới về',
-    to: '/products?categoryId=2',
+    id: 'versace-dylan-blue',
+    name: 'Versace Dylan Blue',
+    brand: 'Versace',
+    tagline: 'Tươi mát, nam tính và dễ tạo dấu ấn trong mọi khoảnh khắc.',
+    image: '/assets/images/3.png',
+    badge: 'Nổi bật nhất',
+    family: 'Fresh Woods',
+    notes: 'Bạch quả · Tiêu đen · Tonka bean',
+    to: '/products/3',
+  },
+  {
+    id: 'dior-sauvage-edt',
+    name: 'Dior Sauvage EDT',
+    brand: 'Dior',
+    tagline: 'Sắc citrus mạnh mẽ, sạch và phóng khoáng cho phong cách tự tin.',
+    image: '/assets/images/1.png',
+    badge: 'Mùi hương đặc trưng',
+    family: 'Citrus Woods',
+    notes: 'Chanh vàng · Bạch đậu khấu · Vetiver',
+    to: '/products/1',
   },
 ];
+
+const fallbackHeroSlides: HeroSlide[] = heroProductSelections;
+
+const heroReveal = {
+  hidden: { opacity: 0, y: 28 },
+  visible: { opacity: 1, y: 0 },
+};
+
+const heroSpring: Transition = {
+  type: 'spring',
+  stiffness: 170,
+  damping: 22,
+};
 
 const serviceCommitments = [
   { icon: 'shield', title: 'Chính hãng 100%', description: 'Sản phẩm có nguồn gốc rõ ràng, được tuyển chọn kỹ lưỡng trước khi đến tay khách hàng.' },
@@ -154,6 +191,42 @@ function validateContactForm(form: ContactFormState) {
   return errors;
 }
 
+function normalizeHeroProductName(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function getHeroNotes(product: Product, fallback: string) {
+  const firstLayer = product.scentNotes?.split('|')[0] || '';
+  const notes = firstLayer
+    .split(',')
+    .map((note) => note.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+
+  return notes.length > 0 ? notes.join(' / ') : fallback;
+}
+
+function getImageAssetId(image?: string | null) {
+  const match = String(image || '').match(/\/(\d+)\.(?:png|webp|jpg|jpeg)(?:\?.*)?$/i);
+  return match?.[1] || null;
+}
+
+function shuffleImagePool(images: string[]) {
+  const result = Array.from(new Set(images.filter(Boolean)));
+
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+
+  return result;
+}
+
 function SmallIcon({ name }: { name: string }) {
   const commonProps = {
     className: 'luxury-line-icon',
@@ -183,6 +256,7 @@ export function HomePage() {
   const [contactErrors, setContactErrors] = useState<ContactFormErrors>({});
   const [contactFeedback, setContactFeedback] = useState<ContactFeedback>(null);
   const [contactSubmitting, setContactSubmitting] = useState(false);
+  const [reviewVisible, setReviewVisible] = useState(false);
   const { pushToast } = useToast();
   const sectionRevealRef = useScrollReveal('.luxury-scroll-reveal');
   const featuredRevealRef = useScrollReveal('.scroll-reveal-item', !loading && products.length > 0);
@@ -194,59 +268,99 @@ export function HomePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  function getProductCategoryId(product: Product) {
-    const item = product as ProductWithCategoryAliases;
-    const categoryId = item.category?.id ?? item.categoryId ?? item.id_category;
-    const numericCategoryId = Number(categoryId);
+  const homeSectionImages = useMemo(() => {
+    const visibleProductImageIds = new Set(
+      products
+        .map((item) => getImageAssetId(resolveProductImage(item.image)))
+        .filter(Boolean)
+    );
+    const freshGalleryImages = homepageGalleryImages.filter((image) => {
+      const imageId = getImageAssetId(image);
+      return imageId && !visibleProductImageIds.has(imageId);
+    });
+    const imagePool = freshGalleryImages.length >= categoryCards.length + luxuryCollectionSections.length
+      ? freshGalleryImages
+      : homepageGalleryImages;
 
-    return Number.isFinite(numericCategoryId) ? numericCategoryId : null;
-  }
+    return shuffleImagePool(imagePool);
+  }, [products]);
 
-  function getProductImageByCategory(categoryId: number, fallbackImage: string) {
-    const product = products.find((item) => getProductCategoryId(item) === categoryId && Boolean(item.image));
+  const categoryImages = useMemo(() => categoryCards.map(
+    (category, index) => homeSectionImages[index] || category.fallbackImage
+  ), [homeSectionImages]);
 
-    return product?.image ? resolveProductImage(product.image) : fallbackImage;
-  }
-
-  function getProductImageByIndex(index: number, fallbackImage: string) {
-    const productImage = products[index]?.image;
-
-    return productImage ? resolveProductImage(productImage) : fallbackImage;
-  }
+  const collectionImages = useMemo(() => luxuryCollectionSections.map(
+    (item, index) => homeSectionImages[categoryCards.length + index] || item.image
+  ), [homeSectionImages]);
 
   const heroSlides = useMemo<HeroSlide[]>(() => {
-    const realProductSlides = products.slice(0, 3).map((product) => ({
-      id: product.id,
-      name: product.name,
-      brand: product.brand?.name || 'HuyPerfume',
-      tagline: product.description || 'Mùi hương được HuyPerfume tuyển chọn cho phong cách riêng của bạn.',
-      image: resolveProductImage(product.image),
-      badge: product.isDecant ? 'Mini size' : product.discountPrice > 0 ? 'Ưu đãi' : 'Nổi bật',
-      to: `/products/${product.id}`,
-    }));
+    return heroProductSelections.map((fallback) => {
+      const product = products.find((item) => normalizeHeroProductName(item.name) === normalizeHeroProductName(fallback.name));
 
-    return realProductSlides.length > 0 ? realProductSlides : fallbackHeroSlides;
+      if (!product) return fallback;
+
+      return {
+        ...fallback,
+        id: product.id,
+        name: product.name,
+        brand: product.brand?.name || fallback.brand,
+        tagline: product.description || fallback.tagline,
+        image: product.image ? resolveProductImage(product.image) : fallback.image,
+        badge: product.discountPrice > 0 ? 'Ưu đãi' : fallback.badge,
+        family: product.scentGroup || fallback.family,
+        notes: getHeroNotes(product, fallback.notes),
+        to: `/products/${product.id}`,
+      };
+    });
   }, [products]);
 
   const safeHeroSlides = heroSlides.length > 0 ? heroSlides : fallbackHeroSlides;
   const activeHero = safeHeroSlides[heroIndex % safeHeroSlides.length] || fallbackHeroSlides[0];
+  const activeHeroIndex = heroIndex % safeHeroSlides.length;
+  const shouldReduceMotion = useReducedMotion();
+  const heroPointerX = useMotionValue(0);
+  const heroPointerY = useMotionValue(0);
+  const heroSpringX = useSpring(heroPointerX, { stiffness: 92, damping: 24, mass: 0.35 });
+  const heroSpringY = useSpring(heroPointerY, { stiffness: 92, damping: 24, mass: 0.35 });
+  const stageX = useTransform(heroSpringX, [-1, 1], [-24, 24]);
+  const stageY = useTransform(heroSpringY, [-1, 1], [16, -16]);
+  const stageRotateX = useTransform(heroSpringY, [-1, 1], [4, -4]);
+  const stageRotateY = useTransform(heroSpringX, [-1, 1], [-6, 6]);
   const mostLovedProducts = useMemo(() => (
     [...products]
+      .filter((item) => item.status !== false)
       .sort((left, right) => {
-        const leftScore = (left.rating || 0) * 100 + (left.reviewCount || 0) * 8 + (left.soldCount || 0);
-        const rightScore = (right.rating || 0) * 100 + (right.reviewCount || 0) * 8 + (right.soldCount || 0);
+        const leftScore = (left.soldCount || 0) * 10 + (left.reviewCount || 0) * 6 + (left.rating || 0) * 100;
+        const rightScore = (right.soldCount || 0) * 10 + (right.reviewCount || 0) * 6 + (right.rating || 0) * 100;
         return rightScore - leftScore;
       })
       .slice(0, 4)
   ), [products]);
   const bestPrice = products[0] ? formatCurrency(products[0].discountPrice > 0 ? products[0].discountPrice : products[0].price) : 'Từ 690.000₫';
+  const handleHeroMouseMove = (event: MouseEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
+    const y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
+
+    heroPointerX.set(x);
+    heroPointerY.set(y);
+  };
+
+  const resetHeroPointer = () => {
+    heroPointerX.set(0);
+    heroPointerY.set(0);
+  };
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       setHeroIndex((current) => (current + 1) % safeHeroSlides.length);
-    }, 5200);
+    }, 5000);
     return () => window.clearInterval(timer);
   }, [safeHeroSlides.length]);
+
+  useEffect(() => {
+    setReviewVisible(false);
+  }, [activeHeroIndex]);
 
   const handleAddToCart = async (productId: number) => {
     try {
@@ -302,70 +416,115 @@ export function HomePage() {
 
   return (
     <div className="luxury-home" ref={sectionRevealRef}>
-      <section className="luxury-hero-cinematic">
+      <motion.section
+        className="luxury-hero-cinematic luxury-hero-premium"
+        onMouseMove={handleHeroMouseMove}
+        onMouseLeave={resetHeroPointer}
+        initial="hidden"
+        animate="visible"
+        variants={{
+          visible: { transition: { staggerChildren: 0.12, delayChildren: 0.05 } },
+        }}
+      >
         <div className="luxury-hero-cinematic-bg" aria-hidden="true">
-          <div className="luxury-hero-orb luxury-hero-orb-a" />
-          <div className="luxury-hero-orb luxury-hero-orb-b" />
+          <div className="luxury-hero-silk-panel luxury-hero-silk-left" />
+          <div className="luxury-hero-silk-panel luxury-hero-silk-right" />
           <div className="luxury-hero-vignette" />
         </div>
         <div className="container">
           <div className="luxury-hero-cinematic-grid">
-            <div className="luxury-hero-copy product-fade-in is-visible">
+            <motion.div className="luxury-hero-copy" variants={heroReveal}>
               <span className="luxury-kicker">Bộ sưu tập 2026</span>
               <h1 className="luxury-hero-title">Mùi hương<span> có gu thật sự</span></h1>
-              <p className="luxury-hero-desc">Một không gian chọn nước hoa theo cảm xúc, đẳng cấp và cá tính — tinh tế ngay từ giây đầu tiên.</p>
-              <p className="luxury-hero-mood-copy">HuyPerfume tuyển chọn những mùi hương sang trọng, hiện đại và đủ khác biệt để tạo dấu ấn riêng.</p>
+              <p className="luxury-hero-desc">Một trải nghiệm nước hoa cao cấp với chuyển động mềm, ánh sáng ấm và cách trình bày chỉn chu như một boutique nước hoa.</p>
+              <p className="luxury-hero-mood-copy">HuyPerfume tuyển chọn những mùi hương sang trọng, hiện đại và đủ khác biệt để tạo dấu ấn riêng cho bạn.</p>
               <div className="luxury-hero-actions">
-                <Link to="/products" className="btn luxury-primary-btn btn-lg">Khám phá ngay</Link>
-                <a href="#contact" className="btn luxury-secondary-btn btn-lg">Tư vấn miễn phí</a>
+                <motion.div whileHover={{ scale: 1.03, rotateX: 3, rotateY: 5, y: -6 }} transition={heroSpring}>
+                  <Link to="/products" className="btn luxury-primary-btn btn-lg">Khám phá ngay</Link>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.03, rotateX: 3, rotateY: 5, y: -6 }} transition={heroSpring}>
+                  <a href="#contact" className="btn luxury-secondary-btn btn-lg">Tư vấn miễn phí</a>
+                </motion.div>
               </div>
               <div className="luxury-hero-stats" aria-label="Điểm nổi bật của HuyPerfume">
-                <div><strong>500+</strong><span>Sản phẩm chính hãng</span></div>
-                <div><strong>50+</strong><span>Thương hiệu cao cấp</span></div>
-                <div><strong>10K+</strong><span>Khách hàng tin tưởng</span></div>
+                <motion.div variants={heroReveal} whileHover={{ scale: 1.03, y: -6 }} transition={heroSpring}><strong>500+</strong><span>Sản phẩm chính hãng</span></motion.div>
+                <motion.div variants={heroReveal} whileHover={{ scale: 1.03, y: -6 }} transition={heroSpring}><strong>50+</strong><span>Thương hiệu cao cấp</span></motion.div>
+                <motion.div variants={heroReveal} whileHover={{ scale: 1.03, y: -6 }} transition={heroSpring}><strong>10K+</strong><span>Khách hàng tin tưởng</span></motion.div>
               </div>
-            </div>
+            </motion.div>
 
             <div className="luxury-hero-showcase" aria-label={`Featured ${activeHero.name}`}>
-              <div className="luxury-hero-frame-wrap">
-                <div className="luxury-hero-frame-glow" aria-hidden="true" />
-                <Link to={activeHero.to} className="luxury-hero-frame" aria-label={`Xem ${activeHero.name}`}>
-                  <img src={activeHero.image} alt={activeHero.name} loading="eager" decoding="async" fetchPriority="high" />
-                  <div className="luxury-hero-product">
-                    <p>{activeHero.brand}</p>
-                    <h2>{activeHero.name}</h2>
-                    <span>{activeHero.tagline}</span>
-                  </div>
-                </Link>
-                <div className="luxury-hero-floating-bottle" aria-hidden="true"><img src="/assets/images/7.png" alt="" loading="lazy" decoding="async" /></div>
-              </div>
-              <div className="luxury-hero-floating-card"><span>Đánh giá khách hàng</span><strong>4.9/5</strong><small>Hơn 2,500 phản hồi</small></div>
-              <div className="luxury-hero-badge">{activeHero.badge}</div>
-              <div className="luxury-hero-controls" aria-label="Chuyển sản phẩm nổi bật">
-                <button type="button" onClick={() => setHeroIndex((current) => (current - 1 + safeHeroSlides.length) % safeHeroSlides.length)} aria-label="Sản phẩm trước">‹</button>
-                <div>
-                  {safeHeroSlides.map((slide, index) => <button key={slide.id} type="button" className={index === heroIndex % safeHeroSlides.length ? 'active' : ''} onClick={() => setHeroIndex(index)} aria-label={`Đến sản phẩm ${index + 1}`} />)}
+              <motion.div
+                className="luxury-hero-stage"
+                style={{ x: stageX, y: stageY, rotateX: stageRotateX, rotateY: stageRotateY }}
+                variants={heroReveal}
+                whileHover={{
+                  scale: 1.03,
+                  rotateX: 3,
+                  rotateY: 5,
+                  y: -6,
+                  boxShadow: '0 54px 150px rgba(63, 38, 22, 0.32)',
+                }}
+                transition={heroSpring}
+              >
+                <div className="luxury-hero-stage-aura" aria-hidden="true" />
+                <div className="luxury-hero-main-bottle-wrap">
+                  <motion.img
+                    className="luxury-hero-main-bottle"
+                    src={activeHero.image}
+                    alt={activeHero.name}
+                    loading="eager"
+                    decoding="async"
+                    fetchPriority="high"
+                    onError={(event) => {
+                      event.currentTarget.src = '/assets/images/hero-perfume-bottle.png';
+                    }}
+                    animate={shouldReduceMotion ? undefined : { y: [0, -18, 0] }}
+                    transition={shouldReduceMotion ? heroSpring : { duration: 4, ease: 'easeInOut', repeat: Infinity }}
+                  />
                 </div>
-                <button type="button" onClick={() => setHeroIndex((current) => (current + 1) % safeHeroSlides.length)} aria-label="Sản phẩm tiếp theo">›</button>
-              </div>
+                <div className="luxury-hero-stage-shadow" aria-hidden="true" />
+                <div className="luxury-hero-product">
+                  <p>{activeHero.brand}</p>
+                  <h2>{activeHero.name}</h2>
+                  <span>{activeHero.tagline}</span>
+                </div>
+              </motion.div>
+
+
+              <motion.div className="luxury-hero-controls luxury-hero-product-tabs" variants={heroReveal} aria-label="Chuyển sản phẩm nổi bật">
+                {safeHeroSlides.slice(0, 3).map((slide, index) => (
+                  <button
+                    key={slide.id}
+                    type="button"
+                    className={index === activeHeroIndex ? 'active' : ''}
+                    onClick={() => setHeroIndex(index)}
+                    aria-label={`Đến sản phẩm ${index + 1}`}
+                    aria-pressed={index === activeHeroIndex}
+                  >
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <strong>{slide.name}</strong>
+                  </button>
+                ))}
+              </motion.div>
             </div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       <section className="luxury-section luxury-category-section luxury-scroll-reveal">
         <div className="container">
           <div className="luxury-section-heading text-center">
             <p className="section-eyebrow justify-content-center">Bộ sưu tập</p>
             <h2 className="section-title">Khám phá theo phong cách</h2>
-            <p className="luxury-section-lead">Những mảng hương được chọn lọc theo mood, giúp người dùng xem nhanh và tìm đúng gu chỉ trong vài giây.</p>
+            <p className="luxury-section-lead">Những nhóm mùi được chọn lọc theo phong cách, giúp người dùng xem nhanh và tìm đúng gu chỉ trong vài giây.</p>
           </div>
           <div className="luxury-category-grid">
-            {categoryCards.map((category) => {
-              const image = getProductImageByCategory(category.cat, category.fallbackImage);
+            {categoryCards.map((category, index) => {
+              const image = categoryImages[index] || category.fallbackImage;
 
               return (
-                <Link key={category.name} to={`/products?categoryId=${category.cat}`} className="luxury-category-card">
+                <Link key={category.name} to={categoryCardLinks[index] || `/products?categoryId=${category.cat}`} className="luxury-category-card">
                   <img
                     src={image}
                     alt={category.name}
@@ -395,7 +554,7 @@ export function HomePage() {
             <div>
               <p className="section-eyebrow">Được yêu thích nhất</p>
               <h2 className="section-title">Được chọn nhiều nhất</h2>
-              <p className="luxury-featured-subtitle">Sắp xếp theo tín hiệu thật từ lượt mua, đánh giá và mức độ quan tâm thay vì chỉ lấy ngẫu nhiên.</p>
+              <p className="luxury-featured-subtitle">Sắp xếp theo tín hiệu thật từ lượt mua, đánh giá và mức độ quan tâm thay vì chỉ hiển thị ngẫu nhiên.</p>
             </div>
             <Link to="/products?sort=best_seller" className="btn luxury-link-btn">Xem tất cả</Link>
           </div>
@@ -415,32 +574,32 @@ export function HomePage() {
         <div className="container">
           <div className="luxury-story-grid">
             <div className="luxury-story-media">
-              <img src="/assets/images/12.png" alt="HuyPerfume craftsmanship" loading="lazy" decoding="async" />
+              <img src="/assets/images/12.png" alt="Tinh thần HuyPerfume" loading="lazy" decoding="async" />
               <div className="luxury-story-media-card">
                 <span>Bản sắc riêng</span>
                 <strong>Tuyển chọn tinh tế</strong>
-                <p>Một trải nghiệm boutique, nơi từng lựa chọn đều có lý do và có câu chuyện.</p>
+                <p>Mỗi lựa chọn đều được cân nhắc kỹ, để tạo nên một câu chuyện mùi hương rõ ràng và có gu.</p>
               </div>
             </div>
             <div className="luxury-story-copy">
               <p className="section-eyebrow">Câu chuyện thương hiệu</p>
-              <h2 className="section-title">Đây là một brand thật, có gu và có tinh thần riêng.</h2>
-              <p className="luxury-section-lead">HuyPerfume được xây dựng như một boutique fragrance house: chọn lọc, tinh tế và tập trung vào cảm giác sở hữu một mùi hương đúng với bản sắc của bạn.</p>
+              <h2 className="section-title">HuyPerfume là một thương hiệu thật, có gu và mang bản sắc riêng.</h2>
+              <p className="luxury-section-lead">HuyPerfume được xây dựng như một cửa hàng nước hoa tuyển chọn: tinh tế, có chọn lọc và tập trung vào cảm giác sở hữu một mùi hương đúng với bản sắc của bạn.</p>
               <div className="luxury-story-points">
                 <article>
                   <span>Vì sao chọn chúng tôi</span>
                   <strong>Chọn lọc có chủ đích</strong>
-                  <p>Không bày tràn lan. Mỗi sản phẩm xuất hiện đều được cân nhắc theo tính thẩm mỹ, độ tin cậy và độ phù hợp với người dùng.</p>
+                  <p>Không trưng bày tràn lan. Mỗi sản phẩm xuất hiện đều được cân nhắc theo tính thẩm mỹ, độ tin cậy và mức độ phù hợp với người dùng.</p>
                 </article>
                 <article>
                   <span>Thủ công tinh xảo</span>
-                  <strong>Chăm chút như một atelier</strong>
-                  <p>Từ ảnh sản phẩm, khoảng thở đến typography đều được tinh chỉnh để mang cảm giác thủ công cao cấp, mềm mại và chỉn chu.</p>
+                  <strong>Chăm chút như một xưởng chế tác</strong>
+                  <p>Từ ảnh sản phẩm, khoảng thở đến kiểu chữ đều được tinh chỉnh để mang cảm giác thủ công cao cấp, mềm mại và chỉn chu.</p>
                 </article>
                 <article>
                   <span>Chính hãng</span>
                   <strong>Minh bạch và đáng tin</strong>
-                  <p>Thông tin sản phẩm, trust cues và social proof được trình bày rõ ràng để người dùng cảm thấy an tâm ngay từ đầu.</p>
+                  <p>Thông tin sản phẩm, độ tin cậy và phản hồi khách hàng được trình bày rõ ràng để người dùng cảm thấy an tâm ngay từ đầu.</p>
                 </article>
               </div>
             </div>
@@ -453,11 +612,11 @@ export function HomePage() {
           <div className="luxury-section-heading text-center">
             <p className="section-eyebrow justify-content-center">Bộ sưu tập nổi bật</p>
             <h2 className="section-title">Trải nghiệm mùi hương tuyển chọn</h2>
-            <p className="luxury-section-lead">Bốn edit được chọn theo mood thật, có vai trò rõ ràng: dễ chọn hơn, sang hơn và không còn cảm giác catalog xếp đều cho có.</p>
+            <p className="luxury-section-lead">Bốn bộ sưu tập được chọn theo phong cách, có vai trò rõ ràng: dễ chọn hơn, sang hơn và không còn cảm giác danh mục bị xếp đều cho có.</p>
           </div>
           <div className="luxury-collection-stack">
             {luxuryCollectionSections.map((item, index) => {
-              const image = getProductImageByIndex(index, item.image);
+              const image = collectionImages[index] || item.image;
 
               return (
                 <article key={item.title} className={`luxury-collection-editorial-card ${index % 2 === 1 ? 'reverse' : ''}`}>
@@ -478,7 +637,7 @@ export function HomePage() {
                     <h3>{item.subtitle}</h3>
                     <p>{item.copy}</p>
                     <span className="luxury-collection-note">{item.note}</span>
-                    <Link to={item.to} className="btn luxury-primary-btn">Khám phá collection</Link>
+                    <Link to={item.to} className="btn luxury-primary-btn">Khám phá bộ sưu tập</Link>
                   </div>
                 </article>
               );
@@ -492,7 +651,7 @@ export function HomePage() {
           <div className="luxury-section-heading text-center">
             <p className="section-eyebrow justify-content-center">Uy tín & khách hàng</p>
             <h2 className="section-title">Tinh tế, minh bạch, đáng tin</h2>
-            <p className="luxury-section-lead">Thông tin ngắn gọn, rõ ràng và đủ để người dùng cảm thấy an tâm mà không bị ngợp bởi marketing noise.</p>
+            <p className="luxury-section-lead">Thông tin ngắn gọn, rõ ràng và đủ để người dùng cảm thấy an tâm mà không bị ngợp bởi ngôn ngữ quảng bá quá mức.</p>
           </div>
           <div className="luxury-trust-stat-grid">
             <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Cam kết chính hãng</span><strong>100%</strong><p>Cam kết sản phẩm chính hãng, nguồn gốc rõ ràng.</p></article>

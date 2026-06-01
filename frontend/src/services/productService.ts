@@ -26,6 +26,20 @@ function normalizeReview(raw: any): ProductReview {
   };
 }
 
+function normalizeCategoryName(value: unknown) {
+  return asString(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isHiddenPublicCategory(category: any) {
+  const name = normalizeCategoryName(category?.name);
+  return name.includes('mini') && name.includes('5ml') && name.includes('10ml');
+}
+
 export const productService = {
   async getProducts(params: Record<string, unknown>) {
     const { data } = await api.get('/products', { params });
@@ -34,7 +48,7 @@ export const productService = {
   async getCategories() {
     const { data } = await api.get('/categories');
     const payload = unwrapApiData<any>(data);
-    return Array.isArray(payload) ? payload : [];
+    return Array.isArray(payload) ? payload.filter((category) => !isHiddenPublicCategory(category)) : [];
   },
   async getBrands() {
     const { data } = await api.get('/brands');
