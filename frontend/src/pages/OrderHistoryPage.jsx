@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { orderService } from '../services/orderService';
 import { cartService } from '../services/cartService';
-import { formatVnCurrency } from '../utils/formatters';
+import { formatPaymentMethodLabel, formatVnCurrency } from '../utils/formatters';
 import { getOrderStatusLabel, getOrderStatusTone } from '../constants/orderStatus';
 
 export function OrderHistoryPage() {
@@ -101,7 +101,7 @@ export function OrderHistoryPage() {
                       <td><strong>#{order.id}</strong></td>
                       <td>{new Date(order.createdAt).toLocaleDateString('vi-VN')}</td>
                       <td><strong>{formatVnCurrency(order.total)}</strong></td>
-                      <td>{order.paymentMethod}</td>
+                      <td>{order.paymentMethodLabel || formatPaymentMethodLabel(order.paymentMethod)}</td>
                       <td>
                         <span className={`order-history-status ${getOrderStatusTone(order.status)}`}>
                           {getOrderStatusLabel(order.status)}

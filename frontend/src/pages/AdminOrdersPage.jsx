@@ -11,6 +11,7 @@ import {
   formatAdminDate,
 } from '../components/Admin/AdminUi';
 import { ORDER_STATUS_OPTIONS } from '../constants/orderStatus';
+import { formatPaymentMethodLabel } from '../utils/formatters';
 
 const PAGE_SIZE = 12;
 const PAYMENT_METHODS = ['COD', 'BANKING', 'MOMO', 'ZALOPAY'];
@@ -175,7 +176,7 @@ export function AdminOrdersPage() {
           <label htmlFor="admin-order-payment">Thanh toán</label>
           <select id="admin-order-payment" className="form-select" value={filters.paymentMethod} onChange={(event) => setFilters({ ...filters, paymentMethod: event.target.value })}>
             <option value="">Tất cả</option>
-            {PAYMENT_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}
+            {PAYMENT_METHODS.map((method) => <option key={method} value={method}>{formatPaymentMethodLabel(method)}</option>)}
           </select>
         </div>
         <div className="admin-filter-field compact">
@@ -230,7 +231,7 @@ export function AdminOrdersPage() {
           <div className="admin-breakdown-list">
             {paymentBreakdown.length === 0 ? <span className="admin-muted">Chưa có dữ liệu</span> : paymentBreakdown.map((item) => (
               <div className="admin-breakdown-row" key={item.method}>
-                <span>{item.method}</span>
+                <span>{item.label || formatPaymentMethodLabel(item.method)}</span>
                 <strong>{formatNumber(item.total)}</strong>
                 <small>{formatAdminCurrency(item.value)}</small>
               </div>
@@ -290,7 +291,7 @@ export function AdminOrdersPage() {
                       <td><strong>#{order.id}</strong></td>
                       <td>{order.userName || '-'}</td>
                       <td><strong>{formatAdminCurrency(order.total)}</strong></td>
-                      <td>{order.paymentMethod || '-'}</td>
+                      <td>{order.paymentMethodLabel || formatPaymentMethodLabel(order.paymentMethod)}</td>
                       <td>{formatAdminDate(order.createdAt)}</td>
                       <td><AdminStatusBadge status={order.status} /></td>
                       <td>

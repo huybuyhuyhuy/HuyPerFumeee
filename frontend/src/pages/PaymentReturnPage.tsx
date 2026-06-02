@@ -33,8 +33,10 @@ export function PaymentReturnPage() {
   const [searchParams] = useSearchParams();
   const payment = String(searchParams.get('payment') || '').toLowerCase();
   const status = String(searchParams.get('status') || 'failed').toLowerCase();
-  const orderId = searchParams.get('orderId');
+  const rawOrderId = searchParams.get('orderId');
   const resultCode = searchParams.get('resultCode');
+  const orderId = status === 'success' ? rawOrderId : null;
+  const hasPlacedOrder = Boolean(orderId);
   const tone = useMemo(() => getStatusTone(status), [status]);
   const title = useMemo(() => getStatusTitle(status), [status]);
   const message = useMemo(() => getStatusMessage(status, payment, resultCode), [status, payment, resultCode]);

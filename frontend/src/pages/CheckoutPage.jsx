@@ -82,6 +82,8 @@ export function CheckoutPage() {
   const [appliedVoucher, setAppliedVoucher] = useState(() => readCartVoucher());
   const [voucherMessage, setVoucherMessage] = useState('');
   const [momoPayment, setMomoPayment] = useState(null);
+  const [zaloPayment, setZaloPayment] = useState(null);
+  const [isCompletingCheckout, setIsCompletingCheckout] = useState(false);
 
   const selectedAddress = useMemo(
     () => addresses.find((item) => String(item.id) === String(selectedAddressId)) || null,
@@ -94,10 +96,11 @@ export function CheckoutPage() {
   const checkoutTotal = Math.max(0, cartTotal - voucherDiscount);
 
   useEffect(() => {
+    if (isCompletingCheckout) return;
     if (!cartLoading && (!cart || cart.items.length === 0)) {
       navigate('/cart', { replace: true });
     }
-  }, [cart, cartLoading, navigate]);
+  }, [cart, cartLoading, isCompletingCheckout, navigate]);
 
   useEffect(() => {
     setShippingForm((current) => ({
@@ -176,12 +179,23 @@ export function CheckoutPage() {
   }
 
   if (!cart || cart.items.length === 0) {
+    if (isCompletingCheckout) {
+      return (
+        <main className="luxury-page checkout-page">
+          <div className="container">
+            <div className="luxury-cart-loading luxury-surface">Đang hoàn tất đơn hàng...</div>
+          </div>
+        </main>
+      );
+    }
     return null;
   }
 
   const handleCheckout = async () => {
     setFormError('');
     setMomoPayment(null);
+    setZaloPayment(null);
+    setIsCompletingCheckout(false);
     const usingSavedAddress = addressMode === 'saved' && selectedAddress;
     const checkoutPhone = usingSavedAddress ? selectedAddress.phone.replace(/\D/g, '') : normalizedNewPhone;
     const checkoutAddress = usingSavedAddress ? formatAddress(selectedAddress) : buildShippingAddress(shippingForm);
@@ -233,6 +247,7 @@ export function CheckoutPage() {
           orderId: order.id,
           paymentUrl,
           momoOrderId: paymentResponse?.momoOrderId || '',
+          gatewayOpened: false,
         });
         return;
       }
@@ -242,11 +257,17 @@ export function CheckoutPage() {
         const paymentResponse = await orderService.createZaloPayPayment(order.id);
         const paymentUrl = paymentResponse?.paymentUrl || paymentResponse?.orderUrl;
         if (!paymentUrl) throw new Error('Không tạo được link thanh toán ZaloPay');
-        window.location.href = paymentUrl;
+        setZaloPayment({
+          orderId: order.id,
+          paymentUrl,
+          appTransId: paymentResponse?.appTransId || paymentResponse?.zalopayAppTransId || '',
+          gatewayOpened: false,
+        });
         return;
       }
 
-      await clearCart();
+      setIsCompletingCheckout(true);
+      clearCart().catch(() => undefined);
       clearCartVoucher();
       navigate(`/checkout/success?orderId=${encodeURIComponent(order.id)}&total=${encodeURIComponent(String(checkoutTotal))}&paymentMethod=${encodeURIComponent(paymentMethod)}`, { replace: true });
     } catch (err) {
@@ -262,8 +283,32 @@ export function CheckoutPage() {
 
   const openMomoGateway = () => {
     if (!momoPayment?.paymentUrl) return;
+    setMomoPayment((current) => current ? { ...current, gatewayOpened: true } : current);
     savePaymentAuthBridge();
     window.location.href = momoPayment.paymentUrl;
+  };
+
+  const openZaloGateway = () => {
+    if (!zaloPayment?.paymentUrl) return;
+    setZaloPayment((current) => current ? { ...current, gatewayOpened: true } : current);
+    savePaymentAuthBridge();
+    window.location.href = zaloPayment.paymentUrl;
+  };
+
+  const closeMomoGateway = () => {
+    const payment = momoPayment;
+    setMomoPayment(null);
+    if (payment?.orderId && !payment.gatewayOpened) {
+      orderService.cancelOrder(payment.orderId, 'Khách đóng popup MoMo trước khi mở cổng thanh toán').catch(() => undefined);
+    }
+  };
+
+  const closeZaloGateway = () => {
+    const payment = zaloPayment;
+    setZaloPayment(null);
+    if (payment?.orderId && !payment.gatewayOpened) {
+      orderService.cancelOrder(payment.orderId, 'Khách đóng popup ZaloPay trước khi mở cổng thanh toán').catch(() => undefined);
+    }
   };
 
   return (
@@ -420,9 +465,9 @@ export function CheckoutPage() {
       </div>
 
       {momoPayment && (
-        <div className="momo-qr-overlay" role="dialog" aria-modal="true" aria-labelledby="momo-qr-title" onClick={() => setMomoPayment(null)}>
+        <div className="momo-qr-overlay" role="dialog" aria-modal="true" aria-labelledby="momo-qr-title" onClick={closeMomoGateway}>
           <div className="momo-qr-modal luxury-surface" onClick={(event) => event.stopPropagation()}>
-            <button type="button" className="momo-qr-close" aria-label="Đóng" onClick={() => setMomoPayment(null)}>×</button>
+            <button type="button" className="momo-qr-close" aria-label="Đóng" onClick={closeMomoGateway}>×</button>
             <p className="section-eyebrow">Thanh toán MoMo</p>
             <h2 id="momo-qr-title">Sẵn sàng chuyển sang MoMo</h2>
             <p className="momo-qr-description">Cổng thanh toán MoMo đã được tạo cho đơn hàng này. Bấm nút bên dưới để tiếp tục thanh toán trên MoMo.</p>
@@ -437,7 +482,33 @@ export function CheckoutPage() {
                   Mở cổng MoMo
                 </button>
               )}
-              <button type="button" className="btn luxury-secondary-btn" onClick={() => setMomoPayment(null)}>
+              <button type="button" className="btn luxury-secondary-btn" onClick={closeMomoGateway}>
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {zaloPayment && (
+        <div className="momo-qr-overlay" role="dialog" aria-modal="true" aria-labelledby="zalo-gateway-title" onClick={closeZaloGateway}>
+          <div className="momo-qr-modal luxury-surface" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="momo-qr-close" aria-label="Đóng" onClick={closeZaloGateway}>×</button>
+            <p className="section-eyebrow">Thanh toán ZaloPay</p>
+            <h2 id="zalo-gateway-title">Sẵn sàng chuyển sang ZaloPay</h2>
+            <p className="momo-qr-description">Cổng thanh toán ZaloPay đã được tạo cho đơn hàng này. Bấm nút bên dưới để tiếp tục thanh toán trên ZaloPay.</p>
+            <div className="momo-gateway-card">
+              <span>ZaloPay Gateway</span>
+              <strong>Đơn #{zaloPayment.orderId}</strong>
+              <small>Không cần quét mã QR.</small>
+            </div>
+            <div className="momo-qr-actions">
+              {zaloPayment.paymentUrl && (
+                <button type="button" className="btn luxury-primary-btn" onClick={openZaloGateway}>
+                  Mở cổng ZaloPay
+                </button>
+              )}
+              <button type="button" className="btn luxury-secondary-btn" onClick={closeZaloGateway}>
                 Đóng
               </button>
             </div>

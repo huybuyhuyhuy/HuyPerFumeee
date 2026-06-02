@@ -168,6 +168,7 @@ export interface OrderResponse {
   shippingAddress: string;
   phone: string;
   paymentMethod: string;
+  paymentMethodLabel?: string;
   momoOrderId: string;
   momoTransId: string;
   zalopayAppTransId: string;

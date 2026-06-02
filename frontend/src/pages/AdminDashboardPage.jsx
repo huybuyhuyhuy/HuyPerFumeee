@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import api from '../services/api';
 import { AdminEmptyState, AdminStatusBadge } from '../components/Admin/AdminUi';
 import { DEFAULT_PRODUCT_IMAGE, resolveProductImage } from '../utils/image';
+import { formatPaymentMethodLabel } from '../utils/formatters';
 
 const EMPTY_DASHBOARD = {
   revenueToday: 0,
@@ -223,7 +224,7 @@ function PaymentMix({ methods }) {
         return (
           <div className="huy-admin-progress-row" key={item.method}>
             <div>
-              <strong>{item.method}</strong>
+              <strong>{item.label || formatPaymentMethodLabel(item.method)}</strong>
               <span>{formatNumber(item.orders)} đơn · {formatCurrency(item.revenue)}</span>
             </div>
             <b>{formatPercent(percent)}</b>

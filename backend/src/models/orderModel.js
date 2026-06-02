@@ -106,6 +106,7 @@ function toOrder(row, items = []) {
     shippingAddress: row.shipping_address || '',
     phone: row.phone || '',
     paymentMethod: row.payment_method || '',
+    paymentMethodLabel: formatPaymentMethodLabel(row.payment_method),
     momoOrderId: row.momo_order_id || '',
     momoTransId: row.momo_trans_id || '',
     zalopayAppTransId: row.zalopay_app_trans_id || '',
@@ -268,6 +269,17 @@ function validatePaymentMethod(paymentMethod) {
 
 function normalizePaymentMethod(paymentMethod) {
   return String(paymentMethod || '').trim().toUpperCase();
+}
+
+function formatPaymentMethodLabel(paymentMethod) {
+  const method = normalizePaymentMethod(paymentMethod);
+  if (method === 'COD') return 'Thanh toán khi nhận hàng';
+  if (method === 'MOMO') return 'Ví MoMo';
+  if (method === 'ZALOPAY') return 'ZaloPay';
+  if (method === 'VNPAY') return 'VNPay';
+  if (method === 'BANKING') return 'Chuyển khoản ngân hàng';
+  if (method === 'CREDITCARD') return 'Thẻ ngân hàng';
+  return paymentMethod || '';
 }
 
 function isOnlinePaymentMethod(paymentMethod) {
@@ -992,6 +1004,7 @@ export async function listOrderHistory(userId) {
      FROM orders o
      INNER JOIN users u ON u.id = o.user_id
      WHERE o.user_id = ?
+       AND UPPER(ISNULL(o.status, '')) NOT IN ('PENDING_PAYMENT', 'PAYMENT_FAILED', 'CANCELLED_PAYMENT')
      ORDER BY o.id DESC`,
     [userId]
   );
@@ -1133,7 +1146,7 @@ async function releaseCancelledOrderInventory({
     if (userId) orderRequest.input('userId', sql.Int, userId);
     const ownerClause = userId ? 'AND user_id = @userId' : '';
     const orderResult = await orderRequest.query(
-      `SELECT TOP 1 id, user_id, status, created_at
+      `SELECT TOP 1 id, user_id, status, payment_method, created_at
        FROM orders WITH (UPDLOCK, ROWLOCK)
        WHERE id = @orderId ${ownerClause}`
     );
@@ -1153,14 +1166,20 @@ async function releaseCancelledOrderInventory({
       await transaction.rollback();
       return { code: 409, message: 'Đơn đang giao hoặc đã hoàn tất, không thể hủy' };
     }
-    if (!canTransitionOrderStatus(currentStatus, targetStatus)) {
+    const effectiveTargetStatus = targetStatus === ORDER_STATUS.CANCELLED &&
+      currentStatus === ORDER_STATUS.PENDING_PAYMENT &&
+      isOnlinePaymentMethod(order.payment_method)
+      ? ORDER_STATUS.CANCELLED_PAYMENT
+      : targetStatus;
+
+    if (!canTransitionOrderStatus(currentStatus, effectiveTargetStatus)) {
       await transaction.rollback();
       return { code: 409, message: `Không thể chuyển trạng thái từ ${currentStatus} sang ${targetStatus}` };
     }
 
     const statusRequest = new sql.Request(transaction);
     statusRequest.input('orderId', sql.Int, orderId);
-    statusRequest.input('status', sql.NVarChar, targetStatus);
+    statusRequest.input('status', sql.NVarChar, effectiveTargetStatus);
     await statusRequest.query(
       hasColumn(checkoutCapabilities.orderColumns, 'inventory_status')
         ? "UPDATE orders SET status = @status, inventory_status = 'RELEASED' WHERE id = @orderId"
@@ -1169,7 +1188,7 @@ async function releaseCancelledOrderInventory({
     await insertOrderStatusHistory(transaction, {
       orderId,
       oldStatus: currentStatus,
-      newStatus: targetStatus,
+      newStatus: effectiveTargetStatus,
       changedBy,
       note,
     });
@@ -1231,11 +1250,11 @@ async function releaseCancelledOrderInventory({
         stockBefore: stock?.stock_before ?? null,
         stockAfter: stock?.stock_after ?? null,
         metadata: {
-          reason: targetStatus === ORDER_STATUS.REFUNDED
+          reason: effectiveTargetStatus === ORDER_STATUS.REFUNDED
             ? 'order_refunded'
-            : targetStatus === ORDER_STATUS.PAYMENT_FAILED
+            : effectiveTargetStatus === ORDER_STATUS.PAYMENT_FAILED
               ? 'payment_failed'
-              : targetStatus === ORDER_STATUS.CANCELLED_PAYMENT
+              : effectiveTargetStatus === ORDER_STATUS.CANCELLED_PAYMENT
                 ? 'payment_cancelled'
                 : 'order_cancelled',
         },

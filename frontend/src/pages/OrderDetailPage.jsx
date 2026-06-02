@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { orderService } from '../services/orderService';
 import { useToast } from '../store/ToastContext';
-import { formatVnCurrency } from '../utils/formatters';
+import { formatPaymentMethodLabel, formatVnCurrency } from '../utils/formatters';
 import { resolveProductImage } from '../utils/image';
 import {
   ORDER_STATUS,
@@ -146,7 +146,7 @@ export function OrderDetailPage() {
 
         <section className="luxury-surface order-detail-information">
           <div><strong>Ngày đặt:</strong> {new Date(order.createdAt).toLocaleString('vi-VN')}</div>
-          <div><strong>Thanh toán:</strong> {order.paymentMethod}</div>
+          <div><strong>Thanh toán:</strong> {order.paymentMethodLabel || formatPaymentMethodLabel(order.paymentMethod)}</div>
           <div><strong>Trạng thái:</strong> <StatusBadge status={order.status} /></div>
           <div><strong>SĐT giao hàng:</strong> {order.phone || '-'}</div>
           <div className="wide"><strong>Địa chỉ:</strong> {order.shippingAddress || '-'}</div>

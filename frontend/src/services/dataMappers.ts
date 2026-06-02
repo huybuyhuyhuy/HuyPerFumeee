@@ -246,6 +246,7 @@ export function normalizeOrder(raw: any): OrderResponse {
     shippingAddress: asString(raw?.shippingAddress ?? raw?.shipping_address),
     phone: asString(raw?.phone),
     paymentMethod: asString(raw?.paymentMethod ?? raw?.payment_method),
+    paymentMethodLabel: asString(raw?.paymentMethodLabel ?? raw?.payment_method_label),
     momoOrderId: asString(raw?.momoOrderId ?? raw?.momo_order_id),
     momoTransId: asString(raw?.momoTransId ?? raw?.momo_trans_id),
     zalopayAppTransId: asString(raw?.zalopayAppTransId ?? raw?.zalopay_app_trans_id),

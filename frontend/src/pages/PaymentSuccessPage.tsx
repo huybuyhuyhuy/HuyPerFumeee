@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
 import { clearCartVoucher } from '../utils/cartVoucherStorage';
-import { formatVnCurrency } from '../utils/formatters';
+import { formatPaymentMethodLabel, formatVnCurrency } from '../utils/formatters';
 
 function formatOrderId(value: string | null) {
   if (!value) return '—';
@@ -51,7 +51,7 @@ export function PaymentSuccessPage() {
   const description = 'Cảm ơn bạn đã mua sắm tại HuyPerfume. Đơn hàng của bạn đang được xử lý và sẽ sớm được giao đến bạn.';
   const note = 'Chúng tôi đã ghi nhận đơn hàng của bạn. Vui lòng kiểm tra lịch sử đơn hàng để theo dõi trạng thái.';
   const orderLabel = useMemo(() => formatOrderId(orderId), [orderId]);
-  const paymentLabel = useMemo(() => formatPaymentLabel(paymentMethod), [paymentMethod]);
+  const paymentLabel = useMemo(() => formatPaymentMethodLabel(paymentMethod), [paymentMethod]);
 
   useEffect(() => {
     document.title = `${title} | HuyPerfume`;

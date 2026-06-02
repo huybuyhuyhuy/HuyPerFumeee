@@ -15,6 +15,16 @@ function formatOrderCode(id) {
   return `ORD-${String(id).padStart(6, '0')}`;
 }
 
+function formatPaymentMethodLabel(method) {
+  if (method === 'COD') return 'Thanh toán khi nhận hàng';
+  if (method === 'MOMO') return 'Ví MoMo';
+  if (method === 'ZALOPAY') return 'ZaloPay';
+  if (method === 'VNPAY') return 'VNPay';
+  if (method === 'BANKING') return 'Chuyển khoản ngân hàng';
+  if (method === 'CREDITCARD') return 'Thẻ ngân hàng';
+  return method || 'Khác';
+}
+
 // ────────────────────────────────────────────────────────────
 //  Row → DTO mappers
 // ────────────────────────────────────────────────────────────
@@ -104,6 +114,7 @@ export function toPaymentMethod(row) {
         : raw;
   return {
     method,
+    label: formatPaymentMethodLabel(method),
     orders: Number(row.orders || 0),
     revenue: Number(row.revenue || 0),
   };

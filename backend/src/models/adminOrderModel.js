@@ -7,6 +7,21 @@ function formatOrderCode(id) {
   return `ORD-${String(id).padStart(6, '0')}`;
 }
 
+function normalizePaymentMethod(paymentMethod) {
+  return String(paymentMethod || '').trim().toUpperCase();
+}
+
+function formatPaymentMethodLabel(paymentMethod) {
+  const method = normalizePaymentMethod(paymentMethod);
+  if (method === 'COD') return 'Thanh toán khi nhận hàng';
+  if (method === 'MOMO') return 'Ví MoMo';
+  if (method === 'ZALOPAY') return 'ZaloPay';
+  if (method === 'VNPAY') return 'VNPay';
+  if (method === 'BANKING') return 'Chuyển khoản ngân hàng';
+  if (method === 'CREDITCARD') return 'Thẻ ngân hàng';
+  return paymentMethod || '';
+}
+
 function normalizeDateKey(value) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
@@ -45,6 +60,8 @@ function buildOrderFilters({
   if (status) {
     conditions.push('o.status = ?');
     params.push(String(status));
+  } else {
+    conditions.push("UPPER(ISNULL(o.status, '')) NOT IN ('PENDING_PAYMENT', 'PAYMENT_FAILED', 'CANCELLED_PAYMENT')");
   }
   if (paymentMethod) {
     conditions.push('o.payment_method = ?');
@@ -115,6 +132,8 @@ export async function listAdminOrders({
   if (status) {
     conditions.push('o.status = ?');
     params.push(String(status));
+  } else {
+    conditions.push("UPPER(ISNULL(o.status, '')) NOT IN ('PENDING_PAYMENT', 'PAYMENT_FAILED', 'CANCELLED_PAYMENT')");
   }
   if (paymentMethod) {
     conditions.push('o.payment_method = ?');
@@ -147,7 +166,7 @@ export async function listAdminOrders({
     `SELECT COUNT(*) AS total,
             SUM(ISNULL(o.total, 0)) AS value,
             AVG(NULLIF(ISNULL(o.total, 0), 0)) AS average_value,
-            SUM(CASE WHEN UPPER(o.status) IN ('PENDING_PAYMENT', 'PENDING', 'CONFIRMED') THEN 1 ELSE 0 END) AS awaiting,
+            SUM(CASE WHEN UPPER(o.status) IN ('PENDING', 'CONFIRMED') THEN 1 ELSE 0 END) AS awaiting,
             SUM(CASE WHEN UPPER(o.status) IN ('PACKING', 'SHIPPING') THEN 1 ELSE 0 END) AS processing,
             SUM(CASE WHEN UPPER(o.status) IN ('DELIVERED', 'COMPLETED') THEN 1 ELSE 0 END) AS completed,
             SUM(CASE WHEN UPPER(o.status) IN ('PAYMENT_FAILED', 'CANCELLED_PAYMENT', 'CANCELLED', 'REFUNDED') THEN 1 ELSE 0 END) AS cancelled
@@ -226,6 +245,7 @@ export async function listAdminOrders({
       userName: r.user_name,
       total: Number(r.total || 0),
       paymentMethod: r.payment_method,
+      paymentMethodLabel: formatPaymentMethodLabel(r.payment_method),
       status: normalizeOrderStatus(r.status),
       createdAt: r.created_at,
     })),
@@ -284,7 +304,7 @@ export async function getAdminOrderAnalytics({
       `SELECT COUNT(*) AS total,
               SUM(ISNULL(o.total, 0)) AS value,
               AVG(NULLIF(ISNULL(o.total, 0), 0)) AS average_value,
-              SUM(CASE WHEN UPPER(o.status) IN ('PENDING_PAYMENT', 'PENDING', 'CONFIRMED') THEN 1 ELSE 0 END) AS awaiting,
+            SUM(CASE WHEN UPPER(o.status) IN ('PENDING', 'CONFIRMED') THEN 1 ELSE 0 END) AS awaiting,
               SUM(CASE WHEN UPPER(o.status) IN ('PACKING', 'SHIPPING') THEN 1 ELSE 0 END) AS processing,
               SUM(CASE WHEN UPPER(o.status) IN ('DELIVERED', 'COMPLETED') THEN 1 ELSE 0 END) AS completed,
               SUM(CASE WHEN UPPER(o.status) IN ('PAYMENT_FAILED', 'CANCELLED_PAYMENT', 'CANCELLED', 'REFUNDED') THEN 1 ELSE 0 END) AS cancelled
@@ -367,6 +387,7 @@ export async function getAdminOrderAnalytics({
     })),
     paymentBreakdown: paymentRows.map((row) => ({
       method: row.paymentMethod,
+      label: formatPaymentMethodLabel(row.paymentMethod),
       total: Number(row.total || 0),
       value: Number(row.value || 0),
     })),
@@ -378,6 +399,7 @@ export async function getAdminOrderAnalytics({
       customerEmail: row.customer_email,
       totalAmount: Number(row.total || 0),
       paymentMethod: row.payment_method,
+      paymentMethodLabel: formatPaymentMethodLabel(row.payment_method),
       status: normalizeOrderStatus(row.status),
       createdAt: row.created_at,
     })),
@@ -439,6 +461,7 @@ export async function getAdminOrderById(orderId) {
     userId: order.user_id,
     total: Number(order.total || 0),
     paymentMethod: order.payment_method,
+    paymentMethodLabel: formatPaymentMethodLabel(order.payment_method),
     status: normalizeOrderStatus(order.status),
     createdAt: order.created_at,
     userName: order.user_name,

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import api from '../services/api';
+import { AdminStatusBadge, formatAdminCurrency, formatAdminDate } from '../components/Admin/AdminUi';
+import { formatPaymentMethodLabel } from '../utils/formatters';
 
 function unwrapApiData(payload) {
   return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload;
@@ -8,6 +10,7 @@ function unwrapApiData(payload) {
 
 export function AdminOrderDetailPage() {
   const { id } = useParams();
+  const [order, setOrder] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -25,6 +28,7 @@ export function AdminOrderDetailPage() {
       .get(`/admin/orders/${id}`)
       .then((res) => {
         const data = unwrapApiData(res.data);
+        setOrder(data && !Array.isArray(data) ? data : null);
         setItems(Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : []);
       })
       .catch((err) => setError(err?.response?.data?.message || 'Không tải được chi tiết đơn hàng.'))
@@ -40,6 +44,17 @@ export function AdminOrderDetailPage() {
         <Link to="/admin/orders" className="btn btn-outline-dark btn-sm">Quay lại</Link>
       </div>
       {error && <div className="alert alert-danger">{error}</div>}
+      {order && (
+        <section className="luxury-surface order-detail-information mb-4">
+          <div><strong>Khách hàng:</strong> {order.userName || '-'}</div>
+          <div><strong>Ngày đặt:</strong> {formatAdminDate(order.createdAt)}</div>
+          <div><strong>Tổng tiền:</strong> {formatAdminCurrency(order.total)}</div>
+          <div><strong>Thanh toán:</strong> {order.paymentMethodLabel || formatPaymentMethodLabel(order.paymentMethod)}</div>
+          <div><strong>Trạng thái:</strong> <AdminStatusBadge status={order.status} /></div>
+          <div><strong>SĐT:</strong> {order.phone || '-'}</div>
+          <div className="wide"><strong>Địa chỉ:</strong> {order.shippingAddress || '-'}</div>
+        </section>
+      )}
       <div className="table-responsive">
         <table className="table table-hover">
           <thead className="table-dark">
