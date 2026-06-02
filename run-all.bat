@@ -6,9 +6,9 @@ echo ============================================
 echo   HUY PERFUME - START LOCAL APPLICATION
 echo ============================================
 echo.
-echo Starting API and both frontends without resetting database data...
+echo Restarting API and both frontends without resetting database data...
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\windows\start-huyperfume.ps1" -OpenBrowser
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\windows\start-huyperfume.ps1" -Restart -OpenBrowser
 
 if errorlevel 1 (
     echo.
@@ -26,3 +26,4 @@ echo   Backend API   : http://localhost:4000/api/health
 echo.
 echo Runtime logs are stored in .runtime\logs.
 pause
+--NGUYEN VAN A	9704 0000 0000 0018	03/07	OTP	Thành công

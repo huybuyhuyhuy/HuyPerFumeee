@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { productService } from '../services/productService';
 import { cartService } from '../services/cartService';
@@ -6,6 +6,8 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 import { ProductCard } from '../components/Product/ProductCard.jsx';
 import { useToast } from '../store/ToastContext';
+import { buildProductVariants } from '../utils/productVariants';
+import { formatVnCurrency } from '../utils/formatters';
 
 const PAGE_SIZE = 12;
 
@@ -15,6 +17,14 @@ const PRICE_RANGES = [
   { value: '1000to2000', label: '1.000.000đ - 2.000.000đ' },
   { value: 'above2000', label: 'Trên 2.000.000đ' },
 ];
+
+const DEFAULT_PRODUCT_FACETS = {
+  categories: [],
+  brands: [],
+  scentGroups: [],
+  volumes: [],
+  priceRanges: PRICE_RANGES,
+};
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Mới nhất' },
@@ -26,51 +36,107 @@ const SORT_OPTIONS = [
 
 const API_SORT_VALUES = new Set(['newest', 'price_asc', 'price_desc', 'bestseller', 'best_seller', 'rating', 'sale']);
 
+function getPageFromParams(searchParams) {
+  const page = Number(searchParams.get('page'));
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
 function asNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 }
 
-function normalizeText(value) {
-  return String(value || '')
-    .trim()
-    .toLocaleLowerCase('vi-VN');
+function getVariantStock(variant) {
+  return asNumber(variant?.stockQuantity ?? variant?.stock);
 }
 
-function getCategoryName(product) {
-  if (typeof product?.category === 'string') return product.category;
-  return product?.category?.name || product?.categoryName || '';
+function isVariantAvailable(variant) {
+  return variant?.status !== false && variant?.isAvailable !== false && getVariantStock(variant) > 0 && asNumber(variant?.price) > 0;
 }
 
-function getBrandName(product) {
-  if (typeof product?.brand === 'string') return product.brand;
-  return product?.brand?.name || product?.brandName || '';
+function productNeedsSelection(product, variants = buildProductVariants(product)) {
+  return Boolean(
+    product?.hasVariants ||
+    Number(product?.variantCount ?? product?.variant_count ?? 0) > 1 ||
+    (Array.isArray(product?.variants) && product.variants.length > 1) ||
+    (Array.isArray(product?.decantOptions) && product.decantOptions.length > 0) ||
+    variants.length > 1 ||
+    variants.some((variant) => variant.isDecant)
+  );
 }
 
-function getVolumeLabel(product) {
-  if (product?.volume) return String(product.volume);
-  const volumeMl = asNumber(product?.volumeMl ?? product?.volume_ml);
-  return volumeMl > 0 ? `${volumeMl}ml` : '';
+function getCartSelectionForVariant(variant) {
+  return {
+    itemType: variant?.itemType || (variant?.isDecant ? 'DECANT' : 'FULL_BOTTLE'),
+    volumeMl: variant?.isDecant ? variant?.volumeMl : null,
+  };
 }
 
-function getScentText(product) {
-  return product?.scentGroup || product?.scentFamily || product?.scentNotes || product?.scent_notes || '';
+function getVariantDisplayName(variant) {
+  if (variant?.isDecant) return `Decant ${variant.volumeMl || variant.size || ''}`.trim();
+  return ['Full bottle', variant?.size || variant?.volume].filter(Boolean).join(' · ');
 }
 
-function getEffectivePrice(product) {
-  const discountPrice = asNumber(product?.discountPrice ?? product?.discount_price);
-  const salePrice = asNumber(product?.salePrice);
-  if (discountPrice > 0) return discountPrice;
-  if (salePrice > 0) return salePrice;
-  return asNumber(product?.price);
-}
+function VariantPickerModal({ picker, addingVariantId, onClose, onSelect }) {
+  if (!picker) return null;
 
-function getRating(product) {
-  return asNumber(product?.rating);
-}
+  const productName = picker.product?.name || 'HuyPerfume';
+  return (
+    <div className="luxury-variant-modal-layer" role="presentation">
+      <button type="button" className="luxury-variant-modal-backdrop" aria-label="Đóng chọn phiên bản" onClick={onClose} />
+      <section className="luxury-variant-modal" role="dialog" aria-modal="true" aria-labelledby="variant-picker-title">
+        <header className="luxury-variant-modal-header">
+          <div>
+            <p className="section-eyebrow">Chọn phiên bản</p>
+            <h2 id="variant-picker-title">{productName}</h2>
+          </div>
+          <button type="button" className="luxury-variant-close" aria-label="Đóng" onClick={onClose}>
+            ×
+          </button>
+        </header>
 
-function getSoldCount(product) {
-  return asNumber(product?.soldCount ?? product?.sold ?? product?.totalSold);
+        {picker.loading ? (
+          <div className="luxury-variant-loading">Đang tải phiên bản...</div>
+        ) : picker.error ? (
+          <div className="luxury-variant-error">
+            <p>{picker.error}</p>
+            <button type="button" className="luxury-card-detail-btn" onClick={onClose}>Đóng</button>
+          </div>
+        ) : (
+          <div className="luxury-variant-options">
+            {picker.variants.map((variant) => {
+              const stock = getVariantStock(variant);
+              const available = isVariantAvailable(variant);
+              const variantKey = String(variant.id ?? variant.variantId ?? variant.label);
+              const isAdding = addingVariantId === variantKey;
+
+              return (
+                <button
+                  key={variantKey}
+                  type="button"
+                  className={`luxury-variant-option ${available ? 'is-available' : 'is-disabled'}`}
+                  onClick={() => available && onSelect(variant)}
+                  disabled={!available || Boolean(addingVariantId)}
+                >
+                  <span className="luxury-variant-option-main">
+                    <strong>{getVariantDisplayName(variant)}</strong>
+                    <small>{variant.isDecant ? 'Size chiết' : 'Nguyên chai'}</small>
+                  </span>
+                  <span className="luxury-variant-option-meta">
+                    <b>{formatVnCurrency(variant.price)}</b>
+                    <em>{stock > 0 ? `${stock.toLocaleString('vi-VN')} còn hàng` : 'Hết hàng'}</em>
+                  </span>
+                  <span className={`luxury-variant-status ${available ? 'available' : 'sold-out'}`}>
+                    {isAdding ? 'Đang thêm...' : available ? 'Còn hàng' : 'Hết hàng'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>
+  );
 }
 
 function uniqueByName(items) {
@@ -105,6 +171,7 @@ function ProductFilters({
   brands,
   scentOptions,
   volumeOptions,
+  priceRanges,
   activeFilters,
   activeFilterCount,
   draftSearch,
@@ -145,7 +212,7 @@ function ProductFilters({
       )}
 
       <FilterSection title="Khoảng giá">
-        {PRICE_RANGES.map((range) => (
+        {priceRanges.map((range) => (
           <FilterChoice
             key={range.value}
             label={range.label}
@@ -309,88 +376,37 @@ function ProductPagination({ currentPage, totalPages, onPageChange }) {
 export function ProductListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
-  const [facetProducts, setFacetProducts] = useState([]);
-  const [catalogCategories, setCatalogCategories] = useState([]);
-  const [catalogBrands, setCatalogBrands] = useState([]);
+  const [facets, setFacets] = useState(DEFAULT_PRODUCT_FACETS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
-  const [page, setPage] = useState(1);
   const [draftSearch, setDraftSearch] = useState(searchParams.get('search') || '');
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [variantPicker, setVariantPicker] = useState(null);
+  const [addingVariantId, setAddingVariantId] = useState('');
   const { pushToast } = useToast();
   const debouncedSearch = useDebouncedValue(draftSearch, 350);
   const productGridRef = useScrollReveal('.scroll-reveal-item', !loading && products.length > 0);
 
+  const page = getPageFromParams(searchParams);
   const categoryId = searchParams.get('categoryId') || undefined;
   const brandId = searchParams.get('brandId') || undefined;
   const search = searchParams.get('search') || undefined;
   const priceRange = searchParams.get('priceRange') || undefined;
-  const sort = searchParams.get('sort') || 'newest';
+  const rawSort = searchParams.get('sort') || 'newest';
   const scent = searchParams.get('scent') || undefined;
   const volume = searchParams.get('volume') || undefined;
-  const apiSort = API_SORT_VALUES.has(sort) ? sort : 'newest';
+  const apiSort = API_SORT_VALUES.has(rawSort) ? rawSort : 'newest';
+  const sort = rawSort === 'best_seller'
+    ? 'bestseller'
+    : SORT_OPTIONS.some((option) => option.value === rawSort) ? rawSort : 'newest';
 
-  const inferredCategories = useMemo(() => {
-    const items = facetProducts
-      .map((product) => {
-        if (!product?.category && !product?.categoryName) return null;
-        return {
-          id: product.category?.id ?? product.categoryId ?? product.id_category,
-          name: getCategoryName(product),
-        };
-      })
-      .filter((category) => category?.id && category?.name);
-
-    return uniqueByName(items);
-  }, [facetProducts]);
-
-  const inferredBrands = useMemo(() => {
-    const items = facetProducts
-      .map((product) => {
-        if (!product?.brand && !product?.brandName) return null;
-        return {
-          id: product.brand?.id ?? product.brandId ?? product.id_brand,
-          name: getBrandName(product),
-        };
-      })
-      .filter((brand) => brand?.id && brand?.name);
-
-    return uniqueByName(items);
-  }, [facetProducts]);
-
-  const categories = catalogCategories.length > 0 ? catalogCategories : inferredCategories;
-  const brands = catalogBrands.length > 0 ? catalogBrands : inferredBrands;
-
-  const scentOptions = useMemo(() => {
-    const map = new Map();
-    facetProducts.forEach((product) => {
-      const scentText = getScentText(product);
-      if (!scentText) return;
-
-      String(scentText)
-        .split(/[;,/|]+/)
-        .map((item) => item.trim())
-        .filter((item) => item.length >= 2 && item.length <= 28)
-        .slice(0, 4)
-        .forEach((item) => map.set(normalizeText(item), item));
-    });
-
-    return Array.from(map.values())
-      .sort((a, b) => a.localeCompare(b, 'vi'))
-      .slice(0, 8);
-  }, [facetProducts]);
-
-  const volumeOptions = useMemo(() => {
-    const values = new Set();
-    facetProducts.forEach((product) => {
-      const label = getVolumeLabel(product);
-      if (label) values.add(label);
-    });
-
-    return Array.from(values).sort((a, b) => asNumber(String(a).replace(/\D/g, '')) - asNumber(String(b).replace(/\D/g, '')));
-  }, [facetProducts]);
+  const categories = uniqueByName(Array.isArray(facets.categories) ? facets.categories : []);
+  const brands = uniqueByName(Array.isArray(facets.brands) ? facets.brands : []);
+  const scentOptions = Array.isArray(facets.scentGroups) ? facets.scentGroups : [];
+  const volumeOptions = Array.isArray(facets.volumes) ? facets.volumes : [];
+  const priceRanges = Array.isArray(facets.priceRanges) && facets.priceRanges.length > 0 ? facets.priceRanges : PRICE_RANGES;
 
   const activeFilterCount = [categoryId, brandId, priceRange, search, scent, volume].filter(Boolean).length;
   const hasActiveFilters = activeFilterCount > 0 || sort !== 'newest';
@@ -409,14 +425,13 @@ export function ProductListPage() {
       if (value) nextParams.set(key, value);
       else nextParams.delete(key);
     });
+    nextParams.delete('page');
     setSearchParams(nextParams);
-    setPage(1);
   };
 
   const clearFilters = () => {
     setDraftSearch('');
     setSearchParams({});
-    setPage(1);
     setMobileFiltersOpen(false);
   };
 
@@ -448,24 +463,34 @@ export function ProductListPage() {
 
   useEffect(() => {
     productService
-      .getProducts({ page: 1, size: 100, sort: 'newest' })
-      .then((data) => setFacetProducts(Array.isArray(data?.content) ? data.content : []))
-      .catch(() => setFacetProducts([]));
-
-    productService
-      .getCategories()
-      .then((data) => setCatalogCategories(uniqueByName(data)))
-      .catch(() => setCatalogCategories([]));
-
-    productService
-      .getBrands()
-      .then((data) => setCatalogBrands(uniqueByName(data)))
-      .catch(() => setCatalogBrands([]));
+      .getProductFacets()
+      .then((data) => setFacets({
+        categories: Array.isArray(data?.categories) ? data.categories : [],
+        brands: Array.isArray(data?.brands) ? data.brands : [],
+        scentGroups: Array.isArray(data?.scentGroups) ? data.scentGroups : [],
+        volumes: Array.isArray(data?.volumes) ? data.volumes : [],
+        priceRanges: Array.isArray(data?.priceRanges) && data.priceRanges.length > 0 ? data.priceRanges : PRICE_RANGES,
+      }))
+      .catch(() => setFacets(DEFAULT_PRODUCT_FACETS));
   }, []);
 
   useEffect(() => {
     setDraftSearch(search || '');
   }, [search]);
+
+  useEffect(() => {
+    if (!variantPicker) return undefined;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && !addingVariantId) setVariantPicker(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [addingVariantId, variantPicker]);
 
   useEffect(() => {
     const trimmed = debouncedSearch.trim();
@@ -475,44 +500,94 @@ export function ProductListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch]);
 
-  const displayProducts = useMemo(() => {
-    let nextProducts = [...products];
+  const displayProducts = products;
 
-    if (scent) {
-      const normalizedScent = normalizeText(scent);
-      nextProducts = nextProducts.filter((product) => normalizeText(getScentText(product)).includes(normalizedScent));
-    }
+  const addVariantToCart = async (product, variant) => {
+    const productId = Number(product?.id);
+    if (!Number.isInteger(productId) || productId <= 0) throw new Error('Sản phẩm không hợp lệ.');
+    if (!isVariantAvailable(variant)) throw new Error('Phiên bản này hiện đã hết hàng.');
 
-    if (volume) {
-      nextProducts = nextProducts.filter((product) => getVolumeLabel(product) === volume);
-    }
+    await cartService.addItem(productId, 1, variant?.variantId ?? null, getCartSelectionForVariant(variant));
+    pushToast('Đã thêm vào giỏ hàng.', 'success');
+  };
 
-    if (sort === 'price_asc') {
-      nextProducts.sort((a, b) => getEffectivePrice(a) - getEffectivePrice(b));
-    } else if (sort === 'price_desc') {
-      nextProducts.sort((a, b) => getEffectivePrice(b) - getEffectivePrice(a));
-    } else if (sort === 'bestseller') {
-      nextProducts.sort((a, b) => getSoldCount(b) - getSoldCount(a));
-    } else if (sort === 'rating') {
-      nextProducts.sort((a, b) => getRating(b) - getRating(a));
-    }
-
-    return nextProducts;
-  }, [products, scent, sort, volume]);
-
-  const handleAddToCart = async (productId) => {
+  const openVariantPicker = async (product) => {
+    setVariantPicker({ product, variants: [], loading: true, error: '' });
     try {
-      await cartService.addItem(productId, 1);
-      pushToast('Đã thêm vào giỏ hàng.', 'success');
+      const detail = await productService.getProduct(Number(product.id));
+      const variants = buildProductVariants(detail);
+      const availableVariants = variants.filter(isVariantAvailable);
+
+      if (variants.length === 1 && availableVariants.length === 1) {
+        setVariantPicker(null);
+        await addVariantToCart(detail, availableVariants[0]);
+        return;
+      }
+
+      setVariantPicker({
+        product: detail,
+        variants,
+        loading: false,
+        error: variants.length ? '' : 'Sản phẩm chưa có phiên bản khả dụng.',
+      });
+    } catch (err) {
+      setVariantPicker({
+        product,
+        variants: [],
+        loading: false,
+        error: err?.message || 'Không tải được phiên bản sản phẩm.',
+      });
+    }
+  };
+
+  const handleAddToCart = async (product) => {
+    try {
+      const variants = buildProductVariants(product);
+      const availableVariants = variants.filter(isVariantAvailable);
+
+      if (!availableVariants.length) {
+        pushToast('Sản phẩm tạm hết hàng.', 'info');
+        return { pendingSelection: true };
+      }
+
+      if (productNeedsSelection(product, variants)) {
+        openVariantPicker(product);
+        return { pendingSelection: true };
+      }
+
+      await addVariantToCart(product, availableVariants[0]);
+      return { added: true };
     } catch (err) {
       pushToast(err?.message || 'Lỗi thêm vào giỏ hàng.', 'error');
       throw err;
     }
   };
 
+  const handleVariantSelect = async (variant) => {
+    if (!variantPicker?.product) return;
+    const variantKey = String(variant.id ?? variant.variantId ?? variant.label);
+    setAddingVariantId(variantKey);
+    try {
+      await addVariantToCart(variantPicker.product, variant);
+      setVariantPicker(null);
+    } catch (err) {
+      pushToast(err?.message || 'Lỗi thêm vào giỏ hàng.', 'error');
+    } finally {
+      setAddingVariantId('');
+    }
+  };
+
+  const closeVariantPicker = () => {
+    if (addingVariantId) return;
+    setVariantPicker(null);
+  };
+
   const handlePageChange = (nextPage) => {
     if (nextPage < 1 || nextPage > totalPages || nextPage === page) return;
-    setPage(nextPage);
+    const nextParams = new URLSearchParams(searchParams);
+    if (nextPage <= 1) nextParams.delete('page');
+    else nextParams.set('page', String(nextPage));
+    setSearchParams(nextParams);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -521,6 +596,7 @@ export function ProductListPage() {
     brands,
     scentOptions,
     volumeOptions,
+    priceRanges,
     activeFilters,
     activeFilterCount,
     draftSearch,
@@ -529,7 +605,7 @@ export function ProductListPage() {
     onClearFilters: clearFilters,
   };
 
-  const resultCount = totalElements || displayProducts.length;
+  const resultCount = totalElements || products.length;
 
   return (
     <main className="luxury-listing-page">
@@ -558,7 +634,7 @@ export function ProductListPage() {
           </div>
           <div className="luxury-summary-pill-row">
             {search && <span className="luxury-summary-pill">Kết quả cho: “{search}”</span>}
-            {priceRange && <span className="luxury-summary-pill">Khoảng giá: {PRICE_RANGES.find((range) => range.value === priceRange)?.label || priceRange}</span>}
+            {priceRange && <span className="luxury-summary-pill">Khoảng giá: {priceRanges.find((range) => range.value === priceRange)?.label || priceRange}</span>}
             {sort && <span className="luxury-summary-pill">Sắp xếp: {SORT_OPTIONS.find((option) => option.value === sort)?.label || sort}</span>}
           </div>
         </div>
@@ -619,6 +695,12 @@ export function ProductListPage() {
         className={`luxury-filter-backdrop ${mobileFiltersOpen ? 'open' : ''}`}
         onClick={() => setMobileFiltersOpen(false)}
         aria-hidden="true"
+      />
+      <VariantPickerModal
+        picker={variantPicker}
+        addingVariantId={addingVariantId}
+        onClose={closeVariantPicker}
+        onSelect={handleVariantSelect}
       />
       <aside className={`luxury-filter-drawer ${mobileFiltersOpen ? 'open' : ''}`} aria-hidden={!mobileFiltersOpen}>
         <ProductFilters {...filterProps} compact onClose={() => setMobileFiltersOpen(false)} />

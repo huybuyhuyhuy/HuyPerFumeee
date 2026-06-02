@@ -5,10 +5,11 @@ import { computeDecantStock, decrementDecantInventory, decrementFullBottleInvent
 import { getProductStorageCapabilities, hasOrderItemVariantColumn } from '../modules/products/product.repository.js';
 import { getCheckoutStorageCapabilities } from '../modules/checkout/checkout.storage.js';
 import {
-  decrementBatchVolume,
+  decrementBatchVolumes,
   findActiveDecantOption,
+  restoreBatchVolumesFromOrderMovements,
   restoreBatchVolume,
-  selectDecantBatchForUpdate,
+  selectDecantBatchesForUpdate,
 } from './decantModel.js';
 import {
   confirmInventoryReservation,
@@ -47,6 +48,24 @@ function hasColumn(columns, name) {
 
 function deletedFilter(columns, alias) {
   return hasColumn(columns, 'deleted_at') ? `AND ${alias}.deleted_at IS NULL` : '';
+}
+
+function stockError(productName = '') {
+  const safeName = String(productName || '').trim() || 'này';
+  return {
+    code: 409,
+    message: safeName === 'này'
+      ? 'Sản phẩm này không đủ tồn kho.'
+      : `Sản phẩm ${safeName} không đủ tồn kho.`,
+  };
+}
+
+function isInventoryShortageError(error) {
+  return Boolean(error?.inventoryShortage);
+}
+
+function isFullBottleVariantType(value) {
+  return ['FULL', 'FULL_BOTTLE'].includes(String(value || '').trim().toUpperCase());
 }
 
 function toOrderItem(row) {
@@ -247,6 +266,14 @@ function validatePaymentMethod(paymentMethod) {
   return allowed.includes(String(paymentMethod || '').toUpperCase());
 }
 
+function normalizePaymentMethod(paymentMethod) {
+  return String(paymentMethod || '').trim().toUpperCase();
+}
+
+function isOnlinePaymentMethod(paymentMethod) {
+  return ['MOMO', 'ZALOPAY', 'VNPAY', 'BANKING'].includes(normalizePaymentMethod(paymentMethod));
+}
+
 function validateCheckoutCart(cart) {
   if (!cart?.items?.length) {
     return { code: 400, message: 'Gio hang dang trong' };
@@ -287,7 +314,7 @@ async function productHasVariants(transaction, productId, capabilities) {
 
   const result = await request.query(
     `SELECT COUNT(*) AS total
-     FROM product_variants
+     FROM product_variants WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
      ${deletedClause}
      ${statusClause}
      ${deletedClause || statusClause ? 'AND' : 'WHERE'} product_id = @productId`
@@ -303,7 +330,7 @@ async function selectDefaultAvailableVariant(transaction, productId, quantity, c
   request.input('quantity', sql.Int, quantity);
   const result = await request.query(
     `SELECT TOP 1 pv.id
-     FROM product_variants pv WITH (UPDLOCK, ROWLOCK)
+     FROM product_variants pv WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
      WHERE pv.product_id = @productId
        AND ISNULL(pv.stock_quantity, 0) >= @quantity
        AND ISNULL(pv.price, 0) > 0
@@ -320,24 +347,25 @@ async function prepareBatchDecantInventoryItem(transaction, cartItem) {
   const quantity = Number(cartItem.quantity);
   const volumeMl = Number(cartItem.product?.selectedVolumeMl || cartItem.product?.volumeMl || cartItem.selectedVolumeMl || 0);
   if (String(cartItem.product?.itemType || '').toUpperCase() !== 'DECANT') return null;
-  if (!volumeMl || volumeMl <= 0) return { code: 400, message: 'Dung tich chiet khong hop le' };
-
-  const option = await findActiveDecantOption(productId, volumeMl);
-  if (!option) return { code: 404, message: 'Khong tim thay tuy chon chiet cho san pham nay' };
-
-  const neededMl = volumeMl * quantity;
-  const batch = await selectDecantBatchForUpdate(transaction, productId, neededMl);
-  if (!batch) return { code: 400, message: `Khong du dung tich de chiet. Can ${neededMl}ml` };
+  if (!volumeMl || volumeMl <= 0) return { code: 400, message: 'Dung tích chiết không hợp lệ.' };
 
   const request = new sql.Request(transaction);
   request.input('productId', sql.Int, productId);
   const result = await request.query(
     `SELECT TOP 1 p.id, p.name, p.image, p.batch_code
-     FROM products p WITH (UPDLOCK, ROWLOCK)
+     FROM products p WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
      WHERE p.id = @productId AND p.status = 1`
   );
   const row = result.recordset?.[0];
-  if (!row) return { code: 404, message: `Khong tim thay san pham ${productId}` };
+  if (!row) return { code: 404, message: `Không tìm thấy sản phẩm ${productId}` };
+
+  const option = await findActiveDecantOption(productId, volumeMl);
+  if (!option) return { code: 404, message: 'Không tìm thấy tùy chọn chiết cho sản phẩm này.' };
+  if (Number(option.price || 0) <= 0) return { code: 400, message: `Sản phẩm ${row.name} chưa có giá hợp lệ.` };
+
+  const neededMl = volumeMl * quantity;
+  const batchPlan = await selectDecantBatchesForUpdate(transaction, productId, neededMl);
+  if (!batchPlan.enough) return stockError(row.name);
 
   return {
     productId,
@@ -346,11 +374,11 @@ async function prepareBatchDecantInventoryItem(transaction, cartItem) {
     productImage: row.image || '',
     quantity,
     unitPrice: Number(option.price || 0),
-    stockBefore: Number(batch.remainingVolumeMl || 0),
-    selectedBatchCode: batch.batchCode || row.batch_code || '',
+    stockBefore: Number(batchPlan.stockBefore || 0),
+    selectedBatchCode: batchPlan.selectedBatchCode || row.batch_code || '',
     itemType: 'DECANT',
     decantVolumeMl: volumeMl,
-    sourceBatchId: batch.id,
+    sourceBatchId: batchPlan.sourceBatchId,
     isDecant: false,
     isBatchDecant: true,
     isFullBottle: false,
@@ -384,8 +412,8 @@ async function prepareVariantInventoryItem(transaction, cartItem, capabilities) 
             pv.price AS variant_price,
             pv.sale_price AS variant_sale_price,
             pv.image AS variant_image
-     FROM product_variants pv WITH (UPDLOCK, ROWLOCK)
-     INNER JOIN products p WITH (UPDLOCK, ROWLOCK) ON p.id = pv.product_id
+     FROM product_variants pv WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
+     INNER JOIN products p WITH (UPDLOCK, HOLDLOCK, ROWLOCK) ON p.id = pv.product_id
      WHERE pv.id = @variantId
        AND pv.product_id = @productId
        AND p.status = 1
@@ -395,25 +423,25 @@ async function prepareVariantInventoryItem(transaction, cartItem, capabilities) 
   );
 
   const row = result.recordset?.[0];
-  if (!row) return { code: 404, message: 'Khong tim thay bien the san pham' };
+  if (!row) return { code: 404, message: 'Không tìm thấy biến thể sản phẩm.' };
 
   const variantType = String(row.variant_type || '').toUpperCase();
   const isDecant = variantType === 'DECANT';
-  const isFullBottle = variantType === 'FULL';
+  const isFullBottle = isFullBottleVariantType(variantType);
 
   // ── decant stock validation: check product_inventory ──
   if (isDecant) {
     const decantVolumeMl = Number(row.variant_volume_ml) || 0;
-    if (decantVolumeMl <= 0) return { code: 400, message: 'Bien the decant chua co dung tich hop le' };
+    if (decantVolumeMl <= 0) return { code: 400, message: 'Biến thể decant chưa có dung tích hợp lệ.' };
 
     const neededMl = decantVolumeMl * quantity;
     const stock = await computeDecantStock(transaction, productId, decantVolumeMl);
     if (neededMl > stock.totalAvailableMl) {
-      return { code: 400, message: `Khong du dung tich de chiet. Con ${stock.totalAvailableMl}ml, can ${neededMl}ml` };
+      return stockError(row.product_name);
     }
 
     const unitPrice = resolveUnitPrice(row.variant_price, row.variant_sale_price);
-    if (!unitPrice) return { code: 400, message: `San pham ${row.product_name} chua co gia hop le` };
+    if (!unitPrice) return { code: 400, message: `Sản phẩm ${row.product_name} chưa có giá hợp lệ.` };
 
     return {
       productId,
@@ -433,11 +461,11 @@ async function prepareVariantInventoryItem(transaction, cartItem, capabilities) 
 
   // ── full bottle: check variant stock_quantity ──
   if (quantity > Number(row.stock_quantity || 0)) {
-    return { code: 400, message: `San pham ${row.product_name} khong du ton kho` };
+    return stockError(row.product_name);
   }
 
   const unitPrice = resolveUnitPrice(row.variant_price, row.variant_sale_price);
-  if (!unitPrice) return { code: 400, message: `San pham ${row.product_name} chua co gia hop le` };
+  if (!unitPrice) return { code: 400, message: `Sản phẩm ${row.product_name} chưa có giá hợp lệ.` };
 
   return {
     productId,
@@ -461,7 +489,7 @@ async function prepareProductInventoryItem(transaction, cartItem, capabilities) 
   if (await productHasVariants(transaction, productId, capabilities)) {
     const fallbackVariantId = await selectDefaultAvailableVariant(transaction, productId, quantity, capabilities);
     if (!fallbackVariantId) {
-      return { code: 400, message: 'San pham khong co bien the du ton kho de thanh toan' };
+      return stockError(cartItem.product?.name);
     }
     return prepareVariantInventoryItem(transaction, {
       ...cartItem,
@@ -469,24 +497,33 @@ async function prepareProductInventoryItem(transaction, cartItem, capabilities) 
     }, capabilities);
   }
 
+  const stockColumn = hasColumn(capabilities.productColumns, 'stock')
+    ? 'stock'
+    : hasColumn(capabilities.productColumns, 'quantity')
+      ? 'quantity'
+      : null;
+  if (!stockColumn) {
+    return { code: 500, message: 'Schema products chưa có cột tồn kho.' };
+  }
+
   const request = new sql.Request(transaction);
   request.input('productId', sql.Int, productId);
   const result = await request.query(
-    `SELECT TOP 1 p.id, p.name, p.image, p.batch_code, p.stock, p.price, p.discount_price
-     FROM products p WITH (UPDLOCK, ROWLOCK)
+    `SELECT TOP 1 p.id, p.name, p.image, p.batch_code, p.${stockColumn} AS stock, p.price, p.discount_price
+     FROM products p WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
      WHERE p.id = @productId
        AND p.status = 1
        ${deletedFilter(capabilities.productColumns, 'p')}`
   );
 
   const row = result.recordset?.[0];
-  if (!row) return { code: 404, message: `Khong tim thay san pham ${productId}` };
+  if (!row) return { code: 404, message: `Không tìm thấy sản phẩm ${productId}` };
   if (quantity > Number(row.stock || 0)) {
-    return { code: 400, message: `San pham ${row.name} khong du ton kho` };
+    return stockError(row.name);
   }
 
   const unitPrice = resolveUnitPrice(row.price, row.discount_price);
-  if (!unitPrice) return { code: 400, message: `San pham ${row.name} chua co gia hop le` };
+  if (!unitPrice) return { code: 400, message: `Sản phẩm ${row.name} chưa có giá hợp lệ.` };
 
   return {
     productId,
@@ -498,17 +535,37 @@ async function prepareProductInventoryItem(transaction, cartItem, capabilities) 
     stockBefore: Number(row.stock || 0),
     selectedBatchCode: row.batch_code || '',
     itemType: 'FULL_BOTTLE',
+    stockColumn,
   };
+}
+
+async function decrementVariantStockQuantity(transaction, item) {
+  if (!item.variantId) return true;
+
+  const request = new sql.Request(transaction);
+  request.input('productId', sql.Int, item.productId);
+  request.input('variantId', sql.Int, item.variantId);
+  request.input('quantity', sql.Int, item.quantity);
+  const result = await request.query(
+    `UPDATE product_variants
+     SET stock_quantity = stock_quantity - @quantity
+     WHERE id = @variantId
+       AND product_id = @productId
+       AND stock_quantity >= @quantity`
+  );
+  return result.rowsAffected?.[0] > 0;
 }
 
 async function decrementInventory(transaction, item) {
   if (item.itemType === 'DECANT' && item.sourceBatchId) {
     const neededMl = (item.decantVolumeMl || 0) * item.quantity;
-    const stock = await decrementBatchVolume(transaction, {
-      batchId: item.sourceBatchId,
+    const stock = await decrementBatchVolumes(transaction, {
+      productId: item.productId,
       neededMl,
+      orderId: item.orderId || null,
+      adminId: item.adminId || null,
     });
-    return stock?.stock_after ?? null;
+    return stock?.stockAfter ?? null;
   }
 
   // ── decant: use product_inventory instead of variant stock ──
@@ -527,6 +584,7 @@ async function decrementInventory(transaction, item) {
       productId: item.productId,
       quantity: item.quantity,
     });
+    if (!(await decrementVariantStockQuantity(transaction, item))) return null;
     return result.sealedBottlesAfter;
   }
 
@@ -546,8 +604,8 @@ async function decrementInventory(transaction, item) {
 
   const result = await request.query(
     `UPDATE products
-     SET stock = stock - @quantity
-     WHERE id = @productId AND stock >= @quantity`
+     SET ${item.stockColumn === 'quantity' ? 'quantity' : 'stock'} = ${item.stockColumn === 'quantity' ? 'quantity' : 'stock'} - @quantity
+     WHERE id = @productId AND ${item.stockColumn === 'quantity' ? 'quantity' : 'stock'} >= @quantity`
   );
   return result.rowsAffected?.[0] > 0 ? item.stockBefore - item.quantity : null;
 }
@@ -618,6 +676,10 @@ export async function checkoutOrder({ userId, shippingAddress, phone, paymentMet
     return { code: 400, message: 'Phuong thuc thanh toan khong hop le' };
   }
 
+  const safePaymentMethod = normalizePaymentMethod(paymentMethod);
+  const initialOrderStatus = isOnlinePaymentMethod(safePaymentMethod)
+    ? ORDER_STATUS.PENDING_PAYMENT
+    : ORDER_STATUS.PENDING;
   const checkoutCapabilities = await getCheckoutStorageCapabilities();
   const safeVoucherCode = normalizeVoucherCode(voucherCode);
   const safeIdempotencyKey = String(idempotencyKey || '').trim();
@@ -700,8 +762,8 @@ export async function checkoutOrder({ userId, shippingAddress, phone, paymentMet
       request.input('total', sql.Float, orderTotal);
       request.input('shippingAddress', sql.NVarChar, String(shippingAddress).trim());
       request.input('phone', sql.NVarChar, String(phone).trim());
-      request.input('paymentMethod', sql.NVarChar, String(paymentMethod).trim().toUpperCase());
-      request.input('status', sql.NVarChar, ORDER_STATUS.PENDING);
+      request.input('paymentMethod', sql.NVarChar, safePaymentMethod);
+      request.input('status', sql.NVarChar, initialOrderStatus);
 
       const orderColumns = ['user_id', 'total', 'shipping_address', 'phone', 'payment_method', 'status'];
       const orderValues = ['@userId', '@total', '@shippingAddress', '@phone', '@paymentMethod', '@status'];
@@ -765,21 +827,31 @@ export async function checkoutOrder({ userId, shippingAddress, phone, paymentMet
 
       await insertOrderStatusHistory(transaction, {
         orderId,
-        newStatus: ORDER_STATUS.PENDING,
+        newStatus: initialOrderStatus,
         changedBy: userId,
         note: 'Đơn hàng được tạo',
       });
 
       for (const item of preparedItems) {
+        item.orderId = orderId;
         const reservation = await createInventoryReservation(transaction, item, {
           cartId: cart.cartId || null,
           orderId,
           userId,
         });
-        const stockAfter = await decrementInventory(transaction, item);
+        let stockAfter = null;
+        try {
+          stockAfter = await decrementInventory(transaction, item);
+        } catch (error) {
+          if (!isInventoryShortageError(error)) throw error;
+          await transaction.rollback();
+          transaction = null;
+          return stockError(item.productName);
+        }
         if (stockAfter === null) {
           await transaction.rollback();
-          return { code: 400, message: `San pham ${item.productName} khong du ton kho` };
+          transaction = null;
+          return stockError(item.productName);
         }
 
         await insertOrderItem(transaction, orderId, item, capabilities);
@@ -793,7 +865,7 @@ export async function checkoutOrder({ userId, shippingAddress, phone, paymentMet
           quantity: -item.quantity,
           stockBefore: item.stockBefore,
           stockAfter,
-          metadata: { paymentMethod, idempotencyKey: safeIdempotencyKey || null, voucherCode: voucher?.code || null },
+          metadata: { paymentMethod: safePaymentMethod, idempotencyKey: safeIdempotencyKey || null, voucherCode: voucher?.code || null },
         });
         await confirmInventoryReservation(transaction, reservation?.id);
         await recordInventoryTransaction(transaction, {
@@ -806,15 +878,18 @@ export async function checkoutOrder({ userId, shippingAddress, phone, paymentMet
           quantity: 0,
           stockBefore: stockAfter,
           stockAfter,
-          metadata: { orderStatus: ORDER_STATUS.PENDING },
+          metadata: { orderStatus: initialOrderStatus },
         });
       }
 
       await transaction.commit();
-      try {
-        await markCartCheckedOut({ type: 'user', key: userId });
-      } catch (error) {
-        console.warn('Order committed but cart checkout marker failed:', error.message);
+      transaction = null;
+      if (!isOnlinePaymentMethod(safePaymentMethod)) {
+        try {
+          await markCartCheckedOut({ type: 'user', key: userId });
+        } catch (error) {
+          console.warn('Order committed but cart checkout marker failed:', error.message);
+        }
       }
       try {
         await Promise.all([...new Set(preparedItems.map((item) => item.productId))].map((id) => invalidateProductCache(id)));
@@ -825,7 +900,7 @@ export async function checkoutOrder({ userId, shippingAddress, phone, paymentMet
       // Sync variant stock_quantity for decant/full-bottle products
       try {
         await Promise.all(
-          [...new Set(preparedItems.filter((item) => item.isDecant || item.isFullBottle).map((item) => item.productId))]
+          [...new Set(preparedItems.filter((item) => item.isDecant || item.isFullBottle || item.isBatchDecant).map((item) => item.productId))]
             .map((id) => syncVariantStock(id))
         );
       } catch (error) {
@@ -935,9 +1010,18 @@ export async function listOrderHistory(userId) {
   return orders;
 }
 
-async function restoreInventory(transaction, item) {
+async function restoreInventory(transaction, item, capabilities = null) {
   if (String(item.item_type || '').toUpperCase() === 'DECANT' && item.source_batch_id) {
     const volumeMl = Number(item.selected_volume_ml || 0) * Number(item.quantity || 0);
+    if (item.skipBatchMovementRestore) return null;
+
+    const movementStock = await restoreBatchVolumesFromOrderMovements(transaction, {
+      orderId: item.orderId,
+      productId: item.product_id,
+      adminId: item.adminId || null,
+    });
+    if (movementStock) return movementStock;
+
     return restoreBatchVolume(transaction, {
       batchId: item.source_batch_id,
       volumeMl,
@@ -957,12 +1041,25 @@ async function restoreInventory(transaction, item) {
 
   // ── full bottle restore via product_inventory ──
   if (item.isFullBottle) {
+    const quantity = Number(item.quantity || 0);
     const result = await restoreDecantInventory(transaction, {
       productId: item.product_id,
       neededMl: 0,
       isFullBottle: true,
+      quantity,
     });
-    return { stock_before: result.sealedBottles - 1, stock_after: result.sealedBottles };
+    if (item.product_variant_id) {
+      const variantRequest = new sql.Request(transaction);
+      variantRequest.input('productId', sql.Int, item.product_id);
+      variantRequest.input('variantId', sql.Int, item.product_variant_id);
+      variantRequest.input('quantity', sql.Int, quantity);
+      await variantRequest.query(
+        `UPDATE product_variants
+         SET stock_quantity = stock_quantity + @quantity
+         WHERE id = @variantId AND product_id = @productId`
+      );
+    }
+    return { stock_before: result.sealedBottles - quantity, stock_after: result.sealedBottles };
   }
 
   const request = new sql.Request(transaction);
@@ -980,10 +1077,17 @@ async function restoreInventory(transaction, item) {
     return result.recordset?.[0] || null;
   }
 
+  const productCapabilities = capabilities || await getProductStorageCapabilities();
+  const stockColumn = hasColumn(productCapabilities.productColumns, 'stock')
+    ? 'stock'
+    : hasColumn(productCapabilities.productColumns, 'quantity')
+      ? 'quantity'
+      : 'stock';
+
   const result = await request.query(
     `UPDATE products
-     SET stock = stock + @quantity
-     OUTPUT deleted.stock AS stock_before, inserted.stock AS stock_after
+     SET ${stockColumn} = ${stockColumn} + @quantity
+     OUTPUT deleted.${stockColumn} AS stock_before, inserted.${stockColumn} AS stock_after
      WHERE id = @productId`
   );
   return result.recordset?.[0] || null;
@@ -1040,7 +1144,7 @@ async function releaseCancelledOrderInventory({
       return { code: 404, message: 'Khong tim thay don hang' };
     }
     const currentStatus = normalizeOrderStatus(order.status);
-    if ([ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED].includes(currentStatus)) {
+    if ([ORDER_STATUS.PAYMENT_FAILED, ORDER_STATUS.CANCELLED_PAYMENT, ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED].includes(currentStatus)) {
       await transaction.rollback();
       return { code: 400, message: 'Đơn hàng đã bị hủy hoặc hoàn tiền' };
     }
@@ -1099,15 +1203,22 @@ async function releaseCancelledOrderInventory({
        WHERE oi.order_id = @orderId`
     );
 
+    const batchMovementRestoredProductIds = new Set();
     for (const item of itemResult.recordset || []) {
       const variantType = String(item.variant_type || '').toUpperCase();
+      const isBatchDecantOrderItem = String(item.item_type || '').toUpperCase() === 'DECANT' && item.source_batch_id;
+      const batchRestoreKey = `${orderId}:${item.product_id}`;
       const enrichedItem = {
         ...item,
+        orderId,
+        adminId: changedBy || null,
+        skipBatchMovementRestore: isBatchDecantOrderItem && batchMovementRestoredProductIds.has(batchRestoreKey),
         isDecant: variantType === 'DECANT',
-        isFullBottle: variantType === 'FULL',
+        isFullBottle: isFullBottleVariantType(variantType),
         decantVolumeMl: Number(item.variant_volume_ml) || 0,
       };
-      const stock = await restoreInventory(transaction, enrichedItem);
+      const stock = await restoreInventory(transaction, enrichedItem, capabilities);
+      if (stock?.restoredFromMovements) batchMovementRestoredProductIds.add(batchRestoreKey);
       const reservationId = await findReservationForOrderItem(transaction, orderId, enrichedItem, checkoutCapabilities);
       await releaseInventoryReservation(transaction, reservationId);
       await recordInventoryTransaction(transaction, {
@@ -1119,7 +1230,15 @@ async function releaseCancelledOrderInventory({
         quantity: Number(item.quantity || 0),
         stockBefore: stock?.stock_before ?? null,
         stockAfter: stock?.stock_after ?? null,
-        metadata: { reason: targetStatus === ORDER_STATUS.REFUNDED ? 'order_refunded' : 'order_cancelled' },
+        metadata: {
+          reason: targetStatus === ORDER_STATUS.REFUNDED
+            ? 'order_refunded'
+            : targetStatus === ORDER_STATUS.PAYMENT_FAILED
+              ? 'payment_failed'
+              : targetStatus === ORDER_STATUS.CANCELLED_PAYMENT
+                ? 'payment_cancelled'
+                : 'order_cancelled',
+        },
       });
     }
 
@@ -1133,7 +1252,12 @@ async function releaseCancelledOrderInventory({
     // Sync variant stock for decant products after cancellation
     try {
       const decantProductIds = [...new Set((itemResult.recordset || [])
-        .filter((item) => String(item.variant_type || '').toUpperCase() === 'DECANT' || String(item.variant_type || '').toUpperCase() === 'FULL')
+        .filter((item) => {
+          const variantType = String(item.variant_type || '').toUpperCase();
+          return variantType === 'DECANT' ||
+            isFullBottleVariantType(variantType) ||
+            String(item.item_type || '').toUpperCase() === 'DECANT';
+        })
         .map((item) => item.product_id))];
       if (decantProductIds.length > 0) {
         await Promise.all(decantProductIds.map((id) => syncVariantStock(id)));

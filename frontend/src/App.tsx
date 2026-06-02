@@ -5,6 +5,7 @@ import { RouteMeta } from './components/Seo/RouteMeta';
 import { MainLayout } from './components/Layout/MainLayout';
 import { AdminLayout } from './components/Layout/AdminLayout';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
+import './styles/payment-success.css';
 
 const HomePage = lazy(() => import('./pages/HomePage').then((module) => ({ default: module.HomePage })));
 const ProductListPage = lazy(() => import('./pages/ProductListPage').then((module) => ({ default: module.ProductListPage })));
@@ -17,6 +18,7 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage').then((module) => ({
 const OrderHistoryPage = lazy(() => import('./pages/OrderHistoryPage').then((module) => ({ default: module.OrderHistoryPage })));
 const OrderDetailPage = lazy(() => import('./pages/OrderDetailPage').then((module) => ({ default: module.OrderDetailPage })));
 const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage').then((module) => ({ default: module.OrderSuccessPage })));
+const PaymentSuccessPage = lazy(() => import('./pages/PaymentSuccessPage').then((module) => ({ default: module.PaymentSuccessPage })));
 const PaymentReturnPage = lazy(() => import('./pages/PaymentReturnPage').then((module) => ({ default: module.PaymentReturnPage })));
 const WishlistPage = lazy(() => import('./pages/WishlistPage').then((module) => ({ default: module.WishlistPage })));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then((module) => ({ default: module.AdminDashboardPage })));
@@ -105,6 +107,8 @@ function UserRoutes() {
         <Route path="/orders" element={<ProtectedRoute><OrderHistoryPage /></ProtectedRoute>} />
         <Route path="/orders/:id/success" element={<ProtectedRoute><OrderSuccessPage /></ProtectedRoute>} />
         <Route path="/orders/:id" element={<ProtectedRoute><OrderDetailPage /></ProtectedRoute>} />
+        <Route path="/checkout/success" element={<PaymentSuccessPage />} />
+        <Route path="/order-success" element={<PaymentSuccessPage />} />
         <Route path="/payment/return" element={<PaymentReturnPage />} />
         <Route path="/wishlist" element={<ProtectedRoute><WishlistPage /></ProtectedRoute>} />
       </Route>

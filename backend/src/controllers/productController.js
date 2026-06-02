@@ -3,12 +3,20 @@ import { getBrands } from '../models/brandModel.js';
 import { getCategories } from '../models/categoryModel.js';
 import {
   getProductById,
+  getProductFacets,
   getProductsPaged,
   getRandomProducts,
   searchProducts,
 } from '../models/productModel.js';
 import { getViewTokenFromRequest } from './recommendationController.js';
 import { recordProductView } from '../modules/recommendations/recommendation.service.js';
+
+const PRODUCT_PRICE_RANGES = [
+  { value: 'under500', label: 'Dưới 500.000đ', min: 0, max: 500000 },
+  { value: '500to1000', label: '500.000đ - 1.000.000đ', min: 500000, max: 1000000 },
+  { value: '1000to2000', label: '1.000.000đ - 2.000.000đ', min: 1000000, max: 2000000 },
+  { value: 'above2000', label: 'Trên 2.000.000đ', min: 2000000, max: null },
+];
 
 function buildProductFilters(query) {
   return {
@@ -90,6 +98,26 @@ export async function searchProductList(req, res, next) {
     }
     const products = await searchProducts(q, req.query.limit || 10);
     return successResponse(res, 'Tim kiem san pham thanh cong', products);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function productFacets(_req, res, next) {
+  try {
+    const [categories, brands, facets] = await Promise.all([
+      getCategories(),
+      getBrands(),
+      getProductFacets(),
+    ]);
+
+    return successResponse(res, 'Lay facets san pham thanh cong', {
+      brands,
+      categories,
+      scentGroups: facets.scentGroups || [],
+      volumes: facets.volumes || [],
+      priceRanges: PRODUCT_PRICE_RANGES,
+    });
   } catch (error) {
     return next(error);
   }

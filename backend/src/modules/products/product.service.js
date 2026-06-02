@@ -1,6 +1,7 @@
 import {
   findProductById,
   findProductImages,
+  findProductFacets,
   findProductVariants,
   findProductsByKeyword,
   findProductsPaged,
@@ -134,6 +135,10 @@ export async function searchProducts(keyword, limit = 10) {
 export async function getRandomProducts(limit = 4) {
   const rows = await findRandomProducts(limit);
   return rows.map((row) => attachValidation(mapProductRow(row)));
+}
+
+export async function getProductFacets() {
+  return findProductFacets();
 }
 
 export async function getProductPurchaseOption(productId, variantId = null, options = {}) {

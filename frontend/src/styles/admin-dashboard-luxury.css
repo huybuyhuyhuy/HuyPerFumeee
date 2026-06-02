@@ -18,7 +18,7 @@
     radial-gradient(circle at 5% 3%, rgba(255, 254, 249, 0.92), transparent 31%),
     radial-gradient(circle at 90% 5%, rgba(198, 216, 215, 0.44), transparent 34%),
     linear-gradient(130deg, #eef2ef 0%, #f5f2e9 43%, #e9f0ef 100%);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Times New Roman", Times, serif;
 }
 
 .huy-admin-shell h1,
@@ -69,7 +69,7 @@
 .huy-admin-brand { gap: 0.62rem; color: var(--huy-admin-ink); text-decoration: none; }
 .huy-admin-menu-mark { display: grid; align-content: center; gap: 0.3rem; width: 2.1rem; height: 2.1rem; padding: 0.48rem; border-radius: 0.7rem; background: rgba(239, 243, 237, 0.88); }
 .huy-admin-menu-mark span { display: block; height: 2px; border-radius: 10px; background: #35403f; }
-.huy-admin-brand-seal { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 0.85rem; color: #fff; background: linear-gradient(140deg, #242d2c, #5c6a68); font-family: Georgia, serif; font-size: 1.4rem; }
+.huy-admin-brand-seal { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 0.85rem; color: #fff; background: linear-gradient(140deg, #242d2c, #5c6a68); font-family: "Times New Roman", Times, serif; font-size: 1.4rem; }
 .huy-admin-brand strong,
 .huy-admin-brand small { display: block; }
 .huy-admin-brand strong { font-size: 1.06rem; }
@@ -810,6 +810,256 @@
 }
 .huy-admin-recent-order {
   grid-template-columns: minmax(0, 1fr) auto auto minmax(8rem, auto);
+}
+
+.huy-admin-export {
+  cursor: pointer;
+}
+
+.huy-admin-metrics.product {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.huy-admin-chart-large {
+  grid-column: span 8;
+}
+
+.huy-admin-chart-medium,
+.huy-admin-list-panel {
+  grid-column: span 4;
+}
+
+.huy-admin-ops-chart {
+  display: grid;
+  align-items: end;
+  gap: 0.48rem;
+  min-height: 238px;
+  padding: 0.8rem 0.2rem 0.15rem;
+}
+
+.huy-admin-ops-chart-item {
+  display: grid;
+  align-items: end;
+  gap: 0.45rem;
+  min-height: 220px;
+}
+
+.huy-admin-ops-chart-item small {
+  color: #7c8583;
+  font-size: 0.66rem;
+  text-align: center;
+}
+
+.huy-admin-ops-chart-bar {
+  position: relative;
+  display: block;
+  width: min(100%, 1.35rem);
+  min-height: 0.35rem;
+  margin-inline: auto;
+  border-radius: 999px 999px 0.35rem 0.35rem;
+  background: linear-gradient(180deg, #f1c989, #ba9254);
+  box-shadow: 0 10px 22px rgba(148, 105, 42, 0.16);
+  transform-origin: bottom;
+  animation: huy-chart-rise 760ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--delay, 0ms);
+}
+
+.huy-admin-ops-chart-bar:hover {
+  filter: saturate(1.08);
+  box-shadow: 0 16px 30px rgba(148, 105, 42, 0.26);
+}
+
+.huy-admin-payment-mix,
+.huy-admin-revenue-type,
+.huy-admin-ranked-list,
+.huy-admin-stock-list,
+.huy-admin-review-list {
+  display: grid;
+  gap: 0.62rem;
+}
+
+.huy-admin-progress-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem 0.75rem;
+  align-items: center;
+  padding: 0.72rem 0.78rem;
+  border: 1px solid rgba(215, 221, 216, 0.72);
+  border-radius: 0.95rem;
+  background: rgba(255, 255, 253, 0.72);
+}
+
+.huy-admin-progress-row div {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.huy-admin-progress-row strong,
+.huy-admin-ranked-row strong,
+.huy-admin-stock-row strong,
+.huy-admin-review-row strong {
+  overflow: hidden;
+  color: #111918;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.huy-admin-progress-row span,
+.huy-admin-ranked-row small,
+.huy-admin-stock-row small,
+.huy-admin-review-row small {
+  overflow: hidden;
+  color: var(--huy-admin-muted);
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.huy-admin-progress-row b {
+  color: #35433f;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.huy-admin-progress-row i {
+  display: block;
+  grid-column: 1 / -1;
+  height: 0.54rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(205, 216, 212, 0.72);
+}
+
+.huy-admin-progress-row i span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c7df73, #ba9254);
+  transition: width 180ms ease;
+}
+
+.huy-admin-ranked-row,
+.huy-admin-stock-row,
+.huy-admin-review-row {
+  display: grid;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.68rem 0.72rem;
+  border: 1px solid rgba(215, 221, 216, 0.68);
+  border-radius: 0.95rem;
+  background: rgba(255, 255, 253, 0.74);
+}
+
+.huy-admin-ranked-row {
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+}
+
+.huy-admin-ranked-row > span {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  color: #6f4e22;
+  background: rgba(245, 224, 190, 0.68);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.huy-admin-ranked-row div {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.huy-admin-ranked-row b,
+.huy-admin-stock-row b {
+  color: #2d3937;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.huy-admin-stock-row {
+  grid-template-columns: 2.8rem minmax(0, 1fr) auto;
+}
+
+.huy-admin-stock-row img {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 0.72rem;
+  object-fit: contain;
+  background: #fff;
+}
+
+.huy-admin-stock-row div {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.huy-admin-stock-row b {
+  display: grid;
+  place-items: center;
+  min-width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  color: #9a672f;
+  background: rgba(245, 224, 190, 0.66);
+}
+
+.huy-admin-stock-row b.danger {
+  color: #a84f43;
+  background: rgba(241, 217, 209, 0.72);
+}
+
+.huy-admin-review-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.huy-admin-review-row div {
+  display: grid;
+  min-width: 0;
+  gap: 0.12rem;
+}
+
+.huy-admin-review-row a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--huy-admin-border);
+  border-radius: 999px;
+  color: #2f3c39;
+  background: rgba(247, 249, 245, 0.86);
+  font-size: 0.76rem;
+  font-weight: 780;
+  text-decoration: none;
+}
+
+.admin-dashboard-skeleton {
+  min-height: 8rem;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 253, 0.64), rgba(233, 239, 228, 0.86), rgba(255, 255, 253, 0.64));
+  background-size: 220% 100%;
+  animation: huy-dashboard-skeleton 1.15s ease-in-out infinite;
+}
+
+.admin-dashboard-skeleton.hero {
+  min-height: 7.2rem;
+}
+
+.admin-dashboard-skeleton.panel-large {
+  grid-column: span 8;
+  min-height: 18rem;
+}
+
+.admin-dashboard-skeleton.panel-small {
+  grid-column: span 4;
+  min-height: 18rem;
 }
 
 .admin-reports-page .admin-page-header {
@@ -1628,8 +1878,14 @@
   .admin-decant-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-kpi-card { grid-column: span 1; }
   .huy-admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .huy-admin-metrics.product { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .huy-admin-profit,
-  .huy-admin-products { grid-column: span 12; }
+  .huy-admin-products,
+  .huy-admin-chart-large,
+  .huy-admin-chart-medium,
+  .huy-admin-list-panel,
+  .admin-dashboard-skeleton.panel-large,
+  .admin-dashboard-skeleton.panel-small { grid-column: span 12; }
 }
 @media (max-width: 992px) {
   .huy-admin-shell { grid-template-columns: 1fr; }
@@ -1656,13 +1912,21 @@
   .huy-admin-nav { justify-content: flex-start; }
   .admin-inventory-grid { grid-template-columns: 1fr; }
   .huy-admin-metrics { grid-template-columns: 1fr; }
+  .huy-admin-metrics.product { grid-template-columns: 1fr; }
   .huy-admin-recent-order {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+  .huy-admin-ranked-row,
+  .huy-admin-stock-row,
+  .huy-admin-review-row {
     grid-template-columns: 1fr;
     align-items: start;
   }
 }
 
 @keyframes huy-chart-rise { from { opacity: 0; transform: scaleY(0.08) translateY(8px); } 60% { opacity: 1; } to { opacity: 1; transform: scaleY(1) translateY(0); } }
+@keyframes huy-dashboard-skeleton { from { background-position: 180% 0; } to { background-position: -60% 0; } }
 @keyframes huy-active-bar-pulse { 0%, 100% { box-shadow: 0 8px 18px rgba(241, 154, 85, 0.18); filter: saturate(1); } 50% { box-shadow: 0 16px 30px rgba(241, 154, 85, 0.34); filter: saturate(1.12); } }
 @keyframes huy-bar-sheen { from { transform: translateY(110%); } to { transform: translateY(-110%); } }
 @keyframes huy-tooltip-float { 0%, 100% { transform: translateY(-100%); } 50% { transform: translateY(calc(-100% - 4px)); } }

@@ -1,4 +1,4 @@
-import type { CartSummary, OrderResponse, Product, ProductVariant } from '../types';
+import type { CartItem, CartSummary, OrderResponse, Product, ProductVariant } from '../types';
 
 function asNumber(value: unknown, fallback = 0) {
   const number = Number(value);
@@ -153,7 +153,7 @@ export function normalizeProduct(raw: any): Product {
     decantOptions: Array.isArray(raw?.decantOptions ?? raw?.decant_options)
       ? (raw.decantOptions ?? raw.decant_options).map(normalizeDecantOption)
       : [],
-    availableVolumeMl: asNumber(raw?.availableVolumeMl ?? raw?.available_volume_ml),
+    availableVolumeMl: asNumber(raw?.availableVolumeMl ?? raw?.available_volume_ml ?? raw?.remainingVolumeMl ?? raw?.remaining_volume_ml),
     batches: Array.isArray(raw?.batches) ? raw.batches.map(normalizeProductBatch) : [],
     category,
     brand,
@@ -181,7 +181,7 @@ export function normalizeProductPage(raw: any) {
 }
 
 export function normalizeCartSummary(raw: any): CartSummary {
-  const items = Array.isArray(raw?.items)
+  const items: CartItem[] = Array.isArray(raw?.items)
     ? raw.items.map((item: any) => {
       const product = normalizeProduct(item.product ?? item);
       const quantity = asNumber(item.quantity, 1);
@@ -198,8 +198,8 @@ export function normalizeCartSummary(raw: any): CartSummary {
 
   return {
     items,
-    total: asNumber(raw?.total, items.reduce((sum, item) => sum + item.price * item.quantity, 0)),
-    itemCount: asNumber(raw?.itemCount, items.reduce((sum, item) => sum + item.quantity, 0)),
+    total: asNumber(raw?.total, items.reduce((sum: number, item: CartItem) => sum + item.price * item.quantity, 0)),
+    itemCount: asNumber(raw?.itemCount, items.reduce((sum: number, item: CartItem) => sum + item.quantity, 0)),
   };
 }
 

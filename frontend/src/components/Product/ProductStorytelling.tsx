@@ -1,11 +1,13 @@
-function splitNotes(value) {
+import type { Product } from '../../types';
+
+function splitNotes(value: unknown) {
   return String(value || '')
     .split(/[,/|•]/)
     .map((item) => item.trim())
     .filter(Boolean);
 }
 
-export function ProductStorytelling({ product }) {
+export function ProductStorytelling({ product }: { product?: Product | null }) {
   const notes = splitNotes(product?.scentNotes);
   const topNotes = notes.slice(0, 3);
   const mood = product?.gender

@@ -1,5 +1,6 @@
 export {
   getProductById,
+  getProductFacets,
   getProductPurchaseOption,
   getProductsPaged,
   getRandomProducts,

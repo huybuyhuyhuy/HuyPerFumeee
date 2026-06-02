@@ -80,6 +80,15 @@ function getBadgeLabel(product, discountPercent, soldCount) {
   return '';
 }
 
+function hasVariantChoice(product) {
+  return Boolean(
+    product?.hasVariants ||
+    Number(product?.variantCount ?? product?.variant_count ?? 0) > 1 ||
+    (Array.isArray(product?.variants) && product.variants.length > 1) ||
+    (Array.isArray(product?.decantOptions) && product.decantOptions.length > 0)
+  );
+}
+
 export function ProductCard({ product, onAddToCart, onToggleWishlist, onAddWishlistToCart, wishlisted = false }) {
   const [cartState, setCartState] = useState('idle');
   const { isLoggedIn } = useAuth();
@@ -106,21 +115,40 @@ export function ProductCard({ product, onAddToCart, onToggleWishlist, onAddWishl
   const soldCount = getSoldCount(product);
   const badgeLabel = getBadgeLabel(product, discountPercent, soldCount);
   const isHidden = product.status === false;
-  const isOutOfStock = asNumber(product.stock, 1) <= 0;
+  const needsSelection = hasVariantChoice(product);
+  const isOutOfStock = isHidden || asNumber(product.stock ?? product.stockQuantity, 0) <= 0;
 
   const handleCartClick = async () => {
     if (isOutOfStock || cartState === 'adding') return;
     if (!isLoggedIn) {
       const returnTo = getCurrentPath(location);
-      savePendingCustomerAction({ type: 'cart', productId: Number(product.id), quantity: 1, returnTo });
-      pushToast('Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.', 'info');
+      if (!needsSelection) {
+        savePendingCustomerAction({
+          type: 'cart',
+          productId: Number(product.id),
+          quantity: 1,
+          variantId: product.variantId ?? null,
+          itemType: 'FULL_BOTTLE',
+          returnTo,
+        });
+      }
+      pushToast(
+        needsSelection
+          ? 'Vui lòng đăng nhập để chọn phiên bản và thêm vào giỏ hàng.'
+          : 'Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.',
+        'info'
+      );
       navigate('/login', { state: { from: returnTo } });
       return;
     }
 
     setCartState('adding');
     try {
-      await onAddToCart?.(product.id);
+      const result = await onAddToCart?.(product);
+      if (result?.pendingSelection) {
+        setCartState('idle');
+        return;
+      }
       setCartState('added');
     } catch {
       setCartState('idle');
@@ -172,7 +200,7 @@ export function ProductCard({ product, onAddToCart, onToggleWishlist, onAddWishl
               onClick={handleCartClick}
               disabled={isOutOfStock || cartState === 'adding'}
             >
-              {isOutOfStock ? 'Hết hàng' : cartState === 'adding' ? 'Đang thêm...' : cartState === 'added' ? 'Đã thêm' : 'Thêm vào giỏ'}
+              {isOutOfStock ? 'Tạm hết hàng' : cartState === 'adding' ? 'Đang thêm...' : cartState === 'added' ? 'Đã thêm' : needsSelection ? 'Chọn phiên bản' : 'Thêm vào giỏ'}
             </button>
           </div>
 

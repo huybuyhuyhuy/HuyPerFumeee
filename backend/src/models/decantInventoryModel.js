@@ -1,4 +1,4 @@
-import { query, sql } from '../config/database.js';
+import { getDbPool, query, sql } from '../config/database.js';
 import { getProductStorageCapabilities } from '../modules/products/product.repository.js';
 
 // ── helpers ──────────────────────────────────────────────
@@ -9,6 +9,10 @@ function toInt(value, fallback = 0) {
 
 function hasColumn(columns, name) {
   return columns.has(String(name).toLowerCase());
+}
+
+function inventoryShortage(message) {
+  return Object.assign(new Error(message), { code: 409, inventoryShortage: true });
 }
 
 let decantInventoryReadyPromise = null;
@@ -52,8 +56,10 @@ async function ensureDecantInventoryTables() {
         CREATE TABLE dbo.inventory_movements (
           id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
           product_id INT NOT NULL,
+          batch_id INT NULL,
           order_id INT NULL,
           order_item_id INT NULL,
+          admin_id INT NULL,
           movement_type NVARCHAR(40) NOT NULL,
           sealed_bottles_before INT NOT NULL,
           sealed_bottles_after INT NOT NULL,
@@ -64,6 +70,34 @@ async function ensureDecantInventoryTables() {
           reference NVARCHAR(160) NULL,
           created_at DATETIME2 NOT NULL CONSTRAINT DF_inventory_movements_created_at DEFAULT SYSUTCDATETIME()
         );
+      END
+
+      IF COL_LENGTH(N'dbo.inventory_movements', N'batch_id') IS NULL
+        ALTER TABLE dbo.inventory_movements ADD batch_id INT NULL;
+      IF COL_LENGTH(N'dbo.inventory_movements', N'admin_id') IS NULL
+        ALTER TABLE dbo.inventory_movements ADD admin_id INT NULL;
+
+      IF EXISTS (
+        SELECT 1 FROM sys.check_constraints
+        WHERE name = N'CK_inventory_movements_type'
+          AND parent_object_id = OBJECT_ID(N'dbo.inventory_movements')
+      )
+      BEGIN
+        ALTER TABLE dbo.inventory_movements DROP CONSTRAINT CK_inventory_movements_type;
+      END
+
+      IF NOT EXISTS (
+        SELECT 1 FROM sys.check_constraints
+        WHERE name = N'CK_inventory_movements_type'
+          AND parent_object_id = OBJECT_ID(N'dbo.inventory_movements')
+      )
+      BEGIN
+        ALTER TABLE dbo.inventory_movements WITH CHECK ADD CONSTRAINT CK_inventory_movements_type
+        CHECK (movement_type IN (
+          N'BOTTLE_OPEN', N'DECANT_SALE', N'DECANT_SOLD', N'BOTTLE_SALE',
+          N'BOTTLE_RESTOCK', N'DECANT_RESTOCK', N'RETURN_RESTOCK',
+          N'ADJUSTMENT', N'MANUAL_ADJUST', N'CANCEL'
+        ));
       END
     `);
   }
@@ -179,7 +213,7 @@ export async function ensureProductInventory(transaction, productId, bottleVolum
   req.input('bottleVolumeMl', sql.Int, bottleVolumeMl);
 
   const existing = await req.query(
-    `SELECT id FROM product_inventory WITH (UPDLOCK, ROWLOCK) WHERE product_id = @productId`
+    `SELECT id FROM product_inventory WITH (UPDLOCK, HOLDLOCK, ROWLOCK) WHERE product_id = @productId`
   );
   if (existing.recordset?.length > 0) return existing.recordset[0].id;
 
@@ -198,12 +232,14 @@ export async function ensureProductInventory(transaction, productId, bottleVolum
 
 // ── compute available decant units ───────────────────────
 export async function computeDecantStock(transaction, productId, decantVolumeMl) {
+  await ensureProductInventory(transaction, productId);
+
   const req = new sql.Request(transaction);
   req.input('productId', sql.Int, productId);
 
   const result = await req.query(
     `SELECT sealed_bottles, opened_ml, bottle_volume_ml
-     FROM product_inventory WITH (UPDLOCK, ROWLOCK)
+     FROM product_inventory WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
      WHERE product_id = @productId`
   );
   const row = result.recordset?.[0];
@@ -220,10 +256,12 @@ export async function computeDecantStock(transaction, productId, decantVolumeMl)
 
 // ── insert a movement record ─────────────────────────────
 async function insertMovement(transaction, entry) {
-  const req = new sql.Request(transaction);
+  const req = transaction ? new sql.Request(transaction) : (await getDbPool()).request();
   req.input('productId', sql.Int, entry.productId);
+  req.input('batchId', sql.Int, entry.batchId || null);
   req.input('orderId', sql.Int, entry.orderId || null);
   req.input('orderItemId', sql.Int, entry.orderItemId || null);
+  req.input('adminId', sql.Int, entry.adminId || null);
   req.input('movementType', sql.NVarChar, entry.movementType);
   req.input('sealedBefore', sql.Int, entry.sealedBefore);
   req.input('sealedAfter', sql.Int, entry.sealedAfter);
@@ -235,14 +273,19 @@ async function insertMovement(transaction, entry) {
 
   await req.query(
     `INSERT INTO inventory_movements
-       (product_id, order_id, order_item_id, movement_type,
+       (product_id, batch_id, order_id, order_item_id, admin_id, movement_type,
         sealed_bottles_before, sealed_bottles_after,
         opened_ml_before, opened_ml_after,
         quantity_ml, quantity_bottles, reference)
-     VALUES (@productId, @orderId, @orderItemId, @movementType,
+     VALUES (@productId, @batchId, @orderId, @orderItemId, @adminId, @movementType,
              @sealedBefore, @sealedAfter, @openedBefore, @openedAfter,
              @quantityMl, @quantityBottles, @reference)`
   );
+}
+
+export async function recordDecantMovement(transaction, entry) {
+  await ensureDecantInventoryTables();
+  return insertMovement(transaction, entry);
 }
 
 // ── CORE: decrement for decant sale ──────────────────────
@@ -259,7 +302,7 @@ export async function decrementDecantInventory(transaction, {
   // Lock and read current state
   const current = await req.query(
     `SELECT sealed_bottles, opened_ml, bottle_volume_ml
-     FROM product_inventory WITH (UPDLOCK, ROWLOCK)
+     FROM product_inventory WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
      WHERE product_id = @productId`
   );
   const row = current.recordset?.[0];
@@ -271,7 +314,7 @@ export async function decrementDecantInventory(transaction, {
   const totalAvailable = opened + sealed * bottleVol;
 
   if (totalAvailable < neededMl) {
-    throw Object.assign(new Error('Không đủ dung tích để chiết'), { code: 400 });
+    throw inventoryShortage('Không đủ dung tích để chiết');
   }
 
   let bottlesOpened = 0;
@@ -283,7 +326,7 @@ export async function decrementDecantInventory(transaction, {
     const deficit = neededMl - opened;
     bottlesOpened = Math.ceil(deficit / bottleVol);
     if (sealed < bottlesOpened) {
-      throw Object.assign(new Error('Không đủ chai nguyên seal để mở'), { code: 400 });
+      throw inventoryShortage('Không đủ chai nguyên seal để mở');
     }
     sealed -= bottlesOpened;
     opened += bottlesOpened * bottleVol;
@@ -343,7 +386,7 @@ export async function decrementFullBottleInventory(transaction, {
 
   const current = await req.query(
     `SELECT sealed_bottles, opened_ml, bottle_volume_ml
-     FROM product_inventory WITH (UPDLOCK, ROWLOCK)
+     FROM product_inventory WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
      WHERE product_id = @productId`
   );
   const row = current.recordset?.[0];
@@ -351,7 +394,7 @@ export async function decrementFullBottleInventory(transaction, {
 
   const sealed = toInt(row.sealed_bottles);
   if (sealed < quantity) {
-    throw Object.assign(new Error('Không đủ chai nguyên seal'), { code: 400 });
+    throw inventoryShortage('Không đủ chai nguyên seal');
   }
 
   const sealedBefore = sealed;
@@ -383,7 +426,7 @@ export async function decrementFullBottleInventory(transaction, {
 
 // ── restore inventory on order cancel ────────────────────
 export async function restoreDecantInventory(transaction, {
-  productId, neededMl = 0, isFullBottle = false, orderId = null,
+  productId, neededMl = 0, isFullBottle = false, quantity = 1, orderId = null,
 }) {
   await ensureProductInventory(transaction, productId);
 
@@ -391,7 +434,7 @@ export async function restoreDecantInventory(transaction, {
   req.input('productId', sql.Int, productId);
   const current = await req.query(
     `SELECT sealed_bottles, opened_ml, bottle_volume_ml
-     FROM product_inventory WITH (UPDLOCK, ROWLOCK)
+     FROM product_inventory WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
      WHERE product_id = @productId`
   );
   const row = current.recordset?.[0];
@@ -403,13 +446,14 @@ export async function restoreDecantInventory(transaction, {
   const openedBefore = opened;
 
   if (isFullBottle) {
-    sealed += 1;
+    const bottleQuantity = Math.max(1, toInt(quantity, 1));
+    sealed += bottleQuantity;
     await insertMovement(transaction, {
       productId, orderId,
       movementType: 'CANCEL',
       sealedBefore, sealedAfter: sealed,
       openedBefore: opened, openedAfter: opened,
-      quantityBottles: 1,
+      quantityBottles: bottleQuantity,
       reference: 'Hoàn chai full khi hủy đơn',
     });
   } else if (neededMl > 0) {
@@ -575,9 +619,11 @@ export async function getDecantMovements({ productId = null, page = 1, pageSize 
   const total = countRows[0]?.total || 0;
 
   const rows = await query(
-    `SELECT m.*, p.name AS product_name
+    `SELECT m.*, p.name AS product_name, pb.batch_code, u.name AS admin_name
      FROM inventory_movements m
      LEFT JOIN products p ON p.id = m.product_id
+     LEFT JOIN product_batches pb ON pb.id = m.batch_id
+     LEFT JOIN users u ON u.id = m.admin_id
      ${where}
      ORDER BY m.created_at DESC
      OFFSET ? ROWS FETCH NEXT ? ROWS ONLY`,

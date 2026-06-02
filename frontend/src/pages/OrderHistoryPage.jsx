@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { orderService } from '../services/orderService';
+import { cartService } from '../services/cartService';
 import { formatVnCurrency } from '../utils/formatters';
 import { getOrderStatusLabel, getOrderStatusTone } from '../constants/orderStatus';
 
 export function OrderHistoryPage() {
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [rebuyingId, setRebuyingId] = useState(null);
+  const [rebuyMessage, setRebuyMessage] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -18,6 +22,36 @@ export function OrderHistoryPage() {
       .catch((err) => setError(err?.response?.data?.message || 'Không tải được lịch sử đơn hàng.'))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleRebuy = async (order) => {
+    setRebuyingId(order.id);
+    setRebuyMessage(null);
+    try {
+      const result = await cartService.addOrderItems(order.items || []);
+      const failedNames = result.failed.map(({ item, reason }) => `${item.productName || 'Sản phẩm'}: ${reason}`);
+
+      if (result.added.length > 0 && failedNames.length === 0) {
+        setRebuyMessage({ type: 'success', text: `Đã thêm lại ${result.added.length} sản phẩm vào giỏ hàng.` });
+        navigate('/cart');
+        return;
+      }
+
+      if (result.added.length > 0) {
+        setRebuyMessage({
+          type: 'warning',
+          text: `Đã thêm ${result.added.length} sản phẩm. Không thêm được: ${failedNames.join('; ')}`,
+        });
+        return;
+      }
+
+      setRebuyMessage({
+        type: 'error',
+        text: `Không thêm được sản phẩm nào. ${failedNames.join('; ') || 'Các sản phẩm trong đơn không còn khả dụng.'}`,
+      });
+    } finally {
+      setRebuyingId(null);
+    }
+  };
 
   if (loading) return <div className="text-center py-5"><div className="spinner-border" /></div>;
 
@@ -37,6 +71,11 @@ export function OrderHistoryPage() {
           <p className="section-eyebrow">Tài khoản của bạn</p>
           <h1>Lịch sử đơn hàng</h1>
         </header>
+        {rebuyMessage && (
+          <div className={`alert ${rebuyMessage.type === 'success' ? 'alert-success' : rebuyMessage.type === 'warning' ? 'alert-warning' : 'alert-danger'}`}>
+            {rebuyMessage.text}
+          </div>
+        )}
         {orders.length === 0 ? (
           <section className="luxury-surface order-history-empty">
             <p className="luxury-muted">Bạn chưa có đơn hàng nào.</p>
@@ -69,7 +108,12 @@ export function OrderHistoryPage() {
                         </span>
                       </td>
                       <td className="text-end">
-                        <Link to={`/orders/${order.id}`} className="btn btn-sm btn-outline-dark">Chi tiết</Link>
+                        <div className="order-history-actions">
+                          <Link to={`/orders/${order.id}`} className="btn btn-sm btn-outline-dark">Chi tiết</Link>
+                          <button type="button" className="btn btn-sm luxury-primary-btn" disabled={rebuyingId === order.id} onClick={() => handleRebuy(order)}>
+                            {rebuyingId === order.id ? 'Đang thêm...' : 'Mua lại'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

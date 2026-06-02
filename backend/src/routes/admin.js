@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { adminMiddleware } from '../middlewares/adminMiddleware.js';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { ROLES } from '../modules/auth/rbac.js';
-import { stats, summary, charts } from '../controllers/adminDashboardController.js';
+import { stats, summary, charts, revenue, topProducts, lowStock } from '../controllers/adminDashboardController.js';
 import { report } from '../controllers/adminReportController.js';
 import { listOrders, orderAnalytics, orderDetail, changeStatus } from '../controllers/adminOrderController.js';
 import { listAdminUsers, userDetail, updateUserStatus, updateUserRole, updateUserNote } from '../controllers/adminUserController.js';
@@ -31,6 +31,7 @@ import {
   reviewDetail,
   moderateReview,
   bulkModerate,
+  seedDemoReviews,
 } from '../controllers/adminReviewController.js';
 import { adminList, create as createBanner, update as updateBanner, remove as removeBanner, reorder } from '../controllers/bannerController.js';
 import { list as listVouchers, detail as voucherDetail, create as createVoucher, update as updateVoucher, updateStatus as updateVoucherStatus, remove as removeVoucher } from '../controllers/adminVoucherController.js';
@@ -47,6 +48,9 @@ router.get('/dashboard', adminMiddleware, stats);
 router.get('/dashboard/stats', adminMiddleware, stats);
 router.get('/dashboard/summary', adminMiddleware, summary);
 router.get('/dashboard/charts', adminMiddleware, charts);
+router.get('/dashboard/revenue', adminMiddleware, revenue);
+router.get('/dashboard/top-products', adminMiddleware, topProducts);
+router.get('/dashboard/low-stock', adminMiddleware, lowStock);
 router.get('/reports', adminMiddleware, report);
 
 // --- Decant ---
@@ -104,6 +108,7 @@ router.patch('/users/:id/note', adminMiddleware, updateUserNote);
 
 // --- Reviews ---
 router.get('/reviews', adminMiddleware, listReviews);
+router.post('/reviews/seed-demo', adminProductsMiddleware, seedDemoReviews);
 router.get('/reviews/:id', adminMiddleware, reviewDetail);
 router.put('/reviews/:id/moderate', adminMiddleware, moderateReview);
 router.post('/reviews/bulk-moderate', adminMiddleware, bulkModerate);

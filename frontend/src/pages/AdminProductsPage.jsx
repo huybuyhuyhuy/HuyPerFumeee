@@ -275,7 +275,7 @@ export function AdminProductsPage() {
   const stats = [
     { label: 'Tổng sản phẩm', value: formatNumber(summary.total), hint: 'Trong danh mục', icon: 'SKU' },
     { label: 'Đang hiển thị', value: formatNumber(summary.active), hint: 'Có thể mua', tone: 'positive', icon: 'ON' },
-    { label: 'Sắp hết hàng', value: formatNumber(summary.lowStock), hint: 'Còn 1 - 5 chai', tone: 'warning', icon: 'LOW' },
+    { label: 'Sắp hết hàng', value: formatNumber(summary.lowStock), hint: 'Còn 1 - 5 chai/full', tone: 'warning', icon: 'LOW' },
     { label: 'Giá trị tồn kho', value: formatAdminCurrency(summary.stockValue), hint: 'Ước tính theo giá bán', tone: 'positive', icon: 'VND' },
   ];
   const categoryBreakdown = Array.isArray(summary.categoryBreakdown) ? summary.categoryBreakdown : [];
@@ -339,7 +339,7 @@ export function AdminProductsPage() {
               <label>Giá khuyến mãi
                 <input type="number" min="0" className="form-control" value={form.discountPrice} onChange={updateForm('discountPrice')} />
               </label>
-              <label>Tồn kho
+              <label>Tồn kho chai/full
                 <input type="number" min="0" className="form-control" value={form.stock} onChange={updateForm('stock')} required />
               </label>
               <label>Dung tích (ml)
@@ -368,9 +368,9 @@ export function AdminProductsPage() {
 
       <section className="admin-insight-grid products">
         <article className="admin-insight-card">
-          <div className="admin-insight-head compact"><div><span className="admin-eyebrow">Tồn kho</span><h2>Sức khỏe tồn kho</h2></div></div>
+          <div className="admin-insight-head compact"><div><span className="admin-eyebrow">Tồn kho chai/full</span><h2>Sức khỏe tồn kho</h2></div></div>
           <div className="admin-stock-health">
-            <div><strong>{formatNumber(stockTotal)}</strong><span>Tổng đơn vị tồn</span></div>
+            <div><strong>{formatNumber(stockTotal)}</strong><span>Tổng chai/full tồn</span></div>
             <div><strong>{formatNumber(summary.outOfStock)}</strong><span>Hết hàng</span></div>
             <div><strong>{formatNumber(summary.decantCount)}</strong><span>Sản phẩm decant</span></div>
           </div>
@@ -451,7 +451,7 @@ export function AdminProductsPage() {
                     <th>Sản phẩm</th>
                     <th>Danh mục</th>
                     <th>Giá bán</th>
-                    <th>Tồn kho</th>
+                    <th>Tồn kho chai/full</th>
                     <th>Trạng thái</th>
                     <th className="text-end">Thao tác</th>
                   </tr>
@@ -472,7 +472,7 @@ export function AdminProductsPage() {
                       <td><strong>{formatAdminCurrency(product.discountPrice > 0 ? product.discountPrice : product.price)}</strong></td>
                       <td>
                         <div className="admin-stock-editor">
-                          <input type="number" min="0" className="form-control form-control-sm" aria-label={`Tồn kho ${product.name}`} value={stockDrafts[product.id] ?? ''} onChange={(event) => setStockDrafts({ ...stockDrafts, [product.id]: event.target.value })} />
+                          <input type="number" min="0" className="form-control form-control-sm" aria-label={`Tồn kho chai/full ${product.name}`} value={stockDrafts[product.id] ?? ''} onChange={(event) => setStockDrafts({ ...stockDrafts, [product.id]: event.target.value })} />
                           <button type="button" className="btn btn-sm btn-outline-dark" disabled={busyId === product.id} onClick={() => void saveStock(product)}>Lưu</button>
                         </div>
                         {product.stock > 0 && product.stock <= 5 && <span className="admin-status-badge progress admin-low-stock-badge">Sắp hết</span>}

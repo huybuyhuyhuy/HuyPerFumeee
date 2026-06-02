@@ -103,6 +103,7 @@ export async function updateUserAddress(userId, addressId, payload) {
       payload.district || '',
       payload.city || '',
       payload.country || 'VN',
+      payload.postalCode || '',
       payload.isDefault ? 1 : 0,
       addressId,
       userId,

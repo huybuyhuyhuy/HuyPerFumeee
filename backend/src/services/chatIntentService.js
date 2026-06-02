@@ -12,6 +12,16 @@ const POLICY_TERMS = [
   'thanh toan',
 ];
 
+const ORDER_TRACKING_TERMS = [
+  'don hang',
+  'ma don',
+  'tracking',
+  'theo doi don',
+  'kiem tra don',
+  'trang thai don',
+  'van don',
+];
+
 const SCENT_INTENTS = [
   { terms: ['go dan huong', 'sandalwood'], scent: 'sandalwood', scentGroup: 'woody' },
   { terms: ['cam bergamot', 'bergamot'], scent: 'bergamot', scentGroup: 'citrus' },
@@ -26,8 +36,24 @@ const SCENT_INTENTS = [
   { terms: ['aquatic', 'bien', 'marine'], scent: 'aquatic', scentGroup: 'fresh' },
   { terms: ['vanilla', 'vani'], scent: 'vanilla', scentGroup: 'amber' },
   { terms: ['citrus', 'cam', 'chanh', 'buoi'], scent: 'citrus', scentGroup: 'citrus' },
-  { terms: ['fresh'], scent: 'fresh', scentGroup: 'fresh' },
+  { terms: ['fresh', 'tuoi mat', 'mat me', 'sach se'], scent: 'fresh', scentGroup: 'fresh' },
   { terms: ['woody', 'go'], scent: 'woody', scentGroup: 'woody' },
+  { terms: ['ngot', 'sweet', 'gourmand', 'keo'], scent: 'sweet', scentGroup: 'sweet' },
+  { terms: ['hoa trang', 'floral', 'hoa co'], scent: 'floral', scentGroup: 'floral' },
+  { terms: ['cay', 'spicy', 'gia vi'], scent: 'spicy', scentGroup: 'spicy' },
+];
+
+const PURPOSE_INTENTS = [
+  { terms: ['di hoc', 'di lam', 'van phong', 'cong so'], purpose: 'work_school' },
+  { terms: ['di choi', 'ca phe', 'hang ngay', 'daily'], purpose: 'casual' },
+  { terms: ['di tiec', 'party', 'su kien'], purpose: 'party' },
+  { terms: ['di date', 'hen ho', 'di hen', 'crush'], purpose: 'date' },
+  { terms: ['tang qua', 'qua tang', 'sinh nhat', 'ky niem'], purpose: 'gift' },
+];
+
+const WEATHER_INTENTS = [
+  { terms: ['troi nong', 'thoi tiet nong', 'mua he', 'he', 'nong'], weather: 'hot' },
+  { terms: ['troi lanh', 'thoi tiet lanh', 'mua dong', 'dong', 'lanh'], weather: 'cold' },
 ];
 
 const KNOWN_BRANDS = [
@@ -159,6 +185,44 @@ export function parseBrandIntent(question) {
   return match?.brand || null;
 }
 
+export function parsePurposeIntent(question) {
+  const text = normalizeVietnameseText(question);
+  const match = PURPOSE_INTENTS.find((entry) => entry.terms.some((term) => includesPhrase(text, term)));
+  return match?.purpose || null;
+}
+
+export function parseWeatherIntent(question) {
+  const text = normalizeVietnameseText(question);
+  const match = WEATHER_INTENTS.find((entry) => entry.terms.some((term) => includesPhrase(text, term)));
+  return match?.weather || null;
+}
+
+export function parseStockIntent(question) {
+  const text = normalizeVietnameseText(question);
+  return /\b(con hang|san co|dang con|available|stock|ton kho)\b/.test(text) && !/\b(het hang|out of stock)\b/.test(text);
+}
+
+function parseOrderCodeIntent(question) {
+  const raw = String(question || '').trim();
+  const match = raw.match(/\b(?:HP|DH|ORD)[-_]?[A-Z0-9]{4,}\b/i) || raw.match(/\b\d{5,}\b/);
+  return match ? match[0] : null;
+}
+
+function splitCompareTerms(question) {
+  let text = normalizeVietnameseText(question);
+  text = text
+    .replace(/\b(so sanh|compare|nen chon|chon|khac nhau|giua|nuoc hoa|san pham|chai|mui)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const parts = text
+    .split(/\s+(?:voi|va|hay|vs|versus)\s+/g)
+    .map((part) => part.replace(/\b(loai nao|chai nao|tot hon|hop hon|hon|nen mua|mua)\b/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter((part) => part.length >= 2);
+
+  return [...new Set(parts)].slice(0, 3);
+}
+
 function removePhrase(text, phrase) {
   return text.replace(new RegExp(`(?:^|\\s)${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`, 'g'), ' ');
 }
@@ -175,11 +239,16 @@ export function parseProductNameIntent(question) {
     'gia cua', 'gia', 'tim', 'kiem', 'goi y', 'tu van', 'muon mua', 'muon', 'cho toi', 'giup toi',
     'co huong lieu gi', 'huong lieu gi', 'co huong gi', 'huong gi', 'huong', 'mui ra sao', 'phu hop nam hay nu', 'phu hop',
     'con hang khong', 'con hang', 'bao nhieu ml', 'huong dau', 'huong giua', 'huong cuoi',
-    'ra sao', 'nhu the nao', 'the nao', 'nay',
+    'ra sao', 'nhu the nao', 'the nao', 'nay', 'nhung mui nao', 'mui nao',
     'nam', 'dan ong', 'male', 'men', 'nu', 'female', 'women', 'unisex',
     'duoi', 'tren', 'tu', 'den', 'toi', 'khoang', 'tam', 'vnd', 'dong',
     'fullbox', 'full box', 'full', 'decant', 'chiet',
+    'di hoc', 'di lam', 'di choi', 'di tiec', 'di date', 'hen ho', 'tang qua', 'qua tang',
+    'troi nong', 'troi lanh', 'mua he', 'mua dong', 'cong so', 'van phong',
+    'con hang', 'ton kho', 'stock', 'so sanh', 'compare', 'voi', 'hay',
     ...SCENT_INTENTS.flatMap((entry) => entry.terms),
+    ...PURPOSE_INTENTS.flatMap((entry) => entry.terms),
+    ...WEATHER_INTENTS.flatMap((entry) => entry.terms),
     ...(brandEntry?.terms || []),
   ];
 
@@ -189,7 +258,7 @@ export function parseProductNameIntent(question) {
 
   text = text
     .replace(/\b\d+(?:[.,]\d+)*\s*(?:trieu|tr|k|nghin|ngan|vnd|dong|d|ml)?\b/g, ' ')
-    .replace(/\b(co|gi|khong|loai|hang|cua|voi|va|cho|minh|toi|can|mot|the|nao)\b/g, ' ')
+    .replace(/\b(co|con|nhung|gi|khong|loai|hang|cua|voi|va|cho|minh|toi|can|mot|the|nao)\b/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -204,8 +273,18 @@ export function parseChatIntent(question) {
   const volume = parseVolumeIntent(originalQuestion);
   const scent = parseScentIntent(originalQuestion);
   const brand = parseBrandIntent(originalQuestion);
+  const purpose = parsePurposeIntent(originalQuestion);
+  const weather = parseWeatherIntent(originalQuestion);
+  const inStockOnly = parseStockIntent(originalQuestion);
   const productName = parseProductNameIntent(originalQuestion);
+  const isOrderTracking = ORDER_TRACKING_TERMS.some((term) => includesPhrase(normalized, term));
   const isPolicy = POLICY_TERMS.some((term) => includesPhrase(normalized, term));
+  const isCompare = /\b(so sanh|compare|khac nhau|nen chon|chon.*hay|vs|versus)\b/.test(normalized);
+  const isDecant = /\b(decant|chiet|mini size|dung thu|sample)\b/.test(normalized);
+  const asksPrice = /\b(gia|bao nhieu tien|duoi|tren|tam|khoang|ngan sach|budget)\b/.test(normalized)
+    || price.minPrice !== null
+    || price.maxPrice !== null;
+  const asksStock = /\b(con hang|het hang|ton kho|stock|available)\b/.test(normalized);
   const hasFilters = [
     price.minPrice,
     price.maxPrice,
@@ -214,20 +293,34 @@ export function parseChatIntent(question) {
     volume.variantType,
     scent.scent,
     brand,
+    purpose,
+    weather,
+    inStockOnly ? 'in_stock' : null,
     productName,
   ].some((value) => value !== null);
-  const detailQuestion = /\b(chi tiet|thong tin|gia cua|con hang|ra sao|the nao|mui gi|huong lieu gi|huong gi|huong dau|huong giua|huong cuoi|bao nhieu ml|phu hop)\b/.test(normalized);
+  const detailQuestion = /\b(chi tiet|thong tin|ra sao|the nao|mui gi|huong lieu gi|huong gi|huong dau|huong giua|huong cuoi|bao nhieu ml|phu hop)\b/.test(normalized);
   const refersToCurrentProduct = /\b(chai|nuoc hoa|san pham)?\s*nay\b/.test(normalized);
   const asksForDetail = detailQuestion && Boolean(productName || brand || refersToCurrentProduct);
-  const hasProductLanguage = /\b(nuoc hoa|san pham|goi y|tu van|tim|mua|mui huong)\b/.test(normalized);
+  const hasProductLanguage = /\b(nuoc hoa|san pham|goi y|tu van|tim|mua|mui huong|recommend)\b/.test(normalized);
 
-  const intent = isPolicy && !hasFilters
-    ? 'policy'
-    : asksForDetail
-      ? 'product_detail'
-      : hasFilters || hasProductLanguage
-        ? 'search_products'
-        : 'unknown';
+  let intent = 'unknown';
+  if (isOrderTracking) {
+    intent = 'order_tracking';
+  } else if (isDecant) {
+    intent = 'decant_question';
+  } else if (isCompare) {
+    intent = 'compare_product';
+  } else if (isPolicy && !hasFilters) {
+    intent = 'policy_question';
+  } else if (asksStock) {
+    intent = 'stock_question';
+  } else if (asksPrice) {
+    intent = 'price_question';
+  } else if (asksForDetail) {
+    intent = 'product_detail';
+  } else if (hasFilters || hasProductLanguage) {
+    intent = 'recommend_product';
+  }
 
   return {
     intent,
@@ -241,7 +334,13 @@ export function parseChatIntent(question) {
       brand,
       search: productName,
       variantType: volume.variantType,
+      purpose,
+      weather,
+      inStockOnly,
     },
+    compareProducts: isCompare ? splitCompareTerms(originalQuestion) : [],
+    orderCode: isOrderTracking ? parseOrderCodeIntent(originalQuestion) : null,
+    isDefinitionQuestion: /\b(la gi|nghia la gi|la sao|giai thich)\b/.test(normalized),
     productName,
     originalQuestion,
   };

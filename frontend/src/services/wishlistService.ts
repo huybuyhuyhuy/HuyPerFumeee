@@ -1,7 +1,15 @@
 import api, { unwrapApiData } from './api';
 import { normalizeProduct } from './dataMappers';
+import type { Product } from '../types';
 
-function normalizeWishlistItem(raw: any) {
+type WishlistItem = {
+  id: number;
+  productId: number;
+  createdAt: string | null;
+  product: Product;
+};
+
+function normalizeWishlistItem(raw: any): WishlistItem {
   return {
     id: Number(raw?.id ?? raw?.wishlistId ?? 0),
     productId: Number(raw?.productId ?? raw?.product_id ?? raw?.product?.id ?? 0),
@@ -15,18 +23,18 @@ export const wishlistService = {
     const { data } = await api.get('/wishlist');
     const payload = unwrapApiData<any>(data);
     const items = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : [];
-    return items.map(normalizeWishlistItem).filter((item) => item.productId > 0 && item.product?.id > 0);
+    return items.map(normalizeWishlistItem).filter((item: WishlistItem) => item.productId > 0 && item.product?.id > 0);
   },
   async addToWishlist(productId: number) {
     const { data } = await api.post(`/wishlist/${productId}`);
     const payload = unwrapApiData<any>(data);
     const items = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : [];
-    return items.map(normalizeWishlistItem).filter((item) => item.productId > 0 && item.product?.id > 0);
+    return items.map(normalizeWishlistItem).filter((item: WishlistItem) => item.productId > 0 && item.product?.id > 0);
   },
   async removeFromWishlist(productId: number) {
     const { data } = await api.delete(`/wishlist/${productId}`);
     const payload = unwrapApiData<any>(data);
     const items = Array.isArray(payload) ? payload : Array.isArray(payload?.items) ? payload.items : [];
-    return items.map(normalizeWishlistItem).filter((item) => item.productId > 0 && item.product?.id > 0);
+    return items.map(normalizeWishlistItem).filter((item: WishlistItem) => item.productId > 0 && item.product?.id > 0);
   },
 };

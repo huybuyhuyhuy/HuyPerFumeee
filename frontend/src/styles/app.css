@@ -1,11 +1,57 @@
 :root {
   color-scheme: light;
+  --font-body: "Times New Roman", Times, serif;
+  --font-heading: "Times New Roman", Times, serif;
+  --luxury-font-body: "Times New Roman", Times, serif;
+  --luxury-display-font: "Times New Roman", Times, serif;
+  --luxury-heading-font: "Times New Roman", Times, serif;
+  --huy-admin-font: "Times New Roman", Times, serif;
 }
 
+html,
 body {
   min-height: 100vh;
+  font-family: "Times New Roman", Times, serif !important;
 }
 
 .app-main {
   min-height: 70vh;
+}
+
+body,
+button,
+input,
+textarea,
+select,
+option,
+optgroup,
+label,
+table,
+code,
+kbd,
+pre,
+samp,
+.btn,
+.form-control,
+.form-select,
+.dropdown-menu,
+.modal,
+.toast,
+.tooltip,
+.popover,
+.luxury-page,
+.huy-admin-dashboard,
+.huy-admin-app {
+  font-family: "Times New Roman", Times, serif !important;
+}
+
+body *,
+.luxury-page *,
+.huy-admin-dashboard *,
+.huy-admin-app * {
+  font-family: "Times New Roman", Times, serif !important;
+}
+
+*::placeholder {
+  font-family: "Times New Roman", Times, serif !important;
 }

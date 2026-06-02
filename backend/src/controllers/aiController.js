@@ -1,4 +1,5 @@
 import { errorResponse, successResponse } from '../utils/response.js';
+import { getBrands } from '../models/brandModel.js';
 import { getProductById, getProductsPaged, searchProducts } from '../models/productModel.js';
 import { normalizeVietnameseText, parseChatIntent } from '../services/chatIntentService.js';
 
@@ -43,14 +44,17 @@ function selectDisplayProductOption(product, filters = {}) {
 function summarizeProduct(product, filters = {}) {
   const displayProduct = selectDisplayProductOption(product, filters);
   const effectivePrice = toPrice(displayProduct);
+  const originalPrice = displayProduct.originalPrice ?? displayProduct.price ?? effectivePrice;
+  const discountPrice = displayProduct.discountPrice ?? displayProduct.salePrice ?? null;
   return {
     id: displayProduct.id,
     name: displayProduct.name,
     brand: displayProduct.brand?.name || '',
     price: effectivePrice,
     priceOriginal: displayProduct.originalPrice ?? displayProduct.price,
-    originalPrice: displayProduct.originalPrice ?? displayProduct.price,
-    discountPrice: displayProduct.discountPrice ?? null,
+    originalPrice,
+    discountPrice,
+    salePrice: discountPrice,
     effectivePrice,
     volumeMl: displayProduct.volumeMl ?? null,
     gender: displayProduct.gender || null,
@@ -66,8 +70,28 @@ function summarizeProduct(product, filters = {}) {
     stock: displayProduct.stock,
     category: displayProduct.category?.name || '',
     isDecant: displayProduct.isDecant,
+    hasDecantOptions: Array.isArray(displayProduct.decantOptions) && displayProduct.decantOptions.length > 0,
+    availableVolumeMl: displayProduct.availableVolumeMl ?? null,
+    decantOptions: Array.isArray(displayProduct.decantOptions)
+      ? displayProduct.decantOptions.map((option) => ({
+          id: option.id,
+          volumeMl: option.volumeMl,
+          price: option.price,
+          status: option.status !== false,
+        }))
+      : [],
     status: displayProduct.status,
-    selectedVariant: displayProduct.selectedVariant || null,
+    selectedVariant: displayProduct.selectedVariant
+      ? {
+          id: displayProduct.selectedVariant.id,
+          label: displayProduct.selectedVariant.label,
+          volumeMl: displayProduct.selectedVariant.volumeMl ?? null,
+          type: displayProduct.selectedVariant.type || '',
+          effectivePrice: displayProduct.selectedVariant.effectivePrice ?? null,
+          stock: displayProduct.selectedVariant.stock ?? displayProduct.selectedVariant.stockQuantity ?? 0,
+          isAvailable: Boolean(displayProduct.selectedVariant.isAvailable),
+        }
+      : null,
     variants: Array.isArray(product.variants)
       ? product.variants.map((variant) => ({
           id: variant.id,
@@ -84,6 +108,7 @@ function summarizeProduct(product, filters = {}) {
 
 function scoreProduct(query, product) {
   const q = normalizeVietnameseText(query);
+  if (!q) return 0;
   const name = normalizeVietnameseText(product.name);
   let score = 0;
 
@@ -99,17 +124,334 @@ function scoreProduct(query, product) {
 }
 
 function compactFilters(filters) {
-  return Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== null && value !== ''));
+  return Object.fromEntries(
+    Object.entries(filters || {}).filter(([, value]) => value !== null && value !== '' && value !== false),
+  );
+}
+
+function hasMeaningfulPreference(filters = {}) {
+  return [
+    filters.minPrice,
+    filters.maxPrice,
+    filters.gender,
+    filters.brand,
+    filters.scent,
+    filters.scentGroup,
+    filters.search,
+    filters.volumeMl,
+    filters.variantType,
+    filters.purpose,
+    filters.weather,
+  ].some((value) => value !== null && value !== undefined && value !== '');
+}
+
+function preferenceSignalCount(filters = {}) {
+  const signals = [
+    filters.gender,
+    filters.minPrice || filters.maxPrice ? 'price' : null,
+    filters.brand,
+    filters.scent || filters.scentGroup ? 'scent' : null,
+    filters.search,
+    filters.volumeMl || filters.variantType ? 'variant' : null,
+    filters.purpose,
+    filters.weather,
+  ];
+  return signals.filter((value) => value !== null && value !== undefined && value !== '').length;
+}
+
+function hasProductReference(chatIntent, contextProductId = null) {
+  return Boolean(
+    contextProductId
+    || chatIntent?.productName
+    || chatIntent?.filters?.search
+    || chatIntent?.filters?.brand
+    || (Array.isArray(chatIntent?.compareProducts) && chatIntent.compareProducts.length > 0),
+  );
+}
+
+const PURPOSE_PROFILES = {
+  work_school: {
+    label: 'đi học/đi làm',
+    groups: ['fresh', 'citrus', 'musk', 'floral'],
+    keywords: ['fresh', 'clean', 'sach', 'citrus', 'bergamot', 'musk', 'lavender', 'oai huong', 'nhẹ', 'nhe'],
+  },
+  casual: {
+    label: 'đi chơi',
+    groups: ['fresh', 'citrus', 'floral', 'sweet'],
+    keywords: ['fresh', 'citrus', 'fruity', 'fruit', 'hoa', 'ngot', 'vanilla', 'daily'],
+  },
+  party: {
+    label: 'đi tiệc',
+    groups: ['amber', 'woody', 'spicy', 'leather', 'sweet'],
+    keywords: ['amber', 'oud', 'wood', 'woody', 'spicy', 'leather', 'vanilla', 'tobacco', 'tram huong'],
+  },
+  date: {
+    label: 'đi date',
+    groups: ['sweet', 'amber', 'floral', 'musk', 'woody'],
+    keywords: ['vanilla', 'amber', 'musk', 'rose', 'jasmine', 'ngot', 'quyen ru', 'ấm', 'am'],
+  },
+  gift: {
+    label: 'tặng quà',
+    groups: ['fresh', 'floral', 'citrus', 'musk', 'woody'],
+    keywords: ['fresh', 'floral', 'citrus', 'musk', 'clean', 'versatile', 'de dung', 'dễ dùng'],
+  },
+};
+
+const WEATHER_PROFILES = {
+  hot: {
+    label: 'thời tiết nóng/mùa hè',
+    groups: ['fresh', 'citrus', 'aquatic', 'musk'],
+    keywords: ['fresh', 'citrus', 'aquatic', 'marine', 'bergamot', 'lemon', 'cam', 'chanh', 'mint', 'green'],
+  },
+  cold: {
+    label: 'thời tiết lạnh/mùa đông',
+    groups: ['amber', 'woody', 'spicy', 'sweet', 'leather'],
+    keywords: ['amber', 'vanilla', 'oud', 'woody', 'wood', 'spicy', 'leather', 'tobacco', 'warm', 'tonka'],
+  },
+};
+
+function productText(product) {
+  return normalizeVietnameseText([
+    product.name,
+    product.brand?.name || product.brand,
+    product.category?.name || product.category,
+    product.scentGroup,
+    product.scentNotes,
+    product.topNotes,
+    product.middleNotes,
+    product.baseNotes,
+    product.description,
+  ].filter(Boolean).join(' '));
+}
+
+function scoreByProfile(text, profile) {
+  if (!profile) return 0;
+  let score = 0;
+  for (const group of profile.groups || []) {
+    if (text.includes(normalizeVietnameseText(group))) score += 4;
+  }
+  for (const keyword of profile.keywords || []) {
+    if (text.includes(normalizeVietnameseText(keyword))) score += 2;
+  }
+  return score;
+}
+
+function lifestyleScore(product, filters = {}) {
+  const text = productText(product);
+  return scoreByProfile(text, PURPOSE_PROFILES[filters.purpose])
+    + scoreByProfile(text, WEATHER_PROFILES[filters.weather]);
+}
+
+function refineLifestyleProducts(products, filters = {}) {
+  if (!filters.purpose && !filters.weather) return products;
+
+  const scored = products.map((product) => ({
+    product,
+    score: lifestyleScore(product, filters),
+  }));
+  const matched = scored.filter((item) => item.score > 0);
+  const usable = matched.length >= Math.min(3, products.length) ? matched : scored;
+  return usable
+    .sort((left, right) => right.score - left.score)
+    .map((item) => item.product);
+}
+
+function productHasDecant(product) {
+  const category = normalizeVietnameseText(product.category?.name || product.category);
+  return Boolean(
+    product.isDecant
+    || product.hasDecantOptions
+    || category.includes('decant')
+    || (Array.isArray(product.decantOptions) && product.decantOptions.length > 0)
+    || (Array.isArray(product.variants) && product.variants.some((variant) => normalizeVietnameseText(variant.type).includes('decant'))),
+  );
+}
+
+function shouldOnlyShowInStock(chatIntent) {
+  return ['recommend_product', 'price_question', 'stock_question', 'decant_question'].includes(chatIntent?.intent)
+    || chatIntent?.filters?.inStockOnly;
+}
+
+function isSingleProductQuestion(chatIntent, contextProductId = null) {
+  return ['product_detail', 'price_question', 'stock_question'].includes(chatIntent?.intent)
+    && hasProductReference(chatIntent, contextProductId)
+    && !(chatIntent?.filters?.minPrice || chatIntent?.filters?.maxPrice);
+}
+
+async function enrichIntentWithDatabase(chatIntent, question) {
+  if (chatIntent.filters.brand) return chatIntent;
+
+  const brands = await getBrands();
+  const normalizedQuestion = normalizeVietnameseText(question);
+  const matchedBrand = brands
+    .filter((brand) => brand.status !== false && brand.name)
+    .sort((left, right) => String(right.name).length - String(left.name).length)
+    .find((brand) => includesNormalizedPhrase(normalizedQuestion, normalizeVietnameseText(brand.name)));
+
+  if (!matchedBrand) return chatIntent;
+
+  const normalizedSearch = normalizeVietnameseText(chatIntent.filters.search);
+  const normalizedBrand = normalizeVietnameseText(matchedBrand.name);
+  const searchLooksLikeBrand = normalizedSearch
+    && (normalizedSearch.includes(normalizedBrand) || normalizedBrand.includes(normalizedSearch));
+
+  return {
+    ...chatIntent,
+    filters: {
+      ...chatIntent.filters,
+      brand: matchedBrand.name,
+      search: searchLooksLikeBrand ? null : chatIntent.filters.search,
+    },
+    matchedBrand: matchedBrand.name,
+  };
+}
+
+function includesNormalizedPhrase(text, phrase) {
+  if (!phrase) return false;
+  return new RegExp(`(?:^|\\s)${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\s|$)`).test(text);
+}
+
+function buildNeedMoreInfo(chatIntent, contextProductId = null) {
+  const filters = chatIntent.filters || {};
+
+  if (chatIntent.intent === 'unknown') {
+    return {
+      answer: 'Mình cần thêm một chút thông tin để tư vấn đúng hơn. Bạn muốn tìm nước hoa cho ai, ngân sách khoảng bao nhiêu và dùng dịp nào?',
+      suggestedQuestions: ['Tư vấn cho nam dưới 1 triệu', 'Mùi đi học/đi làm', 'Decant là gì?'],
+    };
+  }
+
+  if (chatIntent.intent === 'order_tracking' && !chatIntent.orderCode) {
+    return {
+      answer: 'Bạn gửi giúp mình mã đơn hàng hoặc đăng nhập để xem lịch sử đơn nhé.',
+      suggestedQuestions: ['Xem đơn hàng của tôi', 'Chính sách giao hàng'],
+      actions: [{ type: 'open_order_history', label: 'Xem lịch sử đơn hàng', url: '/orders' }],
+    };
+  }
+
+  if (chatIntent.intent === 'compare_product' && (!Array.isArray(chatIntent.compareProducts) || chatIntent.compareProducts.length < 2)) {
+    return {
+      answer: 'Bạn muốn so sánh hai chai nào? Gửi giúp mình tên 2 sản phẩm nhé.',
+      suggestedQuestions: ['So sánh Dior Sauvage và Bleu de Chanel', 'Tư vấn cho nam'],
+    };
+  }
+
+  if (chatIntent.intent === 'recommend_product' && preferenceSignalCount(filters) < 2) {
+    return {
+      answer: 'Mình cần thêm 1-2 tiêu chí để gợi ý chuẩn hơn: ngân sách khoảng bao nhiêu và bạn dùng dịp nào?',
+      suggestedQuestions: ['Tư vấn cho nam dưới 1 triệu', 'Mùi đi date dưới 2 triệu', 'Nữ đi học/đi làm'],
+    };
+  }
+
+  if (chatIntent.intent === 'price_question' && !hasProductReference(chatIntent, contextProductId) && !filters.minPrice && !filters.maxPrice) {
+    return {
+      answer: 'Bạn muốn hỏi giá chai nào, hay đang tìm nước hoa trong khoảng ngân sách bao nhiêu?',
+      suggestedQuestions: ['Nước hoa dưới 1 triệu', 'Tư vấn theo ngân sách 1-2 triệu'],
+    };
+  }
+
+  if (chatIntent.intent === 'stock_question' && !hasProductReference(chatIntent, contextProductId) && !hasMeaningfulPreference(filters)) {
+    return {
+      answer: 'Bạn muốn kiểm tra tồn kho sản phẩm nào, hay muốn mình lọc các chai còn hàng theo giới tính/ngân sách?',
+      suggestedQuestions: ['Tư vấn cho nam còn hàng', 'Nước hoa nữ dưới 1 triệu'],
+    };
+  }
+
+  if (chatIntent.intent === 'product_detail' && !hasProductReference(chatIntent, contextProductId)) {
+    return {
+      answer: 'Bạn muốn xem chi tiết sản phẩm nào? Gửi giúp mình tên chai hoặc thương hiệu nhé.',
+      suggestedQuestions: ['Chi tiết Dior Sauvage', 'Giá của Chanel No.5'],
+    };
+  }
+
+  return null;
+}
+
+async function hydrateAndSummarize(products, filters = {}, limit = 5) {
+  const details = await Promise.all(
+    products.slice(0, limit).map((product) => getProductById(Number(product.id))),
+  );
+  return details.filter(Boolean).map((product) => summarizeProduct(product, filters));
+}
+
+function postProcessProducts(products, chatIntent, question) {
+  let result = [...products];
+  if (chatIntent.intent === 'decant_question' && !chatIntent.isDefinitionQuestion) {
+    const decantProducts = result.filter(productHasDecant);
+    if (decantProducts.length) result = decantProducts;
+  }
+  if (shouldOnlyShowInStock(chatIntent) && !isSingleProductQuestion(chatIntent)) {
+    result = result.filter((product) => Boolean(product.isInStock ?? product.stock > 0));
+  }
+  result = refineLifestyleProducts(result, chatIntent.filters);
+  result.sort((left, right) => {
+    const lifestyleDelta = lifestyleScore(right, chatIntent.filters) - lifestyleScore(left, chatIntent.filters);
+    return lifestyleDelta || scoreProduct(question, right) - scoreProduct(question, left);
+  });
+  return result;
+}
+
+async function buildCompareCandidates(question, chatIntent) {
+  const terms = Array.isArray(chatIntent.compareProducts) ? chatIntent.compareProducts.slice(0, 3) : [];
+  const found = [];
+  const seenIds = new Set();
+
+  for (const term of terms) {
+    const matches = await searchProducts(term, 8);
+    const bestMatch = matches.find((product) => !seenIds.has(Number(product.id)));
+    if (bestMatch) {
+      seenIds.add(Number(bestMatch.id));
+      found.push(bestMatch);
+    }
+  }
+
+  if (found.length < 2) {
+    const fallbackMatches = await searchProducts(question, 10);
+    for (const product of fallbackMatches) {
+      if (seenIds.has(Number(product.id))) continue;
+      seenIds.add(Number(product.id));
+      found.push(product);
+      if (found.length >= 2) break;
+    }
+  }
+
+  return hydrateAndSummarize(found, chatIntent.filters, 3);
 }
 
 async function buildProductCandidates(question, contextProductId = null) {
   const q = cleanText(question);
-  const chatIntent = parseChatIntent(q);
-  if (chatIntent.intent === 'policy') {
+  let chatIntent = parseChatIntent(q);
+  const canSkipDatabaseIntent = ['policy_question', 'order_tracking', 'unknown'].includes(chatIntent.intent)
+    || (chatIntent.intent === 'decant_question' && chatIntent.isDefinitionQuestion);
+  if (!canSkipDatabaseIntent) {
+    chatIntent = await enrichIntentWithDatabase(chatIntent, q);
+  }
+  const moreInfo = buildNeedMoreInfo(chatIntent, contextProductId);
+  if (moreInfo) return { chatIntent, products: [], moreInfo };
+
+  if (['policy_question', 'order_tracking'].includes(chatIntent.intent)) {
     return { chatIntent, products: [] };
   }
 
-  if (chatIntent.intent === 'product_detail' && contextProductId && !chatIntent.productName && !chatIntent.filters.brand) {
+  if (chatIntent.intent === 'decant_question' && chatIntent.isDefinitionQuestion) {
+    return { chatIntent, products: [] };
+  }
+
+  if (chatIntent.intent === 'compare_product') {
+    const products = await buildCompareCandidates(q, chatIntent);
+    return {
+      chatIntent,
+      products,
+      moreInfo: products.length < 2
+        ? {
+            answer: 'Mình chưa tìm đủ 2 sản phẩm trong database để so sánh. Bạn gửi lại tên 2 chai cụ thể hơn nhé.',
+            suggestedQuestions: ['So sánh Dior Sauvage và Bleu de Chanel', 'Tư vấn mùi đi date'],
+          }
+        : null,
+    };
+  }
+
+  if (isSingleProductQuestion(chatIntent, contextProductId) && contextProductId && !chatIntent.productName && !chatIntent.filters.brand) {
     const contextualProduct = await getProductById(Number(contextProductId));
     return {
       chatIntent,
@@ -117,9 +459,15 @@ async function buildProductCandidates(question, contextProductId = null) {
     };
   }
 
-  const filters = compactFilters(chatIntent.filters);
+  const filters = compactFilters({
+    ...chatIntent.filters,
+    variantType: chatIntent.intent === 'decant_question'
+      ? (chatIntent.filters.variantType || 'decant')
+      : chatIntent.filters.variantType,
+  });
+
   let products = [];
-  if (chatIntent.intent === 'product_detail' && chatIntent.filters.brand && !chatIntent.productName) {
+  if (isSingleProductQuestion(chatIntent, contextProductId) && chatIntent.filters.brand && !chatIntent.productName && !chatIntent.filters.search) {
     const brandQuery = chatIntent.filters.brand;
     const brandMatches = await searchProducts(brandQuery, 20);
     const normalizedBrand = normalizeVietnameseText(brandQuery);
@@ -127,52 +475,30 @@ async function buildProductCandidates(question, contextProductId = null) {
       normalizeVietnameseText(product.name).includes(normalizedBrand)
     ));
     products = namedBrandMatches.length ? namedBrandMatches : brandMatches;
-  } else if (Object.keys(filters).length > 0 || chatIntent.intent === 'search_products') {
-    const pool = await getProductsPaged({ page: 1, size: 50, filters });
+  } else if (Object.keys(filters).length > 0 || ['recommend_product', 'price_question', 'stock_question', 'decant_question'].includes(chatIntent.intent)) {
+    const pool = await getProductsPaged({ page: 1, size: 50, sort: 'best_seller', filters });
     products = pool.content || [];
   } else if (q) {
     products = await searchProducts(q, 20);
   }
 
-  // Exact scent is preferred; group fallback handles aliases such as vani/vanilla.
   if (!products.length && filters.scent && filters.scentGroup) {
     const relaxedScentFilters = { ...filters };
     delete relaxedScentFilters.scent;
-    const relaxedPool = await getProductsPaged({ page: 1, size: 50, filters: relaxedScentFilters });
+    const relaxedPool = await getProductsPaged({ page: 1, size: 50, sort: 'best_seller', filters: relaxedScentFilters });
     products = relaxedPool.content || [];
   }
 
-  if (!products.length && chatIntent.productName) {
-    const detailKeyword = [chatIntent.filters.brand, chatIntent.productName].filter(Boolean).join(' ');
-    products = await searchProducts(detailKeyword || chatIntent.productName, 20);
-  } else if (!products.length && chatIntent.intent === 'unknown' && q && Object.keys(filters).length === 0) {
-    products = await searchProducts(q, 20);
+  if (!products.length && (chatIntent.productName || chatIntent.filters.search)) {
+    const detailKeyword = [chatIntent.filters.brand, chatIntent.productName || chatIntent.filters.search].filter(Boolean).join(' ');
+    products = await searchProducts(detailKeyword, 20);
   }
 
-  products.sort((a, b) => scoreProduct(q, b) - scoreProduct(q, a));
-  if (chatIntent.intent === 'product_detail') {
-    const details = await Promise.all(
-      products.slice(0, 3).map((product) => getProductById(Number(product.id))),
-    );
-    return {
-      chatIntent,
-      products: details.filter(Boolean).map(summarizeProduct),
-    };
-  }
-
-  if (chatIntent.filters.minPrice !== null || chatIntent.filters.maxPrice !== null) {
-    const details = await Promise.all(
-      products.slice(0, 5).map((product) => getProductById(Number(product.id))),
-    );
-    return {
-      chatIntent,
-      products: details.filter(Boolean).map((product) => summarizeProduct(product, chatIntent.filters)),
-    };
-  }
-
+  products = postProcessProducts(products, chatIntent, q);
+  const limit = chatIntent.intent === 'product_detail' ? 3 : 5;
   return {
     chatIntent,
-    products: products.slice(0, 5).map(summarizeProduct),
+    products: await hydrateAndSummarize(products, chatIntent.filters, limit),
   };
 }
 
@@ -187,21 +513,73 @@ function buildPolicyAnswer(question) {
   if (/\b(chinh hang|authentic)\b/.test(normalized)) {
     return 'HuyPerfume cam kết cung cấp sản phẩm chính hãng với thông tin sản phẩm rõ ràng.';
   }
+  if (/\b(thanh toan|momo|zalopay|cod)\b/.test(normalized)) {
+    return 'Shop hỗ trợ các phương thức thanh toán đang bật trên hệ thống. Bạn có thể kiểm tra lại ở bước thanh toán trước khi xác nhận đơn.';
+  }
   return 'Bạn có thể liên hệ HuyPerfume qua hotline hoặc email hỗ trợ để được giải đáp nhanh nhất.';
 }
 
+function buildOrderTrackingAnswer(chatIntent) {
+  if (chatIntent.orderCode) {
+    return `Mình đã nhận mã đơn ${chatIntent.orderCode}. Tính năng tra cứu trực tiếp đang được chuẩn bị; hiện bạn có thể mở lịch sử đơn hàng để kiểm tra trạng thái mới nhất.`;
+  }
+  return 'Bạn gửi giúp mình mã đơn hàng hoặc mở lịch sử đơn hàng để kiểm tra trạng thái. Mình đã chuẩn bị luồng này để mở rộng tra cứu tự động sau.';
+}
+
 function buildFallbackAnswer(question, products, chatIntent = null) {
-  if (chatIntent?.intent === 'policy') {
+  if (chatIntent?.intent === 'policy_question') {
     return {
       answer: buildPolicyAnswer(question),
       products: [],
     };
   }
 
+  if (chatIntent?.intent === 'order_tracking') {
+    return {
+      answer: buildOrderTrackingAnswer(chatIntent),
+      products: [],
+    };
+  }
+
+  if (chatIntent?.intent === 'decant_question') {
+    return {
+      answer: buildDecantAnswer(products, chatIntent),
+      products,
+    };
+  }
+
   if (!products.length) {
     return {
-      answer: 'Hiện tại shop chưa có sản phẩm phù hợp với yêu cầu này. Bạn có muốn mình gợi ý sản phẩm gần giống không?',
+      answer: 'Hiện tại shop chưa có sản phẩm còn hàng phù hợp với yêu cầu này. Bạn có thể nới ngân sách, đổi nhóm hương hoặc chọn dịp sử dụng khác để mình lọc lại.',
       products: [],
+    };
+  }
+
+  if (chatIntent?.intent === 'compare_product') {
+    return {
+      answer: buildCompareAnswer(products),
+      products,
+    };
+  }
+
+  if (chatIntent?.intent === 'product_detail') {
+    return {
+      answer: buildProductDetailResponse(question, products),
+      products,
+    };
+  }
+
+  if (chatIntent?.intent === 'price_question') {
+    return {
+      answer: buildPriceAnswer(products, chatIntent),
+      products,
+    };
+  }
+
+  if (chatIntent?.intent === 'stock_question') {
+    return {
+      answer: buildStockAnswer(products, chatIntent),
+      products,
     };
   }
 
@@ -212,7 +590,9 @@ function buildFallbackAnswer(question, products, chatIntent = null) {
 }
 
 function formatPrice(value) {
-  return `${new Intl.NumberFormat('vi-VN').format(value)}đ`;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return 'liên hệ';
+  return `${new Intl.NumberFormat('vi-VN').format(number)}đ`;
 }
 
 function formatGender(value) {
@@ -221,6 +601,15 @@ function formatGender(value) {
   if (normalized === 'WOMEN') return 'nữ';
   if (normalized === 'UNISEX') return 'unisex';
   return cleanText(value);
+}
+
+function formatProductPrice(product) {
+  const original = Number(product.originalPrice || product.price || 0);
+  const effective = Number(product.effectivePrice || product.discountPrice || product.price || 0);
+  if (original > effective && effective > 0) {
+    return `${formatPrice(effective)} (giá gốc ${formatPrice(original)})`;
+  }
+  return formatPrice(effective || original);
 }
 
 function buildProductDetailAnswer(question, product) {
@@ -243,7 +632,7 @@ function buildProductDetailAnswer(question, product) {
       ].filter(Boolean);
       answers.push(`${name}: ${layers.join('; ')}.`);
     } else if (notes) {
-      answers.push(`${name}. Hiện dữ liệu shop đang có phần note hương tổng quát: ${notes}.`);
+      answers.push(`${name}. Dữ liệu shop đang có note hương tổng quát: ${notes}.`);
     } else {
       answers.push(`Hiện shop chưa có dữ liệu note hương cho ${name}.`);
     }
@@ -257,7 +646,7 @@ function buildProductDetailAnswer(question, product) {
 
   if (asksStock) {
     answers.push(product.isInStock
-      ? `${name} hiện còn hàng, tổng tồn kho khả dụng là ${product.stock} sản phẩm.`
+      ? `${name} hiện còn hàng, tồn kho khả dụng là ${product.stock} sản phẩm.`
       : `${name} hiện đã hết hàng.`);
   }
 
@@ -280,43 +669,121 @@ function buildProductDetailAnswer(question, product) {
     product.brand ? `thương hiệu ${product.brand}` : '',
     product.gender ? `phù hợp cho ${formatGender(product.gender)}` : '',
     product.volumeMl ? `dung tích ${product.volumeMl}ml` : '',
+    `giá ${formatProductPrice(product)}`,
+    product.isInStock ? `còn hàng (${product.stock})` : 'hết hàng',
   ].filter(Boolean);
   return detailParts.length
     ? `${name}: ${detailParts.join(', ')}.`
     : `Shop đã tìm thấy ${name}; bạn có thể xem card sản phẩm để mở trang chi tiết.`;
 }
 
+function describeFilters(filters = {}) {
+  const parts = [];
+  if (filters.gender) parts.push(`cho ${formatGender(filters.gender)}`);
+  if (filters.brand) parts.push(`thương hiệu ${filters.brand}`);
+  if (filters.scent || filters.scentGroup) parts.push(`nhóm hương ${filters.scent || filters.scentGroup}`);
+  if (filters.purpose && PURPOSE_PROFILES[filters.purpose]) parts.push(PURPOSE_PROFILES[filters.purpose].label);
+  if (filters.weather && WEATHER_PROFILES[filters.weather]) parts.push(WEATHER_PROFILES[filters.weather].label);
+  return parts;
+}
+
 function buildDatabaseAnswer(products, chatIntent) {
   const { minPrice, maxPrice } = chatIntent?.filters || {};
+  const criteria = describeFilters(chatIntent?.filters).join(', ');
+  const suffix = criteria ? ` (${criteria})` : '';
   if (minPrice && maxPrice) {
-    return `Shop tìm thấy các sản phẩm trong khoảng ${formatPrice(minPrice)} - ${formatPrice(maxPrice)}:`;
+    return `Shop tìm thấy các sản phẩm còn hàng trong khoảng ${formatPrice(minPrice)} - ${formatPrice(maxPrice)}${suffix}:`;
   }
   if (maxPrice) {
-    return `Shop tìm thấy các sản phẩm dưới ${formatPrice(maxPrice)}:`;
+    return `Shop tìm thấy các sản phẩm còn hàng dưới ${formatPrice(maxPrice)}${suffix}:`;
   }
   if (minPrice) {
-    return `Shop tìm thấy các sản phẩm từ ${formatPrice(minPrice)}:`;
+    return `Shop tìm thấy các sản phẩm còn hàng từ ${formatPrice(minPrice)}${suffix}:`;
   }
   if (chatIntent?.productName) {
     return `Shop tìm thấy thông tin sản phẩm phù hợp với "${chatIntent.productName}":`;
   }
-  return 'Shop tìm thấy các sản phẩm phù hợp với yêu cầu của bạn:';
+  return `Shop tìm thấy ${products.length} sản phẩm còn hàng phù hợp${suffix}:`;
 }
 
 function buildProductDetailResponse(question, products) {
   if (products.length > 1) {
-    return 'Mình tìm thấy vài sản phẩm gần giống, bạn chọn chai muốn xem chi tiết nhé.';
+    return 'Mình tìm thấy vài sản phẩm gần giống trong database, bạn chọn chai muốn xem chi tiết nhé.';
   }
   return buildProductDetailAnswer(question, products[0]);
 }
 
-function createDatabasePayload(answer, products, chatIntent) {
+function buildPriceAnswer(products, chatIntent) {
+  if (products.length === 1 && hasProductReference(chatIntent)) {
+    return `${products[0].name} hiện có giá ${formatProductPrice(products[0])}.`;
+  }
+  return buildDatabaseAnswer(products, chatIntent);
+}
+
+function buildStockAnswer(products, chatIntent) {
+  if (products.length === 1 && hasProductReference(chatIntent)) {
+    return products[0].isInStock
+      ? `${products[0].name} hiện còn hàng, tồn kho khả dụng là ${products[0].stock} sản phẩm.`
+      : `${products[0].name} hiện đã hết hàng.`;
+  }
+  return `Mình lọc được ${products.length} sản phẩm đang còn hàng phù hợp với yêu cầu của bạn:`;
+}
+
+function buildCompareAnswer(products) {
+  const lines = products.slice(0, 3).map((product) => {
+    const notes = cleanText(product.scentNotes || product.scentGroup).replace(/\s*\|\s*/g, ' / ') || 'shop chưa có note hương chi tiết';
+    const gender = product.gender ? `, hợp ${formatGender(product.gender)}` : '';
+    const stock = product.isInStock ? `, còn ${product.stock}` : ', hết hàng';
+    return `- ${product.name}: ${product.brand || 'chưa rõ thương hiệu'}${gender}, giá ${formatProductPrice(product)}${stock}, hương ${notes}.`;
+  });
+  return `Mình chỉ so sánh theo dữ liệu sản phẩm đang có trong database:\n${lines.join('\n')}`;
+}
+
+function buildDecantAnswer(products, chatIntent) {
+  const requestedVolume = Number(chatIntent?.filters?.volumeMl || 0);
+  const volumeText = requestedVolume > 0 ? ` Với lựa chọn ${requestedVolume}ml, hệ thống có quản lý ml thì khi mua sẽ trừ đúng ${requestedVolume}ml khỏi lượng ml khả dụng.` : '';
+  const inventoryText = ' Nếu sản phẩm chưa có dữ liệu ml, chatbot chỉ tư vấn và không tự trừ kho.';
+  const intro = `Decant là nước hoa chính hãng được chiết ra dung tích nhỏ để dùng thử hoặc mang theo. Decant phù hợp với người muốn test mùi trước khi mua full chai, đổi mùi thường xuyên, đi du lịch hoặc mua trong ngân sách thấp hơn.${volumeText}${inventoryText}`;
+  if (!products.length) return intro;
+  return `${intro}\nMình tìm thấy các sản phẩm có lựa chọn decant/chiết trong database:`;
+}
+
+function buildSuggestedQuestions(chatIntent, needMoreInfo = false) {
+  if (needMoreInfo) return [];
+  if (chatIntent?.intent === 'decant_question') return ['Decant 10ml còn những mùi nào?', 'Tư vấn decant đi date'];
+  if (chatIntent?.intent === 'price_question') return ['Tư vấn cho nam dưới 1 triệu', 'Mùi đi học/đi làm'];
+  if (chatIntent?.intent === 'order_tracking') return ['Chính sách giao hàng', 'Xem lịch sử đơn hàng'];
+  return ['Tư vấn cho nam', 'Nước hoa dưới 1 triệu', 'Decant là gì?'];
+}
+
+function buildActions(products, chatIntent) {
+  if (chatIntent?.intent === 'order_tracking') {
+    return [{ type: 'open_order_history', label: 'Xem lịch sử đơn hàng', url: '/orders' }];
+  }
+  return (products || []).flatMap((product) => ([
+    { type: 'view_product', label: 'Xem chi tiết', productId: product.id, url: product.detailUrl },
+    { type: 'add_to_cart', label: 'Thêm vào giỏ', productId: product.id },
+  ]));
+}
+
+function createChatPayload({
+  answer,
+  products = [],
+  chatIntent,
+  provider = 'database',
+  needMoreInfo = false,
+  suggestedQuestions = null,
+  actions = null,
+}) {
   return {
     answer,
+    intent: chatIntent?.intent || 'unknown',
+    needMoreInfo: Boolean(needMoreInfo),
+    suggestedQuestions: Array.isArray(suggestedQuestions) ? suggestedQuestions.slice(0, 3) : buildSuggestedQuestions(chatIntent, needMoreInfo),
     products,
-    intent: chatIntent.intent,
-    filters: chatIntent.filters,
-    provider: 'database',
+    actions: Array.isArray(actions) ? actions : buildActions(products, chatIntent),
+    filters: chatIntent?.filters || {},
+    provider,
   };
 }
 
@@ -352,26 +819,38 @@ export async function productChat(req, res) {
     if (!question) return errorResponse(res, 400, 'Thiếu câu hỏi q');
 
     const contextProductId = Number(req.body?.productId || req.body?.contextProductId) || null;
-    const { chatIntent, products } = await buildProductCandidates(question, contextProductId);
-    const fallback = buildFallbackAnswer(question, products, chatIntent);
-
-    if (!products.length) {
-      return successResponse(res, 'Trả lời từ database thành công', createDatabasePayload(fallback.answer, [], chatIntent));
+    const { chatIntent, products, moreInfo } = await buildProductCandidates(question, contextProductId);
+    if (moreInfo) {
+      return successResponse(res, 'Chatbot cần thêm thông tin', createChatPayload({
+        answer: moreInfo.answer,
+        products: [],
+        chatIntent,
+        needMoreInfo: true,
+        suggestedQuestions: moreInfo.suggestedQuestions,
+        actions: moreInfo.actions || [],
+      }));
     }
 
-    if (chatIntent.intent === 'product_detail') {
-      return successResponse(
-        res,
-        'Tư vấn chi tiết sản phẩm từ database thành công',
-        createDatabasePayload(buildProductDetailResponse(question, products), products, chatIntent),
-      );
+    const fallback = buildFallbackAnswer(question, products, chatIntent);
+    const databasePayload = createChatPayload({
+      answer: fallback.answer,
+      products: fallback.products,
+      chatIntent,
+      provider: 'database',
+    });
+
+    if (
+      !products.length
+      || ['product_detail', 'price_question', 'stock_question', 'compare_product', 'decant_question', 'policy_question', 'order_tracking'].includes(chatIntent.intent)
+    ) {
+      return successResponse(res, 'Trả lời chatbot từ database thành công', databasePayload);
     }
 
     if (!cleanText(process.env.DEEPSEEK_API_KEY)) {
       return successResponse(
         res,
         'Tư vấn sản phẩm từ database thành công',
-        createDatabasePayload(fallback.answer, products, chatIntent),
+        databasePayload,
       );
     }
 
@@ -379,6 +858,8 @@ export async function productChat(req, res) {
       id: p.id,
       name: p.name,
       price: p.price,
+      effectivePrice: p.effectivePrice,
+      originalPrice: p.originalPrice,
       stock: p.stock,
       category: p.category,
       brand: p.brand,
@@ -393,7 +874,7 @@ export async function productChat(req, res) {
       {
         role: 'system',
         content:
-          'Bạn là tư vấn viên nước hoa. Chỉ được dùng dữ liệu sản phẩm được cung cấp. Không bịa sản phẩm, không thêm sản phẩm ngoài danh sách. Nếu thiếu dữ liệu thì nói chưa có thông tin.',
+          'Bạn là tư vấn viên nước hoa ecommerce của HuyPerfume. Chỉ được dùng dữ liệu sản phẩm được cung cấp, không bịa sản phẩm và không thêm tên sản phẩm ngoài danh sách. Trả lời tiếng Việt ngắn gọn, thực tế, không xuất JSON.',
       },
       {
         role: 'user',
@@ -405,15 +886,18 @@ export async function productChat(req, res) {
       const data = await callDeepSeek(messages);
       const answer = data?.choices?.[0]?.message?.content?.trim();
       if (!answer) throw new Error('DeepSeek trả về câu trả lời trống');
-      return successResponse(res, 'Tư vấn AI thành công', {
-        ...createDatabasePayload(answer, products, chatIntent),
-      });
+      return successResponse(res, 'Tư vấn AI thành công', createChatPayload({
+        answer,
+        products,
+        chatIntent,
+        provider: 'deepseek',
+      }));
     } catch (err) {
       console.error('[AI_PRODUCT_CHAT_FALLBACK]', err);
       return successResponse(
         res,
         'Tư vấn sản phẩm từ database thành công',
-        createDatabasePayload(fallback.answer, products, chatIntent),
+        databasePayload,
       );
     }
   } catch (error) {

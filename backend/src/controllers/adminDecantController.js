@@ -119,7 +119,11 @@ export async function updateBatch(req, res) {
     const capabilities = await getDecantRouteCapabilities();
     if (!capabilities.hasProductBatches) return errorResponse(res, 501, 'Chua cau hinh bang product_batches');
     const batchId = Number(req.params.id);
-    const result = await updateProductBatch(batchId, req.body);
+    const result = await updateProductBatch(batchId, {
+      ...req.body,
+      adminId: req.user?.id || req.body?.adminId || null,
+      movementType: req.body?.movementType || 'MANUAL_ADJUST',
+    });
     if (result.code) return errorResponse(res, result.code, result.message);
     return successResponse(res, 'Cap nhat batch thanh cong', result);
   } catch (err) {

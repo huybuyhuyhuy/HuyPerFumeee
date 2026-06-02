@@ -2,9 +2,28 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import api, { unwrapApiData } from '../services/api';
+import { cartService, type CartSelectionOptions } from '../services/cartService';
+import { useToast } from '../store/ToastContext';
 import { resolveProductImage } from '../utils/image';
 
 type ChatRole = 'bot' | 'user';
+
+type ChatProductVariant = {
+  id: number | string | null;
+  label?: string;
+  volumeMl: number | null;
+  type: string;
+  effectivePrice: number | null;
+  stock: number;
+  isAvailable: boolean;
+};
+
+type ChatDecantOption = {
+  id: number | string;
+  volumeMl: number;
+  price: number | null;
+  status: boolean;
+};
 
 type ChatProduct = {
   id: number;
@@ -22,6 +41,9 @@ type ChatProduct = {
   detailUrl: string;
   isInStock: boolean;
   stock: number;
+  isDecant: boolean;
+  selectedVariant: ChatProductVariant | null;
+  decantOptions: ChatDecantOption[];
 };
 
 type ChatMessage = {
@@ -30,6 +52,8 @@ type ChatMessage = {
   text: string;
   createdAt: number;
   products?: ChatProduct[];
+  intent?: string;
+  suggestedQuestions?: string[];
 };
 
 type QuickReply = {
@@ -39,27 +63,35 @@ type QuickReply = {
 const CHAT_HISTORY_KEY = 'huyperfume.chat.history.v2';
 const MAX_STORED_MESSAGES = 12;
 const CONNECTION_ERROR_MESSAGE = 'Mình chưa kết nối được máy chủ. Bạn thử lại sau nhé.';
-const CHAT_PRODUCT_PLACEHOLDER = 'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 150%22%3E%3Crect width=%22120%22 height=%22150%22 fill=%22%23f4f0e9%22/%3E%3Cpath d=%22M48 41h24v10h6v48c0 7-5 12-12 12H54c-7 0-12-5-12-12V51h6z%22 fill=%22none%22 stroke=%22%23b89a60%22 stroke-width=%223%22/%3E%3Cpath d=%22M48 67h30%22 stroke=%22%23d0af67%22 stroke-width=%223%22/%3E%3Ctext x=%2260%22 y=%2288%22 text-anchor=%22middle%22 font-family=%22serif%22 font-size=%2212%22 fill=%22%23735a46%22%3EHP%3C/text%3E%3C/svg%3E';
+const CHAT_PRODUCT_PLACEHOLDER = 'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 150%22%3E%3Crect width=%22120%22 height=%22150%22 fill=%22%23f4f0e9%22/%3E%3Cpath d=%22M48 41h24v10h6v48c0 7-5 12-12 12H54c-7 0-12-5-12-12V51h6z%22 fill=%22none%22 stroke=%22%23b89a60%22 stroke-width=%223%22/%3E%3Cpath d=%22M48 67h30%22 stroke=%22%23d0af67%22 stroke-width=%223%22/%3E%3Ctext x=%2260%22 y=%2288%22 text-anchor=%22middle%22 font-family=%22Times%20New%20Roman%2C%20Times%2C%20serif%22 font-size=%2212%22 fill=%22%23735a46%22%3EHP%3C/text%3E%3C/svg%3E';
 
 const quickReplies: QuickReply[] = [
-  { label: 'Nước hoa nam dưới 800k' },
-  { label: 'Tìm mùi vanilla' },
-  { label: 'Có chai nào hương gỗ không?' },
-  { label: 'Gợi ý nước hoa nữ dễ dùng' },
-  { label: 'Nước hoa unisex 100ml' },
+  { label: 'Tư vấn cho nam' },
+  { label: 'Tư vấn cho nữ' },
+  { label: 'Nước hoa dưới 1 triệu' },
+  { label: 'Mùi đi date' },
+  { label: 'Mùi đi học/đi làm' },
+  { label: 'Decant là gì?' },
 ];
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function createMessage(role: ChatRole, text: string, products?: ChatProduct[]): ChatMessage {
+function createMessage(
+  role: ChatRole,
+  text: string,
+  products?: ChatProduct[],
+  meta: Pick<ChatMessage, 'intent' | 'suggestedQuestions'> = {}
+): ChatMessage {
   return {
     id: createId(),
     role,
     text,
     createdAt: Date.now(),
     ...(products?.length ? { products } : {}),
+    ...(meta.intent ? { intent: meta.intent } : {}),
+    ...(meta.suggestedQuestions?.length ? { suggestedQuestions: meta.suggestedQuestions } : {}),
   };
 }
 
@@ -97,6 +129,30 @@ function optionalPositiveNumber(value: unknown) {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
+function normalizeChatVariant(raw: any): ChatProductVariant | null {
+  if (!raw) return null;
+  return {
+    id: raw?.id ?? raw?.variantId ?? null,
+    label: raw?.label ? String(raw.label) : '',
+    volumeMl: optionalPositiveNumber(raw?.volumeMl),
+    type: String(raw?.type || ''),
+    effectivePrice: optionalPositiveNumber(raw?.effectivePrice),
+    stock: asNumber(raw?.stock),
+    isAvailable: Boolean(raw?.isAvailable),
+  };
+}
+
+function normalizeDecantOption(raw: any): ChatDecantOption | null {
+  const volumeMl = optionalPositiveNumber(raw?.volumeMl);
+  if (!volumeMl) return null;
+  return {
+    id: raw?.id ?? `decant-${volumeMl}`,
+    volumeMl,
+    price: optionalPositiveNumber(raw?.price),
+    status: raw?.status !== false,
+  };
+}
+
 function normalizeChatProduct(raw: any): ChatProduct | null {
   const id = asNumber(raw?.id);
   if (!id || !raw?.name) return null;
@@ -120,6 +176,11 @@ function normalizeChatProduct(raw: any): ChatProduct | null {
     detailUrl: `/products/${id}`,
     isInStock: Boolean(raw?.isInStock ?? asNumber(raw?.stock) > 0),
     stock: asNumber(raw?.stock),
+    isDecant: Boolean(raw?.isDecant),
+    selectedVariant: normalizeChatVariant(raw?.selectedVariant),
+    decantOptions: Array.isArray(raw?.decantOptions)
+      ? raw.decantOptions.map(normalizeDecantOption).filter((option: ChatDecantOption | null): option is ChatDecantOption => Boolean(option))
+      : [],
   };
 }
 
@@ -145,6 +206,8 @@ function readStoredMessages(pathname: string): ChatMessage[] {
           text: message.text,
           createdAt: message.createdAt,
           ...(products.length ? { products } : {}),
+          ...(typeof message.intent === 'string' ? { intent: message.intent } : {}),
+          ...(Array.isArray(message.suggestedQuestions) ? { suggestedQuestions: message.suggestedQuestions.filter(Boolean).slice(0, 3) } : {}),
         });
       }
       return messages;
@@ -179,6 +242,42 @@ function formatScentGroup(value: string) {
   return value.replace(/\s*\|\s*/g, ' / ');
 }
 
+function hasSalePrice(product: ChatProduct) {
+  const currentPrice = product.effectivePrice ?? product.discountPrice ?? product.price;
+  const originalPrice = product.originalPrice ?? product.price;
+  return Boolean(currentPrice && originalPrice && originalPrice > currentPrice);
+}
+
+function getCartSelection(product: ChatProduct, intent?: string): { variantId: number | string | null; options: CartSelectionOptions } {
+  const selectedType = String(product.selectedVariant?.type || '').toUpperCase();
+  if (selectedType === 'DECANT' && product.selectedVariant?.volumeMl) {
+    return {
+      variantId: null,
+      options: { itemType: 'DECANT', volumeMl: product.selectedVariant.volumeMl },
+    };
+  }
+
+  if (product.selectedVariant?.id && selectedType !== 'DECANT') {
+    return {
+      variantId: product.selectedVariant.id,
+      options: {},
+    };
+  }
+
+  const firstDecant = product.decantOptions.find((option) => option.status);
+  if ((intent === 'decant_question' || product.isDecant) && firstDecant) {
+    return {
+      variantId: null,
+      options: { itemType: 'DECANT', volumeMl: firstDecant.volumeMl },
+    };
+  }
+
+  return {
+    variantId: null,
+    options: {},
+  };
+}
+
 function getContextProductId(messages: ChatMessage[], pathname: string) {
   const productRoute = pathname.match(/^\/products\/(\d+)(?:\/|$)/);
   if (productRoute) return Number(productRoute[1]);
@@ -191,11 +290,14 @@ function getContextProductId(messages: ChatMessage[], pathname: string) {
 
 export function ChatBox() {
   const location = useLocation();
+  const { pushToast } = useToast();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>(() => readStoredMessages(location.pathname));
   const [typing, setTyping] = useState(false);
   const [nudgeVisible, setNudgeVisible] = useState(false);
+  const [cartProductId, setCartProductId] = useState<number | null>(null);
+  const [addedProductId, setAddedProductId] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const nudgeTimerRef = useRef<number | null>(null);
   const requestSequenceRef = useRef(0);
@@ -251,10 +353,19 @@ export function ChatBox() {
       const products = Array.isArray(payload?.products)
         ? payload.products.map(normalizeChatProduct).filter((product: ChatProduct | null): product is ChatProduct => Boolean(product)).slice(0, 5)
         : [];
+      const suggestedQuestions = Array.isArray(payload?.suggestedQuestions)
+        ? payload.suggestedQuestions.map((item: unknown) => String(item || '').trim()).filter(Boolean).slice(0, 3)
+        : [];
       const answer = typeof payload?.answer === 'string' && payload.answer.trim()
         ? payload.answer.trim()
         : 'Mình chưa nhận được câu trả lời phù hợp. Bạn thử lại sau nhé.';
-      setMessages((current) => [...current, createMessage('bot', answer, products)].slice(-MAX_STORED_MESSAGES));
+      setMessages((current) => [
+        ...current,
+        createMessage('bot', answer, products, {
+          intent: typeof payload?.intent === 'string' ? payload.intent : undefined,
+          suggestedQuestions,
+        }),
+      ].slice(-MAX_STORED_MESSAGES));
     } catch (error) {
       if (requestSequence !== requestSequenceRef.current) return;
       const isConnectionError = error instanceof Error && error.message.includes('Không thể kết nối');
@@ -273,6 +384,28 @@ export function ChatBox() {
     void sendQuestion(item.label);
   };
 
+  const handleSuggestedQuestion = (question: string) => {
+    setOpen(true);
+    void sendQuestion(question);
+  };
+
+  const handleAddToCart = async (product: ChatProduct, intent?: string) => {
+    if (!product.isInStock || cartProductId === product.id) return;
+
+    setCartProductId(product.id);
+    try {
+      const selection = getCartSelection(product, intent);
+      await cartService.addItem(product.id, 1, selection.variantId, selection.options);
+      setAddedProductId(product.id);
+      pushToast('Đã thêm sản phẩm vào giỏ hàng.', 'success');
+      window.setTimeout(() => setAddedProductId((current) => (current === product.id ? null : current)), 1400);
+    } catch (error: any) {
+      pushToast(error?.message || 'Không thêm được sản phẩm vào giỏ hàng.', 'error');
+    } finally {
+      setCartProductId(null);
+    }
+  };
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const question = draft.trim();
@@ -286,6 +419,8 @@ export function ChatBox() {
   const clearConversation = () => {
     requestSequenceRef.current += 1;
     setTyping(false);
+    setCartProductId(null);
+    setAddedProductId(null);
     setMessages([createGreeting(location.pathname)]);
   };
 
@@ -339,7 +474,6 @@ export function ChatBox() {
                             </span>
                           </div>
                           <strong>{product.name}</strong>
-                          <b>{formatCurrency(product.effectivePrice ?? product.discountPrice ?? product.price)}</b>
                           {(product.volumeMl || product.gender) && (
                             <div className="chatbox-product-meta">
                               {product.volumeMl && <span>{product.volumeMl} ml</span>}
@@ -348,9 +482,38 @@ export function ChatBox() {
                           )}
                           {product.scentGroup && <p className="chatbox-product-scent">{formatScentGroup(product.scentGroup)}</p>}
                           {product.description && <p className="chatbox-product-description">{product.description}</p>}
-                          <Link to={product.detailUrl} className="chatbox-product-link">Xem chi tiết</Link>
+                          <div className="chatbox-price-row">
+                            <b>{formatCurrency(product.effectivePrice ?? product.discountPrice ?? product.price)}</b>
+                            {hasSalePrice(product) && <del>{formatCurrency(product.originalPrice ?? product.price)}</del>}
+                          </div>
+                          <div className="chatbox-product-actions-row">
+                            <Link to={product.detailUrl} className="chatbox-product-link">Xem chi tiết</Link>
+                            <button
+                              type="button"
+                              className={`chatbox-add-cart ${addedProductId === product.id ? 'is-added' : ''}`}
+                              onClick={() => handleAddToCart(product, message.intent)}
+                              disabled={!product.isInStock || cartProductId === product.id}
+                            >
+                              {!product.isInStock
+                                ? 'Hết hàng'
+                                : cartProductId === product.id
+                                  ? 'Đang thêm'
+                                  : addedProductId === product.id
+                                    ? 'Đã thêm'
+                                    : 'Thêm vào giỏ'}
+                            </button>
+                          </div>
                         </div>
                       </article>
+                    ))}
+                  </div>
+                )}
+                {message.role === 'bot' && message.suggestedQuestions && message.suggestedQuestions.length > 0 && (
+                  <div className="chatbox-suggested-questions" aria-label="Câu hỏi gợi ý tiếp theo">
+                    {message.suggestedQuestions.map((question) => (
+                      <button key={question} type="button" onClick={() => handleSuggestedQuestion(question)} disabled={typing}>
+                        {question}
+                      </button>
                     ))}
                   </div>
                 )}

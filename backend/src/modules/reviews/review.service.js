@@ -1,10 +1,13 @@
 import { getProductById, invalidateProductCache } from '../products/product.service.js';
 import { getCache, productCacheKeys, setCache } from '../products/product.cache.js';
 import { hasPermission } from '../auth/rbac.js';
+import { normalizeOrderStatus, ORDER_STATUS } from '../../constants/orderStatus.js';
 import { mapReviewRow, mapReviewSummary } from './review.mapper.js';
 import {
   findReviewById,
   findReviewByUserProduct,
+  findLatestPurchasedOrderForProduct,
+  findReviewableOrderForProduct,
   getReviewSummary,
   hasReviewStorage,
   insertReview,
@@ -36,6 +39,82 @@ async function ensureStorage() {
 async function refreshRating(productId) {
   await recalculateProductRating(productId);
   await invalidateProductCache(productId);
+}
+
+function eligibilityResult(overrides = {}) {
+  return {
+    eligible: false,
+    reason: 'NOT_ELIGIBLE',
+    message: 'Bạn cần mua sản phẩm này trước khi đánh giá.',
+    orderId: null,
+    orderStatus: null,
+    alreadyReviewed: false,
+    review: null,
+    ...overrides,
+  };
+}
+
+function isReviewableStatus(status) {
+  return [ORDER_STATUS.DELIVERED, ORDER_STATUS.COMPLETED].includes(normalizeOrderStatus(status));
+}
+
+export async function getProductReviewEligibility({ productId, userId, orderId = null }) {
+  const storageError = await ensureStorage();
+  if (storageError) return eligibilityResult({
+    reason: 'STORAGE_UNAVAILABLE',
+    message: storageError.error.message,
+  });
+
+  if (!userId) {
+    return eligibilityResult({
+      reason: 'NOT_AUTHENTICATED',
+      message: 'Vui lòng đăng nhập để đánh giá sản phẩm.',
+    });
+  }
+
+  const product = await getProductById(productId);
+  if (!product) {
+    return eligibilityResult({
+      reason: 'PRODUCT_NOT_FOUND',
+      message: 'Không tìm thấy sản phẩm.',
+    });
+  }
+
+  const existing = await findReviewByUserProduct(userId, productId);
+  if (existing) {
+    return eligibilityResult({
+      reason: 'ALREADY_REVIEWED',
+      message: 'Bạn đã đánh giá sản phẩm này rồi.',
+      orderId: existing.order_id ? Number(existing.order_id) : null,
+      orderStatus: null,
+      alreadyReviewed: true,
+      review: mapReviewRow(existing),
+    });
+  }
+
+  const reviewableOrder = await findReviewableOrderForProduct({ userId, productId, orderId });
+  if (reviewableOrder) {
+    return eligibilityResult({
+      eligible: true,
+      reason: 'ELIGIBLE',
+      message: 'Bạn có thể đánh giá sản phẩm này.',
+      orderId: Number(reviewableOrder.id),
+      orderStatus: normalizeOrderStatus(reviewableOrder.status),
+    });
+  }
+
+  const latestOrder = await findLatestPurchasedOrderForProduct({ userId, productId });
+  if (latestOrder) {
+    const normalizedStatus = normalizeOrderStatus(latestOrder.status);
+    return eligibilityResult({
+      reason: isReviewableStatus(normalizedStatus) ? 'ORDER_NOT_SELECTED' : 'ORDER_NOT_COMPLETED',
+      message: 'Đơn hàng của bạn cần hoàn tất hoặc giao thành công trước khi đánh giá.',
+      orderId: Number(latestOrder.id),
+      orderStatus: normalizedStatus,
+    });
+  }
+
+  return eligibilityResult();
 }
 
 export async function getProductReviewPage({ productId, page = 1, size = 10, status = 'APPROVED', viewer = null }) {
@@ -89,13 +168,20 @@ export async function createProductReview({ productId, userId, input }) {
   const validation = validateReviewInput(input);
   if (!validation.valid) return serviceError(400, 'Du lieu review khong hop le', { errors: validation.errors });
 
-  const existing = await findReviewByUserProduct(userId, productId);
-  if (existing) return serviceError(409, 'Ban da review san pham nay roi');
+  const eligibility = await getProductReviewEligibility({
+    productId,
+    userId,
+    orderId: validation.value.orderId,
+  });
+  if (!eligibility.eligible) {
+    const status = eligibility.reason === 'ALREADY_REVIEWED' ? 409 : 403;
+    return serviceError(status, eligibility.message, { eligibility });
+  }
 
   const row = await insertReview({
     productId,
     userId,
-    orderId: validation.value.orderId,
+    orderId: eligibility.orderId,
     rating: validation.value.rating,
     title: validation.value.title,
     comment: validation.value.comment,

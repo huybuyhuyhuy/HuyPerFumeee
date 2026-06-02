@@ -248,6 +248,184 @@
   border-radius: 999px;
 }
 
+.admin-decant-page .admin-decant-low-text {
+  color: #a66513;
+  font-weight: 800;
+}
+
+.admin-decant-page .admin-decant-option-actions {
+  margin-top: 0.75rem;
+}
+
+.admin-decant-modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+}
+
+.admin-decant-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(18, 21, 20, 0.48);
+  backdrop-filter: blur(3px);
+}
+
+.admin-decant-modal {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 520px);
+  max-height: min(88vh, 720px);
+  overflow: auto;
+  padding: 1.15rem;
+  border: 1px solid rgba(196, 156, 83, 0.36);
+  border-radius: 1.15rem;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 247, 0.98), rgba(247, 243, 234, 0.96)),
+    #fffaf0;
+  box-shadow: 0 26px 80px rgba(20, 18, 14, 0.28);
+}
+
+.admin-decant-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid rgba(196, 156, 83, 0.22);
+}
+
+.admin-decant-modal-head h3 {
+  margin: 0 0 0.25rem;
+  color: #221a12;
+  font-size: 1.08rem;
+}
+
+.admin-decant-modal-head p {
+  margin: 0;
+  color: #786a58;
+  font-size: 0.9rem;
+}
+
+.admin-decant-modal-close {
+  width: 2rem;
+  height: 2rem;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid rgba(72, 54, 34, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #33261a;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.admin-decant-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.admin-decant-size-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.admin-decant-size-picker button {
+  min-height: 2.55rem;
+  border: 1px solid rgba(196, 156, 83, 0.34);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #4a3521;
+  font-weight: 800;
+}
+
+.admin-decant-size-picker button.active {
+  border-color: rgba(169, 121, 46, 0.72);
+  background: linear-gradient(135deg, #f2dfad, #c99d49);
+  color: #20150b;
+  box-shadow: 0 10px 22px rgba(157, 115, 38, 0.18);
+}
+
+.admin-decant-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.admin-decant-field span,
+.admin-decant-check span,
+.admin-decant-form-summary span {
+  color: #685a49;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-decant-field input,
+.admin-decant-field textarea {
+  width: 100%;
+  border: 1px solid rgba(196, 156, 83, 0.32);
+  border-radius: 0.85rem;
+  background: rgba(255, 255, 255, 0.82);
+  color: #1f1812;
+  padding: 0.72rem 0.85rem;
+  outline: none;
+}
+
+.admin-decant-field textarea {
+  resize: vertical;
+}
+
+.admin-decant-field input:focus,
+.admin-decant-field textarea:focus {
+  border-color: rgba(169, 121, 46, 0.75);
+  box-shadow: 0 0 0 3px rgba(212, 176, 95, 0.18);
+}
+
+.admin-decant-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-decant-check input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #b18438;
+}
+
+.admin-decant-form-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.admin-decant-form-summary > div {
+  padding: 0.8rem;
+  border: 1px solid rgba(196, 156, 83, 0.24);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.admin-decant-form-summary strong {
+  display: block;
+  margin-top: 0.18rem;
+  color: #221a12;
+}
+
+.admin-decant-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 0.35rem;
+}
+
 @media (max-width: 992px) {
   .admin-decant-page .admin-decant-summary-hero,
   .admin-decant-page .admin-detail-grid,
@@ -268,5 +446,18 @@
   .admin-decant-page .admin-list-item {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .admin-decant-size-picker,
+  .admin-decant-form-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-decant-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .admin-decant-modal-actions .btn {
+    width: 100%;
   }
 }

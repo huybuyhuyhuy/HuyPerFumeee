@@ -8,6 +8,7 @@
     "dev:user": "vite --mode user",
     "dev:admin": "vite --mode admin",
     "build": "vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {

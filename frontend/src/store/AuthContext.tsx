@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, useState } from 'react';
 import api from '../services/api';
 import { cartService } from '../services/cartService';
 import type { User } from '../types';
+import { restorePaymentAuthBridge } from '../utils/paymentAuthBridge';
 
 interface AuthContextValue {
   user: User | null;
@@ -33,6 +34,9 @@ function clearPersistedAuth() {
 
 function readStoredUser(): User | null {
   try {
+    const paymentAuth = restorePaymentAuthBridge();
+    if (paymentAuth?.user) return paymentAuth.user as User;
+
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);

@@ -42,6 +42,7 @@ function pickRelated(products, current, count = 4) {
   return (products || []).filter((item) => item.id !== current?.id).slice(0, count);
 }
 
+
 function getScentLayers(product) {
   const notes = String(product?.scentNotes || '')
     .split('|')
@@ -80,6 +81,81 @@ function ProductErrorState({ message, onRetry }) {
         }
       />
     </div>
+  );
+}
+
+function ProductReviewComposer({
+  isLoggedIn,
+  eligibility,
+  form,
+  submitting,
+  feedback,
+  onChange,
+  onSubmit,
+}) {
+  const canReview = Boolean(isLoggedIn && eligibility?.eligible);
+  const notice = !isLoggedIn
+    ? 'Vui lòng đăng nhập để đánh giá sản phẩm.'
+    : eligibility
+      ? eligibility.message || 'Bạn cần mua sản phẩm này trước khi đánh giá.'
+      : 'Đang kiểm tra quyền đánh giá của bạn...';
+
+  if (!canReview) {
+    return (
+      <div className="product-review-composer product-review-composer-muted" role="status">
+        <strong>Đánh giá sản phẩm</strong>
+        <p>{feedback || notice}</p>
+      </div>
+    );
+  }
+
+  return (
+    <form className="product-review-composer" onSubmit={onSubmit}>
+      <div className="product-review-composer-heading">
+        <div>
+          <strong>Đánh giá sau mua hàng</strong>
+          <p>Review mới sẽ được gửi tới admin duyệt trước khi hiển thị.</p>
+        </div>
+        <span className="product-review-verified">Đã mua hàng</span>
+      </div>
+      <div className="product-review-stars-input" aria-label="Chọn số sao">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            className={star <= Number(form.rating || 0) ? 'active' : ''}
+            onClick={() => onChange('rating', star)}
+            aria-label={`${star} sao`}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+      <label className="product-review-field">
+        <span>Tiêu đề</span>
+        <input
+          type="text"
+          value={form.title}
+          maxLength={180}
+          placeholder="Cảm nhận ngắn gọn của bạn"
+          onChange={(event) => onChange('title', event.target.value)}
+        />
+      </label>
+      <label className="product-review-field">
+        <span>Nội dung</span>
+        <textarea
+          value={form.comment}
+          maxLength={2000}
+          rows={4}
+          placeholder="Chia sẻ trải nghiệm mùi hương, độ lưu hương, đóng gói..."
+          onChange={(event) => onChange('comment', event.target.value)}
+        />
+      </label>
+      {feedback && <p className="product-review-feedback">{feedback}</p>}
+      <button type="submit" className="btn btn-dark luxury-primary-btn" disabled={submitting}>
+        {submitting ? 'Đang gửi...' : 'Gửi đánh giá'}
+      </button>
+    </form>
   );
 }
 
@@ -125,6 +201,10 @@ export function ProductDetailPage() {
   const [cartFeedback, setCartFeedback] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [reviewEligibility, setReviewEligibility] = useState(null);
+  const [reviewForm, setReviewForm] = useState({ rating: 5, title: '', comment: '' });
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewFeedback, setReviewFeedback] = useState('');
   const [inventoryMismatch, setInventoryMismatch] = useState('');
   const loadRequestRef = useRef(0);
   const { isLoggedIn } = useAuth();
@@ -147,6 +227,8 @@ export function ProductDetailPage() {
     setError('');
     setRelatedProducts([]);
     setReviews([]);
+    setReviewEligibility(null);
+    setReviewFeedback('');
 
     try {
       const detail = await productService.getProduct(numericId);
@@ -158,15 +240,21 @@ export function ProductDetailPage() {
 
       if (!detail) return;
 
-      const [related, reviewPage, fallbackList] = await Promise.all([
+      const [related, reviewPage, fallbackList, eligibility] = await Promise.all([
         productService.getRelatedProducts(numericId, { limit: 8 }).catch(() => []),
         productService.getProductReviews(numericId, { page: 1, size: 5 }).catch(() => ({ content: [] })),
         productService.getProducts({ page: 1, size: 12 }).catch(() => ({ content: [] })),
+        productService.getReviewEligibility(numericId).catch(() => ({
+          eligible: false,
+          reason: 'UNKNOWN',
+          message: 'Bạn cần mua sản phẩm này trước khi đánh giá.',
+        })),
       ]);
       if (loadRequestRef.current !== requestId) return;
 
       setRelatedProducts(related?.length ? related : pickRelated(fallbackList?.content || [], detail, 8));
       setReviews(reviewPage?.content || []);
+      setReviewEligibility(eligibility);
       const normalizedStock = Number(detail?.stock ?? 0);
       if (Number.isFinite(normalizedStock) && normalizedStock !== Number(detail?.stockQuantity ?? normalizedStock)) {
         setInventoryMismatch(`Sản phẩm này đang hiển thị ${normalizedStock} tồn kho trên trang chi tiết, nhưng dữ liệu backend có thể đang dùng trường stockQuantity khác.`);
@@ -275,6 +363,51 @@ export function ProductDetailPage() {
     pushToast(nextSaved ? 'Đã thêm vào danh sách yêu thích.' : 'Đã bỏ khỏi danh sách yêu thích.', nextSaved ? 'success' : 'info');
   };
 
+  const updateReviewForm = (field, value) => {
+    setReviewForm((current) => ({
+      ...current,
+      [field]: field === 'rating' ? Number(value) : value,
+    }));
+  };
+
+  const handleReviewSubmit = async (event) => {
+    event.preventDefault();
+    if (!reviewEligibility?.eligible) {
+      const message = reviewEligibility?.message || 'Bạn cần mua sản phẩm này trước khi đánh giá.';
+      setReviewFeedback(message);
+      pushToast(message, 'info');
+      return;
+    }
+
+    setReviewSubmitting(true);
+    setReviewFeedback('');
+    try {
+      await productService.createReview(Number(id), {
+        rating: Number(reviewForm.rating),
+        title: reviewForm.title,
+        comment: reviewForm.comment,
+        orderId: reviewEligibility.orderId,
+      });
+      const message = 'Đánh giá của bạn đã được gửi và đang chờ duyệt.';
+      setReviewFeedback(message);
+      setReviewForm({ rating: 5, title: '', comment: '' });
+      setReviewEligibility((current) => ({
+        ...(current || {}),
+        eligible: false,
+        alreadyReviewed: true,
+        reason: 'PENDING_REVIEW',
+        message,
+      }));
+      pushToast(message, 'success');
+    } catch (err) {
+      const message = err?.response?.data?.message || err?.message || 'Không gửi được đánh giá.';
+      setReviewFeedback(message);
+      pushToast(message, 'error');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
   if (loading) return <ProductDetailSkeleton />;
   if (error) return <ProductErrorState message={error} onRetry={load} />;
   if (!product) return <ProductErrorState onRetry={load} />;
@@ -284,9 +417,22 @@ export function ProductDetailPage() {
   const displayImage = activeVariant?.image || product.image;
   const sameBrand = relatedProducts.filter((item) => item.brand?.id && product.brand?.id && item.brand.id === product.brand.id).slice(0, 4);
   const sameScent = relatedProducts.filter((item) => item.scentNotes && product.scentNotes && item.scentNotes === product.scentNotes).slice(0, 4);
-  const decantStockNote = activeVariant?.isDecant && Number(product.availableVolumeMl || 0) > 0
-    ? `Hiện còn ${Number(product.availableVolumeMl || 0)}ml có thể chiết.`
+  const decantAvailableMl = Number(product.availableVolumeMl ?? product.remainingVolumeMl ?? 0);
+  const decantStockNote = activeVariant?.isDecant && decantAvailableMl > 0
+    ? `Hiện còn ${decantAvailableMl}ml có thể chiết.`
     : '';
+
+  const reviewComposer = (
+    <ProductReviewComposer
+      isLoggedIn={isLoggedIn}
+      eligibility={reviewEligibility}
+      form={reviewForm}
+      submitting={reviewSubmitting}
+      feedback={reviewFeedback}
+      onChange={updateReviewForm}
+      onSubmit={handleReviewSubmit}
+    />
+  );
 
   return (
     <div className="luxury-page product-detail-page">
@@ -304,11 +450,70 @@ export function ProductDetailPage() {
         </nav>
 
         <div className="product-detail-hero">
-          <div className="row g-4 g-xl-5 align-items-start">
-            <div className="col-lg-6 product-detail-media-col">
+          <div className="product-detail-grid">
+            <div className="product-detail-media-col">
               <ProductGallery product={{ ...product, image: displayImage }} />
+
+              <section className="luxury-surface product-scent-snapshot">
+                <div className="product-scent-snapshot-header">
+                  <p className="product-scent-snapshot-eyebrow">Gợi ý trải nghiệm</p>
+                  <h2>TRẢI NGHIỆM MÙI HƯƠNG</h2>
+                </div>
+
+                <div className="product-scent-snapshot-grid">
+                  <div>
+                    <span>Phù hợp với</span>
+                    <strong>Đi làm, hẹn hò, dự tiệc, sử dụng hằng ngày</strong>
+                  </div>
+                  <div>
+                    <span>Phong cách</span>
+                    <strong>Sang trọng, tinh tế, dễ dùng</strong>
+                  </div>
+                  <div>
+                    <span>Độ lưu hương</span>
+                    <strong>{product.longevity || '6 - 8 giờ'}</strong>
+                  </div>
+                  <div>
+                    <span>Độ tỏa hương</span>
+                    <strong>{product.sillage || 'Vừa phải, lịch sự'}</strong>
+                  </div>
+                  <div>
+                    <span>Thời điểm dùng</span>
+                    <strong>Ban ngày / buổi tối nhẹ</strong>
+                  </div>
+                  <div>
+                    <span>Nhóm hương</span>
+                    <strong>{product.scentNotes ? String(product.scentNotes).replaceAll('|', ' · ') : 'Dễ dùng, cân bằng, tinh tế'}</strong>
+                  </div>
+                  {product.brand ? (
+                    <div>
+                      <span>Thương hiệu</span>
+                      <strong>{product.brand.name}</strong>
+                    </div>
+                  ) : null}
+                  {product.category ? (
+                    <div>
+                      <span>Danh mục</span>
+                      <strong>{product.category.name}</strong>
+                    </div>
+                  ) : null}
+                  {product.gender ? (
+                    <div>
+                      <span>Phù hợp cho</span>
+                      <strong>{product.gender}</strong>
+                    </div>
+                  ) : null}
+                  {product.concentration ? (
+                    <div>
+                      <span>Nồng độ</span>
+                      <strong>{product.concentration}</strong>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
             </div>
-            <div className="col-lg-6 product-detail-info-col">
+
+            <div className="product-detail-info-col">
               <div className="luxury-surface product-detail-panel product-sticky-surface">
                 <div className="product-detail-meta">
                   <span className="luxury-badge">{product.badgeLabel || 'Tuyển chọn'}</span>
@@ -346,7 +551,7 @@ export function ProductDetailPage() {
                   {product.concentration ? <div><strong>Nồng độ</strong><span>{product.concentration}</span></div> : null}
                   {product.scentNotes ? <div><strong>Tầng hương</strong><span>{String(product.scentNotes).replaceAll('|', ' · ')}</span></div> : null}
                   {product.category ? <div><strong>Danh mục</strong><span>{product.category.name}</span></div> : null}
-                  {activeVariant?.isDecant ? <div><strong>Có thể chiết</strong><span>{Number(product.availableVolumeMl || 0)}ml</span></div> : null}
+                  {activeVariant?.isDecant ? <div><strong>Có thể chiết</strong><span>{decantAvailableMl}ml</span></div> : null}
                   {activeVariant?.isDecant && activeVariant?.volumeMl ? <div><strong>Mỗi đơn vị</strong><span>{activeVariant.volumeMl}ml / lần mua</span></div> : null}
                   {activeVariant?.isDecant && product.decantInventory ? <div><strong>Chai nguyên seal</strong><span>{product.decantInventory.sealedBottles} chai</span></div> : null}
                   {activeVariant?.isDecant && product.decantInventory ? <div><strong>Đã mở còn</strong><span>{product.decantInventory.openedMl}ml</span></div> : null}
@@ -373,11 +578,12 @@ export function ProductDetailPage() {
                 </div>
               </div>
             </div>
+
           </div>
         </div>
         <ProductStorytelling product={product} />
         <Suspense fallback={<SectionFallback />}>
-          <ProductDiscoveryTabs product={product} reviews={reviews} />
+          <ProductDiscoveryTabs product={product} reviews={reviews} reviewComposer={reviewComposer} />
         </Suspense>
         <Suspense fallback={<SectionFallback />}>
           <RelatedProductRail title="Sản phẩm tương tự" products={relatedProducts} />

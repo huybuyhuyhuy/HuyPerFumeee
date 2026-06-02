@@ -1,8 +1,14 @@
 import { Link } from 'react-router-dom';
 import { resolveProductImage } from '../../utils/image';
 import { formatVnCurrency } from '../../utils/formatters';
+import type { Product } from '../../types';
 
-export function RelatedProductRail({ title, products = [] }) {
+type RelatedProductRailProps = {
+  title: string;
+  products?: Product[];
+};
+
+export function RelatedProductRail({ title, products = [] }: RelatedProductRailProps) {
   if (!products.length) return null;
 
   return (

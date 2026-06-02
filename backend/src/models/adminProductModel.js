@@ -6,14 +6,16 @@ let productCapabilitiesPromise = null;
 async function getProductCapabilities() {
   if (!productCapabilitiesPromise) {
     productCapabilitiesPromise = (async () => {
-      const [columns, variantColumns, tables] = await Promise.all([
+      const [columns, variantColumns, inventoryColumns, tables] = await Promise.all([
         query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'products'`),
         query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'product_variants'`),
-        query(`SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME IN ('product_images', 'product_variants', 'brand', 'categories')`),
+        query(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'product_inventory'`),
+        query(`SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME IN ('product_images', 'product_variants', 'product_inventory', 'brand', 'categories')`),
       ]);
       return {
         columns: new Set(columns.map((row) => String(row.COLUMN_NAME).toLowerCase())),
         variantColumns: new Set(variantColumns.map((row) => String(row.COLUMN_NAME).toLowerCase())),
+        inventoryColumns: new Set(inventoryColumns.map((row) => String(row.COLUMN_NAME).toLowerCase())),
         tables: new Set(tables.map((row) => String(row.TABLE_NAME).toLowerCase())),
       };
     })();
@@ -27,6 +29,10 @@ function hasColumn(capabilities, name) {
 
 function hasVariantColumn(capabilities, name) {
   return capabilities.variantColumns.has(String(name).toLowerCase());
+}
+
+function hasInventoryColumn(capabilities, name) {
+  return capabilities.inventoryColumns.has(String(name).toLowerCase());
 }
 
 function hasTable(capabilities, name) {
@@ -57,6 +63,7 @@ function variantStockExpr(capabilities) {
   const conditions = ['v.product_id = p.id'];
   if (hasVariantColumn(capabilities, 'deleted_at')) conditions.push('v.deleted_at IS NULL');
   if (hasVariantColumn(capabilities, 'status')) conditions.push('ISNULL(v.status, 1) = 1');
+  if (hasVariantColumn(capabilities, 'variant_type')) conditions.push("UPPER(ISNULL(v.variant_type, N'')) <> N'DECANT'");
   return `(SELECT SUM(ISNULL(v.${stockField}, 0)) FROM product_variants v WHERE ${conditions.join(' AND ')})`;
 }
 
@@ -71,6 +78,7 @@ function variantStockApply(capabilities) {
   const conditions = ['v.product_id = p.id'];
   if (hasVariantColumn(capabilities, 'deleted_at')) conditions.push('v.deleted_at IS NULL');
   if (hasVariantColumn(capabilities, 'status')) conditions.push('ISNULL(v.status, 1) = 1');
+  if (hasVariantColumn(capabilities, 'variant_type')) conditions.push("UPPER(ISNULL(v.variant_type, N'')) <> N'DECANT'");
   return `OUTER APPLY (SELECT SUM(ISNULL(v.${stockField}, 0)) AS variant_stock FROM product_variants v WHERE ${conditions.join(' AND ')}) pv`;
 }
 
@@ -80,6 +88,150 @@ function baseWhere(capabilities) {
 
 function toBoolean(value) {
   return Boolean(Number(value) || value === true);
+}
+
+function toNonNegativeInt(value) {
+  const number = Math.floor(Number(value));
+  return Number.isFinite(number) && number >= 0 ? number : 0;
+}
+
+function variantType(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function variantPriority(row) {
+  const type = variantType(row.variant_type);
+  if (type === 'FULL' || type === 'FULL_BOTTLE' || type === 'STANDARD') return 0;
+  if (type === 'FULLBOX') return 1;
+  if (type === 'TESTER') return 2;
+  return 3;
+}
+
+async function syncProductInventoryStock(productId, stock, productRow, capabilities) {
+  if (!hasTable(capabilities, 'product_inventory')) return null;
+  if (!hasInventoryColumn(capabilities, 'product_id') || !hasInventoryColumn(capabilities, 'sealed_bottles')) return null;
+
+  const existing = await query('SELECT TOP 1 * FROM product_inventory WHERE product_id = ?', [productId]);
+  const updatedAt = hasInventoryColumn(capabilities, 'updated_at') ? ', updated_at = GETDATE()' : '';
+
+  if (existing.length) {
+    await query(`UPDATE product_inventory SET sealed_bottles = ?${updatedAt} WHERE product_id = ?`, [stock, productId]);
+  } else {
+    const bottleVolume = Math.max(1, toNonNegativeInt(productRow?.volume_ml) || 100);
+    const columns = ['product_id', 'sealed_bottles'];
+    const values = ['?', '?'];
+    const params = [productId, stock];
+
+    if (hasInventoryColumn(capabilities, 'opened_ml')) {
+      columns.push('opened_ml');
+      values.push('?');
+      params.push(0);
+    }
+    if (hasInventoryColumn(capabilities, 'bottle_volume_ml')) {
+      columns.push('bottle_volume_ml');
+      values.push('?');
+      params.push(bottleVolume);
+    }
+
+    await query(`INSERT INTO product_inventory (${columns.join(', ')}) VALUES (${values.join(', ')})`, params);
+  }
+
+  const volumeSelect = hasInventoryColumn(capabilities, 'bottle_volume_ml') ? 'bottle_volume_ml' : 'NULL AS bottle_volume_ml';
+  const openedSelect = hasInventoryColumn(capabilities, 'opened_ml') ? 'opened_ml' : '0 AS opened_ml';
+  const rows = await query(
+    `SELECT TOP 1 sealed_bottles, ${openedSelect}, ${volumeSelect}
+     FROM product_inventory
+     WHERE product_id = ?`,
+    [productId]
+  );
+  const row = rows[0];
+  if (!row) return null;
+
+  return {
+    sealedBottles: toNonNegativeInt(row.sealed_bottles),
+    openedMl: toNonNegativeInt(row.opened_ml),
+    bottleVolumeMl: Math.max(1, toNonNegativeInt(row.bottle_volume_ml) || toNonNegativeInt(productRow?.volume_ml) || 100),
+  };
+}
+
+async function updateVariantStockQuantity(variantId, stock, capabilities) {
+  const updatedAt = hasVariantColumn(capabilities, 'updated_at') ? ', updated_at = GETDATE()' : '';
+  await query(`UPDATE product_variants SET stock_quantity = ?${updatedAt} WHERE id = ?`, [stock, variantId]);
+}
+
+async function syncFullVariantAggregate(desiredStock, variants, capabilities) {
+  if (!variants.length) return false;
+
+  const sorted = [...variants].sort((a, b) => (
+    variantPriority(a) - variantPriority(b)
+    || toNonNegativeInt(a.sort_order) - toNonNegativeInt(b.sort_order)
+    || Number(a.id) - Number(b.id)
+  ));
+  const nextStockById = new Map(sorted.map((variant) => [variant.id, toNonNegativeInt(variant.stock_quantity)]));
+  const currentStock = sorted.reduce((sum, variant) => sum + toNonNegativeInt(variant.stock_quantity), 0);
+
+  if (currentStock < desiredStock) {
+    const primary = sorted[0];
+    nextStockById.set(primary.id, toNonNegativeInt(nextStockById.get(primary.id)) + (desiredStock - currentStock));
+  } else if (currentStock > desiredStock) {
+    let reduction = currentStock - desiredStock;
+    for (const variant of [...sorted].reverse()) {
+      if (reduction <= 0) break;
+      const current = toNonNegativeInt(nextStockById.get(variant.id));
+      const reduceBy = Math.min(current, reduction);
+      nextStockById.set(variant.id, current - reduceBy);
+      reduction -= reduceBy;
+    }
+  }
+
+  for (const variant of sorted) {
+    const nextStock = toNonNegativeInt(nextStockById.get(variant.id));
+    if (nextStock !== toNonNegativeInt(variant.stock_quantity)) {
+      await updateVariantStockQuantity(variant.id, nextStock, capabilities);
+    }
+  }
+
+  return true;
+}
+
+async function syncDecantVariantStocks(productId, inventory, variants, capabilities) {
+  if (!inventory || !variants.length || !hasVariantColumn(capabilities, 'volume_ml')) return false;
+
+  const totalMl = inventory.openedMl + inventory.sealedBottles * inventory.bottleVolumeMl;
+  for (const variant of variants) {
+    const volumeMl = toNonNegativeInt(variant.volume_ml);
+    const nextStock = volumeMl > 0 ? Math.floor(totalMl / volumeMl) : 0;
+    if (nextStock !== toNonNegativeInt(variant.stock_quantity)) {
+      await updateVariantStockQuantity(variant.id, nextStock, capabilities);
+    }
+  }
+
+  return true;
+}
+
+async function syncVariantStockAfterReset(productId, stock, inventory, capabilities) {
+  if (!hasTable(capabilities, 'product_variants') || !hasVariantColumn(capabilities, 'stock_quantity')) return false;
+
+  const conditions = ['product_id = ?'];
+  if (hasVariantColumn(capabilities, 'deleted_at')) conditions.push('deleted_at IS NULL');
+  if (hasVariantColumn(capabilities, 'status')) conditions.push('ISNULL(status, 1) = 1');
+
+  const typeSelect = hasVariantColumn(capabilities, 'variant_type') ? 'variant_type' : "NULL AS variant_type";
+  const volumeSelect = hasVariantColumn(capabilities, 'volume_ml') ? 'volume_ml' : 'NULL AS volume_ml';
+  const sortOrderSelect = hasVariantColumn(capabilities, 'sort_order') ? 'sort_order' : '0 AS sort_order';
+  const rows = await query(
+    `SELECT id, stock_quantity, ${typeSelect}, ${volumeSelect}, ${sortOrderSelect}
+     FROM product_variants
+     WHERE ${conditions.join(' AND ')}`,
+    [productId]
+  );
+
+  const fullVariants = rows.filter((row) => variantType(row.variant_type) !== 'DECANT');
+  const decantVariants = rows.filter((row) => variantType(row.variant_type) === 'DECANT');
+
+  const fullSynced = await syncFullVariantAggregate(stock, fullVariants, capabilities);
+  const decantSynced = await syncDecantVariantStocks(productId, inventory, decantVariants, capabilities);
+  return fullSynced || decantSynced;
 }
 
 async function getBySku(sku, excludeId = null) {
@@ -412,24 +564,30 @@ export async function softDeleteProduct(productId) {
 
 export async function resetProductStock(productId, stock) {
   const capabilities = await getProductCapabilities();
-  const existing = await query('SELECT TOP 1 id FROM products WHERE id = ?', [productId]);
+  const volumeSelect = hasColumn(capabilities, 'volume_ml') ? 'volume_ml' : 'NULL AS volume_ml';
+  const existing = await query(`SELECT TOP 1 id, ${volumeSelect} FROM products WHERE id = ?`, [productId]);
   if (!existing.length) return null;
 
+  const safeStock = toNonNegativeInt(stock);
   const updates = [];
   const params = [];
   if (hasColumn(capabilities, 'stock')) {
     updates.push('stock = ?');
-    params.push(stock);
+    params.push(safeStock);
   }
   if (hasColumn(capabilities, 'quantity')) {
     updates.push('quantity = ?');
-    params.push(stock);
+    params.push(safeStock);
   }
   if (!updates.length) throw new Error('Schema products chua co cot ton kho');
   if (hasColumn(capabilities, 'updated_at')) updates.push('updated_at = GETDATE()');
   await query(`UPDATE products SET ${updates.join(', ')} WHERE id = ?`, [...params, productId]);
+
+  const inventory = await syncProductInventoryStock(productId, safeStock, existing[0], capabilities);
+  await syncVariantStockAfterReset(productId, safeStock, inventory, capabilities);
+
   await invalidateProductCache(productId);
-  return { id: productId, stock };
+  return { id: productId, stock: safeStock };
 }
 
 export { validateForeignKeys as validateProductRelations };

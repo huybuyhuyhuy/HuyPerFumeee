@@ -2,6 +2,7 @@ import { errorResponse, successResponse } from '../utils/response.js';
 import {
   createProductReview,
   deleteProductReview,
+  getProductReviewEligibility,
   getProductReviewPage,
   moderateProductReview,
   updateProductReview,
@@ -32,6 +33,22 @@ export async function listProductReviews(req, res, next) {
       viewer: req.user || null,
     });
     return successResponse(res, 'Lay danh sach review thanh cong', result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function reviewEligibility(req, res, next) {
+  try {
+    const productId = parsePositiveId(req.params.id);
+    if (!productId) return errorResponse(res, 400, 'ID san pham khong hop le');
+
+    const result = await getProductReviewEligibility({
+      productId,
+      userId: req.user?.id || null,
+      orderId: req.query.orderId || null,
+    });
+    return successResponse(res, 'Kiem tra quyen review thanh cong', result);
   } catch (error) {
     return next(error);
   }

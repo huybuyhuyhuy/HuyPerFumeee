@@ -1,5 +1,6 @@
 [CmdletBinding()]
 param(
+    [switch]$Restart,
     [switch]$OpenBrowser
 )
 
@@ -85,6 +86,29 @@ function Save-ManagedProcess {
     Set-Content -LiteralPath (Join-Path $runtimePath "$Name.pid.json") -Value $record -Encoding UTF8
 }
 
+function Stop-ManagedProcess {
+    param([string]$Name)
+
+    $pidPath = Join-Path $runtimePath "$Name.pid.json"
+    if (-not (Test-Path $pidPath)) {
+        return
+    }
+
+    try {
+        $record = Get-Content -LiteralPath $pidPath -Raw | ConvertFrom-Json
+        $process = Get-Process -Id ([int]$record.id) -ErrorAction Stop
+        $sameProcess = $process.StartTime.ToUniversalTime().Ticks -eq [long]$record.startTimeTicks
+        if ($sameProcess -and $process.ProcessName -eq 'node') {
+            Stop-Process -Id $process.Id -Force -ErrorAction Stop
+            Write-AppLog "Stopped $Name (PID $($process.Id))."
+        }
+    } catch {
+        Write-AppLog "Could not stop $Name from ${pidPath}: $($_.Exception.Message)"
+    } finally {
+        Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Start-ManagedProcess {
     param(
         [string]$Name,
@@ -111,6 +135,14 @@ if (-not (Test-Path (Join-Path $serverPath 'node_modules'))) {
 }
 if (-not (Test-Path (Join-Path $frontendPath 'node_modules'))) {
     throw 'Frontend dependencies are missing. Run npm install --prefix frontend once.'
+}
+
+if ($Restart) {
+    Write-AppLog 'Restart requested. Stopping managed HuyPerfume processes.'
+    Stop-ManagedProcess -Name 'api'
+    Stop-ManagedProcess -Name 'frontend-user'
+    Stop-ManagedProcess -Name 'frontend-admin'
+    Start-Sleep -Seconds 2
 }
 
 if (-not (Test-HttpEndpoint 'http://localhost:4000/api/health/ready')) {

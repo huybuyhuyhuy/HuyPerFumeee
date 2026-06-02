@@ -37,17 +37,6 @@ const categoryCardLinks = [
   '/products?scent=cam',
 ];
 
-const homepageGalleryImageIds = [
-  1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-  11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-  21, 22, 23, 25, 30, 31, 32, 33, 34, 35,
-  36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
-  46, 47, 48, 49, 50, 51, 52, 53, 54, 55,
-  56, 57, 58, 59, 60,
-];
-
-const homepageGalleryImages = homepageGalleryImageIds.map((id) => `/assets/images/${id}.webp`);
-
 type HeroSlide = {
   id: string | number;
   name: string;
@@ -211,22 +200,6 @@ function getHeroNotes(product: Product, fallback: string) {
   return notes.length > 0 ? notes.join(' / ') : fallback;
 }
 
-function getImageAssetId(image?: string | null) {
-  const match = String(image || '').match(/\/(\d+)\.(?:png|webp|jpg|jpeg)(?:\?.*)?$/i);
-  return match?.[1] || null;
-}
-
-function shuffleImagePool(images: string[]) {
-  const result = Array.from(new Set(images.filter(Boolean)));
-
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
-  }
-
-  return result;
-}
-
 function SmallIcon({ name }: { name: string }) {
   const commonProps = {
     className: 'luxury-line-icon',
@@ -258,7 +231,7 @@ export function HomePage() {
   const [contactSubmitting, setContactSubmitting] = useState(false);
   const [reviewVisible, setReviewVisible] = useState(false);
   const { pushToast } = useToast();
-  const sectionRevealRef = useScrollReveal('.luxury-scroll-reveal');
+  const sectionRevealRef = useScrollReveal('.luxury-scroll-reveal, .home-reveal-item');
   const featuredRevealRef = useScrollReveal('.scroll-reveal-item', !loading && products.length > 0);
 
   useEffect(() => {
@@ -268,30 +241,13 @@ export function HomePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const homeSectionImages = useMemo(() => {
-    const visibleProductImageIds = new Set(
-      products
-        .map((item) => getImageAssetId(resolveProductImage(item.image)))
-        .filter(Boolean)
-    );
-    const freshGalleryImages = homepageGalleryImages.filter((image) => {
-      const imageId = getImageAssetId(image);
-      return imageId && !visibleProductImageIds.has(imageId);
-    });
-    const imagePool = freshGalleryImages.length >= categoryCards.length + luxuryCollectionSections.length
-      ? freshGalleryImages
-      : homepageGalleryImages;
-
-    return shuffleImagePool(imagePool);
-  }, [products]);
-
   const categoryImages = useMemo(() => categoryCards.map(
-    (category, index) => homeSectionImages[index] || category.fallbackImage
-  ), [homeSectionImages]);
+    (category) => category.fallbackImage
+  ), []);
 
   const collectionImages = useMemo(() => luxuryCollectionSections.map(
-    (item, index) => homeSectionImages[categoryCards.length + index] || item.image
-  ), [homeSectionImages]);
+    (item) => item.image
+  ), []);
 
   const heroSlides = useMemo<HeroSlide[]>(() => {
     return heroProductSelections.map((fallback) => {
@@ -524,7 +480,7 @@ export function HomePage() {
               const image = categoryImages[index] || category.fallbackImage;
 
               return (
-                <Link key={category.name} to={categoryCardLinks[index] || `/products?categoryId=${category.cat}`} className="luxury-category-card">
+                <Link key={category.name} to={categoryCardLinks[index] || `/products?categoryId=${category.cat}`} className="luxury-category-card home-reveal-item">
                   <img
                     src={image}
                     alt={category.name}
@@ -564,7 +520,11 @@ export function HomePage() {
             <div className="luxury-surface luxury-empty-state text-center"><h3>Chưa có sản phẩm để hiển thị</h3><p className="luxury-muted mb-0">Khi backend trả dữ liệu, khu vực này sẽ tự động hiển thị sản phẩm thật.</p></div>
           ) : (
             <div className="row row-cols-1 row-cols-md-2 row-cols-xl-4 g-4 luxury-mobile-snap-row">
-              {mostLovedProducts.map((product) => <ProductCard key={product.id} product={product} onAddToCart={handleAddToCart} />)}
+              {mostLovedProducts.map((product) => (
+                <div className="scroll-reveal-item" key={product.id}>
+                  <ProductCard product={product} onAddToCart={handleAddToCart} />
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -573,7 +533,7 @@ export function HomePage() {
       <section className="luxury-section luxury-story-section luxury-scroll-reveal">
         <div className="container">
           <div className="luxury-story-grid">
-            <div className="luxury-story-media">
+            <div className="luxury-story-media home-reveal-item">
               <img src="/assets/images/12.png" alt="Tinh thần HuyPerfume" loading="lazy" decoding="async" />
               <div className="luxury-story-media-card">
                 <span>Bản sắc riêng</span>
@@ -581,22 +541,22 @@ export function HomePage() {
                 <p>Mỗi lựa chọn đều được cân nhắc kỹ, để tạo nên một câu chuyện mùi hương rõ ràng và có gu.</p>
               </div>
             </div>
-            <div className="luxury-story-copy">
+            <div className="luxury-story-copy home-reveal-item">
               <p className="section-eyebrow">Câu chuyện thương hiệu</p>
               <h2 className="section-title">HuyPerfume là một thương hiệu thật, có gu và mang bản sắc riêng.</h2>
               <p className="luxury-section-lead">HuyPerfume được xây dựng như một cửa hàng nước hoa tuyển chọn: tinh tế, có chọn lọc và tập trung vào cảm giác sở hữu một mùi hương đúng với bản sắc của bạn.</p>
               <div className="luxury-story-points">
-                <article>
+                <article className="home-reveal-item">
                   <span>Vì sao chọn chúng tôi</span>
                   <strong>Chọn lọc có chủ đích</strong>
                   <p>Không trưng bày tràn lan. Mỗi sản phẩm xuất hiện đều được cân nhắc theo tính thẩm mỹ, độ tin cậy và mức độ phù hợp với người dùng.</p>
                 </article>
-                <article>
+                <article className="home-reveal-item">
                   <span>Thủ công tinh xảo</span>
                   <strong>Chăm chút như một xưởng chế tác</strong>
                   <p>Từ ảnh sản phẩm, khoảng thở đến kiểu chữ đều được tinh chỉnh để mang cảm giác thủ công cao cấp, mềm mại và chỉn chu.</p>
                 </article>
-                <article>
+                <article className="home-reveal-item">
                   <span>Chính hãng</span>
                   <strong>Minh bạch và đáng tin</strong>
                   <p>Thông tin sản phẩm, độ tin cậy và phản hồi khách hàng được trình bày rõ ràng để người dùng cảm thấy an tâm ngay từ đầu.</p>
@@ -619,7 +579,7 @@ export function HomePage() {
               const image = collectionImages[index] || item.image;
 
               return (
-                <article key={item.title} className={`luxury-collection-editorial-card ${index % 2 === 1 ? 'reverse' : ''}`}>
+                <article key={item.title} className={`luxury-collection-editorial-card home-reveal-item ${index % 2 === 1 ? 'reverse' : ''}`}>
                   <div className="luxury-collection-visual">
                     <img
                       src={image}
@@ -654,14 +614,14 @@ export function HomePage() {
             <p className="luxury-section-lead">Thông tin ngắn gọn, rõ ràng và đủ để người dùng cảm thấy an tâm mà không bị ngợp bởi ngôn ngữ quảng bá quá mức.</p>
           </div>
           <div className="luxury-trust-stat-grid">
-            <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Cam kết chính hãng</span><strong>100%</strong><p>Cam kết sản phẩm chính hãng, nguồn gốc rõ ràng.</p></article>
-            <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Tổng đơn hàng</span><strong>25K+</strong><p>Lượt đơn đã hoàn tất trên hệ thống.</p></article>
-            <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Khách hàng</span><strong>10K+</strong><p>Khách hàng quay lại và giới thiệu thêm bạn bè.</p></article>
-            <article className="luxury-trust-stat-card"><span className="luxury-trust-stat-label">Đánh giá</span><strong>4.9/5</strong><p>Được đánh giá cao bởi trải nghiệm mua sắm chỉn chu.</p></article>
+            <article className="luxury-trust-stat-card home-reveal-item"><span className="luxury-trust-stat-label">Cam kết chính hãng</span><strong>100%</strong><p>Cam kết sản phẩm chính hãng, nguồn gốc rõ ràng.</p></article>
+            <article className="luxury-trust-stat-card home-reveal-item"><span className="luxury-trust-stat-label">Tổng đơn hàng</span><strong>25K+</strong><p>Lượt đơn đã hoàn tất trên hệ thống.</p></article>
+            <article className="luxury-trust-stat-card home-reveal-item"><span className="luxury-trust-stat-label">Khách hàng</span><strong>10K+</strong><p>Khách hàng quay lại và giới thiệu thêm bạn bè.</p></article>
+            <article className="luxury-trust-stat-card home-reveal-item"><span className="luxury-trust-stat-label">Đánh giá</span><strong>4.9/5</strong><p>Được đánh giá cao bởi trải nghiệm mua sắm chỉn chu.</p></article>
           </div>
           <div className="luxury-trust-badges">
             {serviceCommitments.slice(0, 4).map((item) => (
-              <div key={item.title} className="luxury-trust-badge-card">
+              <div key={item.title} className="luxury-trust-badge-card home-reveal-item">
                 <div className="luxury-trust-badge-icon"><SmallIcon name={item.icon} /></div>
                 <div><strong>{item.title}</strong><span>{item.description}</span></div>
               </div>
@@ -672,7 +632,7 @@ export function HomePage() {
 
       <section className="luxury-section luxury-cta-section luxury-scroll-reveal" id="contact" aria-labelledby="contact-title">
         <div className="container">
-          <div className="luxury-cta-shell">
+          <div className="luxury-cta-shell home-reveal-item">
             <div className="luxury-cta-copy">
               <p className="section-eyebrow">Tư vấn cá nhân</p>
               <h2 className="section-title" id="contact-title">Tìm mùi hương thật sự hợp với bạn</h2>

@@ -37,10 +37,6 @@ const fallbackProduct: PopupProduct = {
   discountPrice: 0,
 };
 
-function trackPopup(eventName: 'popup_open' | 'popup_close' | 'popup_cta_click') {
-  console.log(`[HuyPerfume] ${eventName}`);
-}
-
 function toPopupProduct(product: Product): PopupProduct {
   return {
     id: product.id,
@@ -122,7 +118,6 @@ export function SalePopup() {
       setProduct(nextProduct);
       setSocialProof(createSocialProof());
       setVisible(true);
-      trackPopup('popup_open');
 
       hideTimerRef.current = window.setTimeout(() => {
         setVisible(false);
@@ -154,14 +149,12 @@ export function SalePopup() {
     window.sessionStorage.setItem(salePopupConfig.storageKey, '1');
     clearTimers();
     setVisible(false);
-    trackPopup('popup_close');
     window.dispatchEvent(new CustomEvent('huyperfume:sale-popup-closed'));
   };
 
   const handleCtaClick = () => {
     window.sessionStorage.setItem(salePopupConfig.storageKey, '1');
     clearTimers();
-    trackPopup('popup_cta_click');
     window.dispatchEvent(new CustomEvent('huyperfume:sale-popup-closed'));
   };
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import api, { unwrapApiData } from '../../services/api';
@@ -76,6 +76,7 @@ export function AdminLayout() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const workspaceRef = useRef<HTMLElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [noticeLoading, setNoticeLoading] = useState(true);
@@ -126,6 +127,35 @@ export function AdminLayout() {
   useEffect(() => {
     loadNotifications();
   }, []);
+
+  useEffect(() => {
+    setMenuOpen(false);
+    setNoticeOpen(false);
+
+    let userMovedPage = false;
+    const timers: number[] = [];
+    const stopCorrections = () => {
+      userMovedPage = true;
+    };
+    const scrollToWorkspace = (behavior: ScrollBehavior) => {
+      if (userMovedPage) return;
+      window.scrollTo({ top: 0, left: 0, behavior });
+      workspaceRef.current?.focus({ preventScroll: true });
+    };
+
+    [0, 90, 320].forEach((delay, index) => {
+      timers.push(window.setTimeout(() => scrollToWorkspace(index === 0 ? 'smooth' : 'auto'), delay));
+    });
+
+    window.addEventListener('wheel', stopCorrections, { passive: true });
+    window.addEventListener('touchstart', stopCorrections, { passive: true });
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener('wheel', stopCorrections);
+      window.removeEventListener('touchstart', stopCorrections);
+    };
+  }, [location.pathname, location.search]);
 
   const lowStockCount = lowStockProducts.length + lowStockVariants.length;
   const notificationCount = useMemo(() => lowStockCount + (buyerCount > 0 ? 1 : 0), [buyerCount, lowStockCount]);
@@ -315,7 +345,7 @@ export function AdminLayout() {
           )}
         </header>
 
-        <main className="huy-admin-workspace">
+        <main ref={workspaceRef} id="admin-main-content" tabIndex={-1} className="huy-admin-workspace">
           <Outlet />
         </main>
       </div>

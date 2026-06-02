@@ -1,22 +1,27 @@
 import { clampPrice } from './formatters';
 import { resolveProductImage } from './image';
+import type { Product } from '../types';
 
-function resolveVariantImage(variant: any, product: any) {
+type RawProductVariant = Record<string, any>;
+
+function resolveVariantImage(variant: RawProductVariant, product: Partial<Product>) {
   const variantImage = String(variant?.image ?? variant?.productImage ?? '').trim();
   return resolveProductImage(variantImage || product?.image);
 }
 
-function normalizeVariantType(value: any) {
+function normalizeVariantType(value: unknown) {
   return String(value || '').toUpperCase();
 }
 
-export function buildProductVariants(product: any) {
+export function buildProductVariants(product: Partial<Product> & Record<string, any>) {
   const variants = Array.isArray(product?.variants) ? product.variants : [];
   const mapped = variants
-    .map((variant, index) => {
+    .map((variant: RawProductVariant, index: number) => {
       const price = clampPrice(variant?.discountPrice ?? variant?.price ?? product?.discountPrice ?? product?.price);
       const originalPrice = clampPrice(variant?.originalPrice ?? variant?.price ?? product?.originalPrice ?? product?.price);
-      const stock = Number.isFinite(Number(variant?.stock)) ? Number(variant.stock) : clampPrice(product?.parentStockQuantity ?? product?.stock);
+      const stock = Number.isFinite(Number(variant?.stockQuantity ?? variant?.stock_quantity ?? variant?.stock))
+        ? Number(variant?.stockQuantity ?? variant?.stock_quantity ?? variant?.stock)
+        : clampPrice(product?.parentStockQuantity ?? product?.stockQuantity ?? product?.stock);
       const variantType = normalizeVariantType(variant?.type ?? variant?.variantType);
       const isDecant = variantType === 'DECANT';
       const volumeMl = Number(variant?.volumeMl ?? variant?.volume_ml ?? 0) || null;
@@ -50,7 +55,9 @@ export function buildProductVariants(product: any) {
     const fullVariant = mapped.find((variant) => !variant.isDecant) || null;
     const basePrice = clampPrice(fullVariant?.price ?? product?.discountPrice ?? product?.price);
     const baseOriginal = clampPrice(fullVariant?.originalPrice ?? product?.originalPrice ?? product?.price);
-    const fullStock = Number.isFinite(Number(fullVariant?.stock)) ? Number(fullVariant.stock) : clampPrice(product?.stock);
+    const fullStock = fullVariant && Number.isFinite(Number(fullVariant.stock))
+      ? Number(fullVariant.stock)
+      : clampPrice(product?.stockQuantity ?? product?.stock);
     const fullOption = {
       id: fullVariant?.id ?? 'full-bottle',
       variantId: fullVariant?.variantId ?? null,
@@ -71,14 +78,14 @@ export function buildProductVariants(product: any) {
       raw: fullVariant?.raw ?? null,
     };
 
-    const availableVolumeMl = clampPrice(product?.availableVolumeMl);
+    const availableVolumeMl = clampPrice(product?.availableVolumeMl ?? product?.remainingVolumeMl ?? product?.remaining_volume_ml);
     const decants = decantOptions
-      .map((option: any) => {
+      .map((option: RawProductVariant) => {
         const volumeMl = Number(option?.volumeMl ?? option?.volume_ml);
         const price = clampPrice(option?.price);
         const stock = volumeMl > 0 ? Math.floor(availableVolumeMl / volumeMl) : 0;
         return {
-          id: `decant-${volumeMl}`,
+          id: `decant-${product?.id || 'product'}-${volumeMl}`,
           variantId: null,
           label: `Chiết ${volumeMl}ml`,
           size: `${volumeMl}ml`,
@@ -97,7 +104,7 @@ export function buildProductVariants(product: any) {
           raw: option,
         };
       })
-      .filter((option: any) => Number.isFinite(option.volumeMl) && option.volumeMl > 0);
+      .filter((option: { volumeMl: number }) => Number.isFinite(option.volumeMl) && option.volumeMl > 0);
 
     return [fullOption, ...decants];
   }
@@ -114,12 +121,12 @@ export function buildProductVariants(product: any) {
       size: product?.volumeMl ? `${product.volumeMl}ml` : '',
       price: basePrice,
       originalPrice: baseOriginal > basePrice ? baseOriginal : basePrice,
-      stock: clampPrice(product?.stock),
+      stock: clampPrice(product?.stockQuantity ?? product?.stock),
       image: resolveProductImage(product?.image),
       sku: String(product?.sku ?? ''),
       batchCode: String(product?.batchCode ?? ''),
       status: product?.status !== false,
-      isAvailable: (product?.status !== false) && clampPrice(product?.stock) > 0 && basePrice > 0,
+      isAvailable: (product?.status !== false) && clampPrice(product?.stockQuantity ?? product?.stock) > 0 && basePrice > 0,
       variantType: 'STANDARD',
       itemType: 'FULL_BOTTLE',
       volumeMl: null,

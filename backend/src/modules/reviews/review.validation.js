@@ -7,6 +7,7 @@ export const REVIEW_STATUSES = {
 
 export function normalizeReviewStatus(value, fallback = REVIEW_STATUSES.PENDING) {
   const status = String(value || fallback).trim().toUpperCase();
+  if (status === 'HIDDEN' || status === 'HIDE') return REVIEW_STATUSES.FLAGGED;
   return Object.values(REVIEW_STATUSES).includes(status) ? status : fallback;
 }
 

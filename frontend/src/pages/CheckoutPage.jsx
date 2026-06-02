@@ -3,8 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../hooks/useCart';
 import { useAuth } from '../hooks/useAuth';
 import { orderService } from '../services/orderService';
+import { addressService, formatAddress } from '../services/addressService';
 import { voucherService } from '../services/voucherService';
 import { clearCartVoucher, readCartVoucher, saveCartVoucher } from '../utils/cartVoucherStorage';
+import { savePaymentAuthBridge } from '../utils/paymentAuthBridge';
 import { resolveProductImage } from '../utils/image';
 import { formatVnCurrency } from '../utils/formatters';
 import { siteContact } from '../config/siteConfig';
@@ -14,6 +16,18 @@ const paymentMethods = [
   { value: 'MOMO', label: 'Ví MoMo', note: 'Chuyển sang cổng MoMo sau khi tạo đơn.' },
   { value: 'ZALOPAY', label: 'ZaloPay', note: 'Chuyển sang cổng ZaloPay sau khi tạo đơn.' },
 ];
+
+const emptyShippingForm = {
+  recipientName: '',
+  phone: '',
+  city: '',
+  district: '',
+  ward: '',
+  line1: '',
+  label: '',
+  saveAddress: false,
+  isDefault: false,
+};
 
 function getCartItemLabel(product) {
   const itemType = String(product?.itemType || '').toUpperCase();
@@ -37,19 +51,43 @@ function getVoucherErrorMessage(error) {
   return responseData?.data?.message || responseData?.message || error?.message || 'Không áp dụng được mã voucher.';
 }
 
+function getCheckoutErrorMessage(error) {
+  const responseData = error?.response?.data || {};
+  return responseData?.data?.message || responseData?.message || error?.message || 'Lỗi đặt hàng';
+}
+
+function buildShippingAddress(form) {
+  return [form.line1, form.ward, form.district, form.city]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .join(', ');
+}
+
 export function CheckoutPage() {
-  const { cart, loading: cartLoading, clearCart } = useCart();
+  const { cart, loading: cartLoading, clearCart, fetchCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [phone, setPhone] = useState(user?.phone || '');
-  const [address, setAddress] = useState(user?.address || '');
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [addressMode, setAddressMode] = useState('saved');
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [shippingForm, setShippingForm] = useState(() => ({
+    ...emptyShippingForm,
+    recipientName: user?.name || '',
+    phone: user?.phone || '',
+  }));
   const [paymentMethod, setPaymentMethod] = useState('COD');
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState(() => readCartVoucher());
   const [voucherMessage, setVoucherMessage] = useState('');
+  const [momoPayment, setMomoPayment] = useState(null);
 
-  const normalizedPhone = useMemo(() => phone.replace(/\D/g, ''), [phone]);
+  const selectedAddress = useMemo(
+    () => addresses.find((item) => String(item.id) === String(selectedAddressId)) || null,
+    [addresses, selectedAddressId]
+  );
+  const normalizedNewPhone = useMemo(() => shippingForm.phone.replace(/\D/g, ''), [shippingForm.phone]);
   const cartTotal = Math.round(Number(cart?.total || 0));
   const voucherMatchesSubtotal = Boolean(appliedVoucher && Number(appliedVoucher.subtotal || 0) === cartTotal);
   const voucherDiscount = voucherMatchesSubtotal ? Number(appliedVoucher.discountAmount || 0) : 0;
@@ -62,9 +100,40 @@ export function CheckoutPage() {
   }, [cart, cartLoading, navigate]);
 
   useEffect(() => {
-    setPhone((current) => current || user?.phone || '');
-    setAddress((current) => current || user?.address || '');
-  }, [user?.phone, user?.address]);
+    setShippingForm((current) => ({
+      ...current,
+      recipientName: current.recipientName || user?.name || '',
+      phone: current.phone || user?.phone || '',
+    }));
+  }, [user?.name, user?.phone]);
+
+  useEffect(() => {
+    if (!user) return;
+    let ignore = false;
+    setAddressLoading(true);
+    addressService.list()
+      .then((list) => {
+        if (ignore) return;
+        setAddresses(list);
+        const defaultAddress = list.find((item) => item.isDefault) || list[0] || null;
+        if (defaultAddress) {
+          setSelectedAddressId(String(defaultAddress.id));
+          setAddressMode('saved');
+        } else {
+          setAddressMode('new');
+        }
+      })
+      .catch(() => {
+        if (!ignore) setAddressMode('new');
+      })
+      .finally(() => {
+        if (!ignore) setAddressLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     if (!cartTotal) return;
@@ -112,37 +181,64 @@ export function CheckoutPage() {
 
   const handleCheckout = async () => {
     setFormError('');
+    setMomoPayment(null);
+    const usingSavedAddress = addressMode === 'saved' && selectedAddress;
+    const checkoutPhone = usingSavedAddress ? selectedAddress.phone.replace(/\D/g, '') : normalizedNewPhone;
+    const checkoutAddress = usingSavedAddress ? formatAddress(selectedAddress) : buildShippingAddress(shippingForm);
 
-    if (!/^\d{10}$/.test(normalizedPhone)) {
+    if (!/^\d{10}$/.test(checkoutPhone)) {
       setFormError('Số điện thoại cần đúng 10 chữ số.');
       return;
     }
-    if (!address.trim()) {
+    if (!checkoutAddress.trim()) {
       setFormError('Vui lòng nhập địa chỉ giao hàng.');
+      return;
+    }
+    if (!usingSavedAddress && (!shippingForm.recipientName.trim() || !shippingForm.city.trim() || !shippingForm.district.trim() || !shippingForm.ward.trim() || !shippingForm.line1.trim())) {
+      setFormError('Vui lòng nhập đủ thông tin người nhận và địa chỉ giao hàng.');
       return;
     }
 
     setLoading(true);
     try {
+      if (!usingSavedAddress && shippingForm.saveAddress) {
+        await addressService.create({
+          label: shippingForm.label.trim(),
+          recipientName: shippingForm.recipientName.trim(),
+          phone: checkoutPhone,
+          city: shippingForm.city.trim(),
+          district: shippingForm.district.trim(),
+          ward: shippingForm.ward.trim(),
+          line1: shippingForm.line1.trim(),
+          line2: '',
+          country: 'VN',
+          postalCode: '',
+          isDefault: shippingForm.isDefault || addresses.length === 0,
+        });
+      }
+
       const order = await orderService.checkout({
-        shippingAddress: address.trim(),
-        phone: normalizedPhone,
+        shippingAddress: checkoutAddress.trim(),
+        phone: checkoutPhone,
         paymentMethod,
         voucherCode: voucherMatchesSubtotal ? appliedVoucher.code : '',
       });
 
-      await clearCart();
-      clearCartVoucher();
-
       if (paymentMethod === 'MOMO') {
+        savePaymentAuthBridge();
         const paymentResponse = await orderService.createMomoPayment(order.id);
-        const paymentUrl = paymentResponse?.paymentUrl || paymentResponse?.payUrl;
+        const paymentUrl = paymentResponse?.paymentUrl || paymentResponse?.payUrl || paymentResponse?.orderUrl || paymentResponse?.deeplink || '';
         if (!paymentUrl) throw new Error('Không tạo được link thanh toán MoMo');
-        window.location.href = paymentUrl;
+        setMomoPayment({
+          orderId: order.id,
+          paymentUrl,
+          momoOrderId: paymentResponse?.momoOrderId || '',
+        });
         return;
       }
 
       if (paymentMethod === 'ZALOPAY') {
+        savePaymentAuthBridge();
         const paymentResponse = await orderService.createZaloPayPayment(order.id);
         const paymentUrl = paymentResponse?.paymentUrl || paymentResponse?.orderUrl;
         if (!paymentUrl) throw new Error('Không tạo được link thanh toán ZaloPay');
@@ -150,12 +246,24 @@ export function CheckoutPage() {
         return;
       }
 
-      navigate(`/orders/${order.id}/success`, { replace: true });
+      await clearCart();
+      clearCartVoucher();
+      navigate(`/checkout/success?orderId=${encodeURIComponent(order.id)}&total=${encodeURIComponent(String(checkoutTotal))}&paymentMethod=${encodeURIComponent(paymentMethod)}`, { replace: true });
     } catch (err) {
-      setFormError(err?.response?.data?.message || err?.message || 'Lỗi đặt hàng');
+      const message = getCheckoutErrorMessage(err);
+      setFormError(message);
+      if (err?.status === 409 || String(message).toLowerCase().includes('tồn kho')) {
+        await fetchCart();
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const openMomoGateway = () => {
+    if (!momoPayment?.paymentUrl) return;
+    savePaymentAuthBridge();
+    window.location.href = momoPayment.paymentUrl;
   };
 
   return (
@@ -175,20 +283,77 @@ export function CheckoutPage() {
             <div className="luxury-checkout-panel luxury-surface">
               <p className="section-eyebrow">Giao hàng</p>
               <h2>Thông tin giao hàng</h2>
-              <div className="luxury-form-grid">
-                <label>
-                  <span>Họ tên</span>
-                  <input value={user?.name || ''} disabled />
-                </label>
-                <label>
-                  <span>Số điện thoại *</span>
-                  <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder={siteContact.phone} inputMode="tel" autoComplete="tel" />
-                </label>
+              <div className="checkout-address-tabs" role="tablist" aria-label="Chọn địa chỉ giao hàng">
+                <button type="button" className={addressMode === 'saved' ? 'active' : ''} disabled={addresses.length === 0} onClick={() => setAddressMode('saved')}>
+                  Địa chỉ đã lưu
+                </button>
+                <button type="button" className={addressMode === 'new' ? 'active' : ''} onClick={() => setAddressMode('new')}>
+                  Nhập địa chỉ mới
+                </button>
               </div>
-              <label className="luxury-form-field">
-                <span>Địa chỉ giao hàng *</span>
-                <textarea rows={4} value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành" autoComplete="shipping street-address" />
-              </label>
+
+              {addressMode === 'saved' && addresses.length > 0 ? (
+                <>
+                  {addressLoading && <p className="luxury-muted">Đang tải sổ địa chỉ...</p>}
+                  <div className="checkout-address-list">
+                    {addresses.map((item) => (
+                      <label key={item.id} className={`checkout-address-option ${String(selectedAddressId) === String(item.id) ? 'active' : ''}`}>
+                        <input type="radio" name="savedAddress" value={item.id} checked={String(selectedAddressId) === String(item.id)} onChange={(event) => setSelectedAddressId(event.target.value)} />
+                        <span>
+                          <strong>{item.recipientName} - {item.phone}</strong>
+                          <small>{formatAddress(item)}</small>
+                          {item.isDefault && <em>Mặc định</em>}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="luxury-form-grid">
+                    <label>
+                      <span>Người nhận *</span>
+                      <input value={shippingForm.recipientName} onChange={(event) => setShippingForm((prev) => ({ ...prev, recipientName: event.target.value }))} autoComplete="shipping name" />
+                    </label>
+                    <label>
+                      <span>Số điện thoại *</span>
+                      <input value={shippingForm.phone} onChange={(event) => setShippingForm((prev) => ({ ...prev, phone: event.target.value }))} placeholder={siteContact.phone} inputMode="tel" autoComplete="tel" />
+                    </label>
+                    <label>
+                      <span>Tỉnh/thành *</span>
+                      <input value={shippingForm.city} onChange={(event) => setShippingForm((prev) => ({ ...prev, city: event.target.value }))} autoComplete="shipping address-level1" />
+                    </label>
+                    <label>
+                      <span>Quận/huyện *</span>
+                      <input value={shippingForm.district} onChange={(event) => setShippingForm((prev) => ({ ...prev, district: event.target.value }))} autoComplete="shipping address-level2" />
+                    </label>
+                    <label>
+                      <span>Phường/xã *</span>
+                      <input value={shippingForm.ward} onChange={(event) => setShippingForm((prev) => ({ ...prev, ward: event.target.value }))} />
+                    </label>
+                    <label>
+                      <span>Nhãn địa chỉ</span>
+                      <input value={shippingForm.label} onChange={(event) => setShippingForm((prev) => ({ ...prev, label: event.target.value }))} placeholder="Nhà riêng, công ty..." />
+                    </label>
+                  </div>
+                  <label className="luxury-form-field">
+                    <span>Địa chỉ chi tiết *</span>
+                    <textarea rows={3} value={shippingForm.line1} onChange={(event) => setShippingForm((prev) => ({ ...prev, line1: event.target.value }))} placeholder="Số nhà, tên đường" autoComplete="shipping street-address" />
+                  </label>
+                  <div className="checkout-save-address">
+                    <label>
+                      <input type="checkbox" checked={shippingForm.saveAddress} onChange={(event) => setShippingForm((prev) => ({ ...prev, saveAddress: event.target.checked }))} />
+                      <span>Lưu địa chỉ này vào sổ địa chỉ</span>
+                    </label>
+                    {shippingForm.saveAddress && (
+                      <label>
+                        <input type="checkbox" checked={shippingForm.isDefault} onChange={(event) => setShippingForm((prev) => ({ ...prev, isDefault: event.target.checked }))} />
+                        <span>Đặt làm mặc định</span>
+                      </label>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="luxury-checkout-panel luxury-surface">
@@ -253,6 +418,32 @@ export function CheckoutPage() {
           </aside>
         </div>
       </div>
+
+      {momoPayment && (
+        <div className="momo-qr-overlay" role="dialog" aria-modal="true" aria-labelledby="momo-qr-title" onClick={() => setMomoPayment(null)}>
+          <div className="momo-qr-modal luxury-surface" onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="momo-qr-close" aria-label="Đóng" onClick={() => setMomoPayment(null)}>×</button>
+            <p className="section-eyebrow">Thanh toán MoMo</p>
+            <h2 id="momo-qr-title">Sẵn sàng chuyển sang MoMo</h2>
+            <p className="momo-qr-description">Cổng thanh toán MoMo đã được tạo cho đơn hàng này. Bấm nút bên dưới để tiếp tục thanh toán trên MoMo.</p>
+            <div className="momo-gateway-card">
+              <span>MoMo Gateway</span>
+              <strong>Đơn #{momoPayment.orderId}</strong>
+              <small>Không cần quét mã QR.</small>
+            </div>
+            <div className="momo-qr-actions">
+              {momoPayment.paymentUrl && (
+                <button type="button" className="btn luxury-primary-btn" onClick={openMomoGateway}>
+                  Mở cổng MoMo
+                </button>
+              )}
+              <button type="button" className="btn luxury-secondary-btn" onClick={() => setMomoPayment(null)}>
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

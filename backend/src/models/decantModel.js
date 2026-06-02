@@ -1,4 +1,5 @@
 import { query, sql } from '../config/database.js';
+import { recordDecantMovement } from './decantInventoryModel.js';
 
 let capabilitiesPromise = null;
 
@@ -15,6 +16,10 @@ function toPositiveInt(value) {
 function normalizeStatus(value, fallback = 'ACTIVE') {
   const normalized = String(value || fallback).trim().toUpperCase();
   return normalized || fallback;
+}
+
+function batchInventoryShortage(message = 'Khong du dung tich de chiet') {
+  return Object.assign(new Error(message), { code: 409, inventoryShortage: true });
 }
 
 async function getDecantCapabilities() {
@@ -205,14 +210,32 @@ export async function updateProductBatch(batchId, payload = {}) {
       safeBatchId,
     ]
   );
-  return rows[0] ? mapBatch(rows[0]) : { code: 404, message: 'Khong tim thay batch' };
+  if (!rows[0]) return { code: 404, message: 'Khong tim thay batch' };
+
+  const updated = mapBatch(rows[0]);
+  if (remainingVolumeMl !== undefined && Number(current.remaining_volume_ml) !== updated.remainingVolumeMl) {
+    await recordDecantMovement(null, {
+      productId: updated.productId,
+      batchId: updated.id,
+      adminId: payload.adminId ?? payload.admin_id ?? null,
+      movementType: payload.movementType || 'MANUAL_ADJUST',
+      sealedBefore: 0,
+      sealedAfter: 0,
+      openedBefore: Number(current.remaining_volume_ml || 0),
+      openedAfter: updated.remainingVolumeMl,
+      quantityMl: Math.abs(updated.remainingVolumeMl - Number(current.remaining_volume_ml || 0)),
+      reference: payload.reason || 'Admin cap nhat remaining ml batch',
+    });
+  }
+
+  return updated;
 }
 
 export async function createDecantOption(productId, payload = {}) {
   const safeProductId = toPositiveInt(productId);
   const volumeMl = toPositiveInt(payload.volumeMl ?? payload.volume_ml);
   const price = toNumber(payload.price, -1);
-  if (!safeProductId || !volumeMl || price < 0) {
+  if (!safeProductId || !volumeMl || price <= 0) {
     return { code: 400, message: 'Du lieu tuy chon chiet khong hop le' };
   }
 
@@ -285,7 +308,7 @@ export async function updateDecantOption(optionId, payload = {}) {
   const volumeMl = payload.volumeMl ?? payload.volume_ml;
   const nextVolume = volumeMl === undefined ? Number(current.volume_ml) : toPositiveInt(volumeMl);
   const nextPrice = payload.price === undefined ? Number(current.price) : toNumber(payload.price, -1);
-  if (!nextVolume || nextPrice < 0) {
+  if (!nextVolume || nextPrice <= 0) {
     return { code: 400, message: 'Du lieu tuy chon chiet khong hop le' };
   }
 
@@ -310,13 +333,59 @@ export async function selectDecantBatchForUpdate(transaction, productId, neededM
   request.input('neededMl', sql.Int, Number(neededMl));
   const result = await request.query(
     `SELECT TOP 1 id, product_id, batch_code, total_volume_ml, remaining_volume_ml, import_price, status, created_at
-     FROM product_batches WITH (UPDLOCK, ROWLOCK)
+     FROM product_batches WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
      WHERE product_id = @productId
        AND status = N'ACTIVE'
        AND remaining_volume_ml >= @neededMl
      ORDER BY created_at ASC, id ASC`
   );
   return result.recordset?.[0] ? mapBatch(result.recordset[0]) : null;
+}
+
+export async function selectDecantBatchesForUpdate(transaction, productId, neededMl) {
+  const request = new sql.Request(transaction);
+  request.input('productId', sql.Int, Number(productId));
+  const result = await request.query(
+    `SELECT id, product_id, batch_code, total_volume_ml, remaining_volume_ml, import_price, status, created_at
+     FROM product_batches WITH (UPDLOCK, HOLDLOCK, ROWLOCK)
+     WHERE product_id = @productId
+       AND status = N'ACTIVE'
+       AND remaining_volume_ml > 0
+     ORDER BY created_at ASC, id ASC`
+  );
+
+  const batches = (result.recordset || []).map(mapBatch);
+  const totalAvailable = batches.reduce((sum, batch) => sum + Number(batch.remainingVolumeMl || 0), 0);
+  const safeNeededMl = Number(neededMl || 0);
+  if (totalAvailable < safeNeededMl) {
+    return { enough: false, totalAvailable, stockBefore: totalAvailable, stockAfter: totalAvailable, deductions: [] };
+  }
+
+  let remainingNeed = safeNeededMl;
+  const deductions = [];
+  for (const batch of batches) {
+    if (remainingNeed <= 0) break;
+    const quantityMl = Math.min(Number(batch.remainingVolumeMl || 0), remainingNeed);
+    if (quantityMl <= 0) continue;
+    deductions.push({
+      batchId: batch.id,
+      batchCode: batch.batchCode,
+      quantityMl,
+      stockBefore: Number(batch.remainingVolumeMl || 0),
+      stockAfter: Number(batch.remainingVolumeMl || 0) - quantityMl,
+    });
+    remainingNeed -= quantityMl;
+  }
+
+  return {
+    enough: true,
+    totalAvailable,
+    stockBefore: totalAvailable,
+    stockAfter: totalAvailable - safeNeededMl,
+    selectedBatchCode: deductions.map((item) => item.batchCode).filter(Boolean).join(', '),
+    sourceBatchId: deductions[0]?.batchId || null,
+    deductions,
+  };
 }
 
 export async function decrementBatchVolume(transaction, { batchId, neededMl }) {
@@ -330,6 +399,128 @@ export async function decrementBatchVolume(transaction, { batchId, neededMl }) {
      WHERE id = @batchId AND remaining_volume_ml >= @neededMl`
   );
   return result.recordset?.[0] || null;
+}
+
+export async function decrementBatchVolumes(transaction, {
+  productId,
+  neededMl,
+  orderId = null,
+  orderItemId = null,
+  adminId = null,
+}) {
+  const plan = await selectDecantBatchesForUpdate(transaction, productId, neededMl);
+  if (!plan.enough) {
+    throw batchInventoryShortage();
+  }
+
+  const applied = [];
+  for (const deduction of plan.deductions) {
+    const request = new sql.Request(transaction);
+    request.input('batchId', sql.Int, Number(deduction.batchId));
+    request.input('quantityMl', sql.Int, Number(deduction.quantityMl));
+    const result = await request.query(
+      `UPDATE product_batches
+       SET remaining_volume_ml = remaining_volume_ml - @quantityMl
+       OUTPUT deleted.remaining_volume_ml AS stock_before, inserted.remaining_volume_ml AS stock_after
+       WHERE id = @batchId AND remaining_volume_ml >= @quantityMl`
+    );
+    const stock = result.recordset?.[0];
+    if (!stock) throw batchInventoryShortage();
+
+    applied.push({
+      ...deduction,
+      stockBefore: Number(stock.stock_before || 0),
+      stockAfter: Number(stock.stock_after || 0),
+    });
+
+    await recordDecantMovement(transaction, {
+      productId: Number(productId),
+      batchId: Number(deduction.batchId),
+      orderId,
+      orderItemId,
+      adminId,
+      movementType: 'DECANT_SOLD',
+      sealedBefore: 0,
+      sealedAfter: 0,
+      openedBefore: Number(stock.stock_before || 0),
+      openedAfter: Number(stock.stock_after || 0),
+      quantityMl: Number(deduction.quantityMl || 0),
+      reference: `Ban decant tu batch ${deduction.batchCode || deduction.batchId}`,
+    });
+  }
+
+  return {
+    ...plan,
+    deductions: applied,
+  };
+}
+
+export async function restoreBatchVolumesFromOrderMovements(transaction, {
+  orderId,
+  productId,
+  adminId = null,
+}) {
+  if (!orderId || !productId) return null;
+
+  const movementRequest = new sql.Request(transaction);
+  movementRequest.input('orderId', sql.Int, Number(orderId));
+  movementRequest.input('productId', sql.Int, Number(productId));
+  const movementResult = await movementRequest.query(
+    `SELECT batch_id, SUM(ISNULL(quantity_ml, 0)) AS quantity_ml
+     FROM inventory_movements WITH (UPDLOCK, HOLDLOCK)
+     WHERE order_id = @orderId
+       AND product_id = @productId
+       AND movement_type = N'DECANT_SOLD'
+       AND batch_id IS NOT NULL
+     GROUP BY batch_id`
+  );
+
+  const rows = movementResult.recordset || [];
+  if (rows.length === 0) return null;
+
+  let totalBefore = 0;
+  let totalAfter = 0;
+  for (const row of rows) {
+    const quantityMl = Number(row.quantity_ml || 0);
+    if (quantityMl <= 0) continue;
+
+    const updateRequest = new sql.Request(transaction);
+    updateRequest.input('batchId', sql.Int, Number(row.batch_id));
+    updateRequest.input('quantityMl', sql.Int, quantityMl);
+    const updateResult = await updateRequest.query(
+      `UPDATE product_batches
+       SET remaining_volume_ml = CASE
+         WHEN remaining_volume_ml + @quantityMl > total_volume_ml THEN total_volume_ml
+         ELSE remaining_volume_ml + @quantityMl
+       END
+       OUTPUT deleted.product_id AS product_id,
+              deleted.remaining_volume_ml AS stock_before,
+              inserted.remaining_volume_ml AS stock_after,
+              inserted.batch_code AS batch_code
+       WHERE id = @batchId`
+    );
+
+    const stock = updateResult.recordset?.[0];
+    if (!stock) continue;
+    totalBefore += Number(stock.stock_before || 0);
+    totalAfter += Number(stock.stock_after || 0);
+
+    await recordDecantMovement(transaction, {
+      productId: Number(stock.product_id || productId),
+      batchId: Number(row.batch_id),
+      orderId,
+      adminId,
+      movementType: 'RETURN_RESTOCK',
+      sealedBefore: 0,
+      sealedAfter: 0,
+      openedBefore: Number(stock.stock_before || 0),
+      openedAfter: Number(stock.stock_after || 0),
+      quantityMl,
+      reference: `Hoan kho decant don ${orderId} ve batch ${stock.batch_code || row.batch_id}`,
+    });
+  }
+
+  return { stock_before: totalBefore, stock_after: totalAfter, restoredFromMovements: true };
 }
 
 export async function restoreBatchVolume(transaction, { batchId, volumeMl }) {

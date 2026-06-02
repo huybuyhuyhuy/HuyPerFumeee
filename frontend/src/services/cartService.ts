@@ -62,4 +62,30 @@ export const cartService = {
     notifyCartUpdated();
     return cart;
   },
+  async addOrderItems(items: any[] = []) {
+    const added: any[] = [];
+    const failed: Array<{ item: any; reason: string }> = [];
+
+    for (const item of items) {
+      try {
+        const productId = Number(item.productId ?? item.product_id);
+        if (!productId) {
+          failed.push({ item, reason: 'Sản phẩm không hợp lệ.' });
+          continue;
+        }
+        await this.addItem(productId, Number(item.quantity || 1), item.variantId ?? item.product_variant_id ?? null, {
+          itemType: item.itemType ?? item.item_type ?? 'FULL_BOTTLE',
+          volumeMl: item.selectedVolumeMl ?? item.selected_volume_ml ?? null,
+        });
+        added.push(item);
+      } catch (error: any) {
+        failed.push({
+          item,
+          reason: error?.response?.data?.message || error?.message || 'Sản phẩm không còn khả dụng.',
+        });
+      }
+    }
+
+    return { added, failed };
+  },
 };

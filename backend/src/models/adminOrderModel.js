@@ -147,10 +147,10 @@ export async function listAdminOrders({
     `SELECT COUNT(*) AS total,
             SUM(ISNULL(o.total, 0)) AS value,
             AVG(NULLIF(ISNULL(o.total, 0), 0)) AS average_value,
-            SUM(CASE WHEN UPPER(o.status) IN ('PENDING', 'CONFIRMED') THEN 1 ELSE 0 END) AS awaiting,
+            SUM(CASE WHEN UPPER(o.status) IN ('PENDING_PAYMENT', 'PENDING', 'CONFIRMED') THEN 1 ELSE 0 END) AS awaiting,
             SUM(CASE WHEN UPPER(o.status) IN ('PACKING', 'SHIPPING') THEN 1 ELSE 0 END) AS processing,
             SUM(CASE WHEN UPPER(o.status) IN ('DELIVERED', 'COMPLETED') THEN 1 ELSE 0 END) AS completed,
-            SUM(CASE WHEN UPPER(o.status) IN ('CANCELLED', 'REFUNDED') THEN 1 ELSE 0 END) AS cancelled
+            SUM(CASE WHEN UPPER(o.status) IN ('PAYMENT_FAILED', 'CANCELLED_PAYMENT', 'CANCELLED', 'REFUNDED') THEN 1 ELSE 0 END) AS cancelled
      FROM orders o
      LEFT JOIN users u ON u.id = o.user_id
      ${whereSql}`,
@@ -284,10 +284,10 @@ export async function getAdminOrderAnalytics({
       `SELECT COUNT(*) AS total,
               SUM(ISNULL(o.total, 0)) AS value,
               AVG(NULLIF(ISNULL(o.total, 0), 0)) AS average_value,
-              SUM(CASE WHEN UPPER(o.status) IN ('PENDING', 'CONFIRMED') THEN 1 ELSE 0 END) AS awaiting,
+              SUM(CASE WHEN UPPER(o.status) IN ('PENDING_PAYMENT', 'PENDING', 'CONFIRMED') THEN 1 ELSE 0 END) AS awaiting,
               SUM(CASE WHEN UPPER(o.status) IN ('PACKING', 'SHIPPING') THEN 1 ELSE 0 END) AS processing,
               SUM(CASE WHEN UPPER(o.status) IN ('DELIVERED', 'COMPLETED') THEN 1 ELSE 0 END) AS completed,
-              SUM(CASE WHEN UPPER(o.status) IN ('CANCELLED', 'REFUNDED') THEN 1 ELSE 0 END) AS cancelled
+              SUM(CASE WHEN UPPER(o.status) IN ('PAYMENT_FAILED', 'CANCELLED_PAYMENT', 'CANCELLED', 'REFUNDED') THEN 1 ELSE 0 END) AS cancelled
        FROM orders o
        LEFT JOIN users u ON u.id = o.user_id
        ${whereSql}`,
@@ -466,7 +466,7 @@ export async function getAdminOrderById(orderId) {
 
 export async function updateAdminOrderStatus(orderId, status, { changedBy = null, note = null } = {}) {
   const normalizedStatus = normalizeOrderStatus(status);
-  if ([ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED].includes(normalizedStatus)) {
+  if ([ORDER_STATUS.PAYMENT_FAILED, ORDER_STATUS.CANCELLED_PAYMENT, ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED].includes(normalizedStatus)) {
     const result = await cancelOrderForAdmin(orderId, {
       targetStatus: normalizedStatus,
       changedBy,

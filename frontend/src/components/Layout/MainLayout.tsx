@@ -1,5 +1,5 @@
 import { Outlet, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ChatBox } from '../ChatBox';
 import { SalePopup } from '../SalePopup';
 import { Navbar } from './Navbar';
@@ -7,7 +7,36 @@ import { Footer } from './Footer';
 
 export function MainLayout() {
   const location = useLocation();
+  const mainRef = useRef<HTMLElement | null>(null);
   const isHomePage = location.pathname === '/' || location.pathname === '/home';
+
+  useEffect(() => {
+    if (location.hash) return;
+
+    let userMovedPage = false;
+    const timers: number[] = [];
+    const stopCorrections = () => {
+      userMovedPage = true;
+    };
+    const scrollToTop = (behavior: ScrollBehavior) => {
+      if (userMovedPage) return;
+      window.scrollTo({ top: 0, left: 0, behavior });
+      mainRef.current?.focus({ preventScroll: true });
+    };
+
+    [0, 90, 320].forEach((delay, index) => {
+      timers.push(window.setTimeout(() => scrollToTop(index === 0 ? 'smooth' : 'auto'), delay));
+    });
+
+    window.addEventListener('wheel', stopCorrections, { passive: true });
+    window.addEventListener('touchstart', stopCorrections, { passive: true });
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener('wheel', stopCorrections);
+      window.removeEventListener('touchstart', stopCorrections);
+    };
+  }, [location.pathname, location.search, location.hash]);
 
   useEffect(() => {
     if (!location.hash) return;
@@ -46,7 +75,7 @@ export function MainLayout() {
   return (
     <>
       <Navbar />
-      <main className={`app-main ${isHomePage ? 'app-main-home' : ''}`}>
+      <main ref={mainRef} id="main-content" tabIndex={-1} className={`app-main ${isHomePage ? 'app-main-home' : ''}`}>
         <Outlet />
       </main>
       <Footer />

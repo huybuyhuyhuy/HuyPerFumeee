@@ -11,6 +11,10 @@
     "db:migrate:cart": "node scripts/run-sql-migration.js migrations/001_create_cart_tables.sql",
     "db:migrate:admin-products": "node scripts/run-sql-migration.js migrations/002_admin_products_soft_delete.sql",
     "db:migrate:order-status": "node scripts/run-sql-migration.js migrations/002_create_order_status_history.sql",
+    "db:migrate:payment-statuses": "node scripts/run-sql-migration.js migrations/20260602_payment_order_statuses.sql",
+    "db:migrate:payment-gateways": "node scripts/run-sql-migration.js migrations/20260602_payment_gateway_refs.sql",
+    "db:migrate:payment": "node scripts/run-sql-migration.js migrations/20260602_payment_order_statuses.sql migrations/20260602_payment_gateway_refs.sql",
+    "db:seed:reviews": "node scripts/run-sql-migration.js migrations/20260602_seed_product_reviews.sql",
     "db:migrate:decant": "node scripts/run-sql-migration.js migrations/003_decant_inventory.sql",
     "db:migrate:cart-variants": "node scripts/run-sql-migration.js migrations/20260526_cart_items_variant_compat.sql"
   },

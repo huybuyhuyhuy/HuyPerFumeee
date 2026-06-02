@@ -385,9 +385,9 @@ function buildFilters(filters = {}, capabilities) {
         volumeClauses.push(`EXISTS (
           SELECT 1 FROM product_variants pv_volume
           WHERE ${activeVariantClause(capabilities, 'pv_volume')}
-            AND (pv_volume.volume_ml = ? OR LOWER(ISNULL(pv_volume.volume_label, '')) = LOWER(?))
+            AND (pv_volume.volume_ml = ? OR LOWER(ISNULL(pv_volume.volume_label, '')) = LOWER(?) OR LOWER(ISNULL(pv_volume.volume_label, '')) = LOWER(?))
         )`);
-        params.push(volumeMl, `${volumeMl}ml`);
+        params.push(volumeMl, `${volumeMl}ml`, volumeLabel);
       } else {
         volumeClauses.push(`EXISTS (
           SELECT 1 FROM product_variants pv_volume
@@ -455,6 +455,137 @@ function buildFilters(filters = {}, capabilities) {
   }
 
   return { whereSql: `WHERE ${conditions.join(' AND ')}`, params };
+}
+
+function splitFacetValues(value) {
+  return String(value || '')
+    .split(/[;,/|]+/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 2 && item.length <= 40);
+}
+
+function uniqueSortedText(values, limit = 24) {
+  const map = new Map();
+  values.forEach((value) => {
+    const text = String(value || '').trim();
+    if (!text) return;
+    const key = normalizeLookupValue(text);
+    if (!key || map.has(key)) return;
+    map.set(key, text);
+  });
+  return Array.from(map.values())
+    .sort((a, b) => a.localeCompare(b, 'vi'))
+    .slice(0, limit);
+}
+
+function formatVolumeFacet(row) {
+  const label = String(row?.label || '').trim();
+  const volumeMl = Number(row?.volume_ml);
+  if (label) return label;
+  if (Number.isFinite(volumeMl) && volumeMl > 0) return `${Math.floor(volumeMl)}ml`;
+  return '';
+}
+
+function volumeSortValue(label) {
+  const volume = Number(String(label || '').replace(/[^\d.]/g, ''));
+  return Number.isFinite(volume) ? volume : Number.MAX_SAFE_INTEGER;
+}
+
+function uniqueSortedVolumes(rows) {
+  const map = new Map();
+  rows.forEach((row) => {
+    const label = formatVolumeFacet(row);
+    if (!label) return;
+    const numericKey = volumeSortValue(label);
+    const key = Number.isFinite(numericKey) && numericKey !== Number.MAX_SAFE_INTEGER
+      ? `${numericKey}ml`
+      : normalizeLookupValue(label);
+    if (!map.has(key)) map.set(key, label);
+  });
+
+  return Array.from(map.values())
+    .sort((a, b) => volumeSortValue(a) - volumeSortValue(b) || a.localeCompare(b, 'vi'))
+    .slice(0, 24);
+}
+
+export async function findProductFacets() {
+  const capabilities = await getProductStorageCapabilities();
+  const { whereSql, params } = buildFilters({}, capabilities);
+  const scentQueries = [];
+
+  ['scent_group', 'scent_family'].forEach((columnName) => {
+    if (hasColumn(capabilities.productColumns, columnName)) {
+      scentQueries.push(query(
+        `SELECT DISTINCT p.${columnName} AS value
+         FROM products p
+         ${whereSql}
+           AND NULLIF(LTRIM(RTRIM(p.${columnName})), '') IS NOT NULL`,
+        params
+      ));
+    }
+  });
+
+  if (!scentQueries.length && hasColumn(capabilities.productColumns, 'scent_notes')) {
+    scentQueries.push(query(
+      `SELECT DISTINCT p.scent_notes AS value
+       FROM products p
+       ${whereSql}
+         AND NULLIF(LTRIM(RTRIM(p.scent_notes)), '') IS NOT NULL`,
+      params
+    ));
+  }
+
+  const volumeQueries = [];
+  if (hasColumn(capabilities.productColumns, 'volume_ml')) {
+    volumeQueries.push(query(
+      `SELECT DISTINCT TRY_CONVERT(DECIMAL(10, 2), p.volume_ml) AS volume_ml,
+              CONVERT(NVARCHAR(20), CAST(TRY_CONVERT(DECIMAL(10, 2), p.volume_ml) AS INT)) + N'ml' AS label
+       FROM products p
+       ${whereSql}
+         AND TRY_CONVERT(DECIMAL(10, 2), p.volume_ml) > 0`,
+      params
+    ));
+  }
+
+  if (capabilities.hasVariants && (hasColumn(capabilities.variantColumns, 'volume_ml') || hasColumn(capabilities.variantColumns, 'volume_label'))) {
+    const variantVolumeValue = hasColumn(capabilities.variantColumns, 'volume_ml')
+      ? 'TRY_CONVERT(DECIMAL(10, 2), pv.volume_ml)'
+      : 'NULL';
+    const variantVolumeLabel = hasColumn(capabilities.variantColumns, 'volume_label')
+      ? `NULLIF(LTRIM(RTRIM(pv.volume_label)), '')`
+      : 'NULL';
+    const variantFallbackLabel = hasColumn(capabilities.variantColumns, 'volume_ml')
+      ? `CASE WHEN TRY_CONVERT(DECIMAL(10, 2), pv.volume_ml) > 0 THEN CONVERT(NVARCHAR(20), CAST(TRY_CONVERT(DECIMAL(10, 2), pv.volume_ml) AS INT)) + N'ml' ELSE NULL END`
+      : 'NULL';
+    const variantVolumeFilter = [
+      hasColumn(capabilities.variantColumns, 'volume_ml') ? 'TRY_CONVERT(DECIMAL(10, 2), pv.volume_ml) > 0' : null,
+      hasColumn(capabilities.variantColumns, 'volume_label') ? "NULLIF(LTRIM(RTRIM(pv.volume_label)), '') IS NOT NULL" : null,
+    ].filter(Boolean).join(' OR ');
+
+    volumeQueries.push(query(
+      `SELECT DISTINCT ${variantVolumeValue} AS volume_ml,
+              COALESCE(${variantVolumeLabel}, ${variantFallbackLabel}) AS label
+       FROM products p
+       INNER JOIN product_variants pv ON pv.product_id = p.id
+       ${whereSql}
+         AND ${activeVariantClause(capabilities, 'pv')}
+         AND (${variantVolumeFilter})`,
+      params
+    ));
+  }
+
+  const [scentResults, volumeResults] = await Promise.all([
+    Promise.all(scentQueries),
+    Promise.all(volumeQueries),
+  ]);
+
+  const scentGroups = uniqueSortedText(scentResults.flat().flatMap((row) => splitFacetValues(row.value)), 16);
+  const volumes = uniqueSortedVolumes(volumeResults.flat());
+
+  return {
+    scentGroups,
+    volumes,
+  };
 }
 
 function discoveryPriceSql(capabilities) {

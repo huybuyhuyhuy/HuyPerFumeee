@@ -27,6 +27,8 @@ export function mapReviewRow(row) {
     comment: normalizeText(row.comment),
     status: normalizeText(row.status),
     moderationNote: normalizeText(row.moderation_note),
+    verifiedPurchase: Boolean(row.order_id),
+    isVerifiedPurchase: Boolean(row.order_id),
     user: row.user_id ? {
       id: toNumber(row.user_id),
       name: normalizeText(row.user_name || 'Khach hang'),

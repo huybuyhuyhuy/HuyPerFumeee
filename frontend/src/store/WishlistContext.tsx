@@ -80,7 +80,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     setError('');
     try {
       const remoteItems = await wishlistService.getWishlist();
-      replaceWithBackendItems(remoteItems.map((item) => item.product));
+      replaceWithBackendItems(remoteItems.map((item: { product: Product }) => item.product));
     } catch (err: any) {
       const localItems = readStoredWishlist();
       setItems(localItems);
@@ -108,7 +108,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       try {
         const localWishlist = readStoredWishlist();
         const remoteWishlist = await wishlistService.getWishlist();
-        const remoteProducts = remoteWishlist.map((item) => item.product);
+        const remoteProducts = remoteWishlist.map((item: { product: Product }) => item.product);
         const merged = uniqueProducts([...remoteProducts, ...localWishlist]);
 
         if (!cancelled && localWishlist.length > 0) {
@@ -122,7 +122,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           }
           const refreshed = await wishlistService.getWishlist();
           if (!cancelled) {
-            replaceWithBackendItems(refreshed.map((item) => item.product));
+            replaceWithBackendItems(refreshed.map((item: { product: Product }) => item.product));
           }
         } else if (!cancelled) {
           replaceWithBackendItems(merged);
@@ -158,7 +158,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const responseItems = await wishlistService.addToWishlist(Number(product.id));
-        replaceWithBackendItems(responseItems.map((item) => item.product));
+        replaceWithBackendItems(responseItems.map((item: { product: Product }) => item.product));
         return true;
       } catch (err: any) {
         setError(err?.message || 'Không thể thêm vào wishlist.');
@@ -178,7 +178,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const responseItems = await wishlistService.removeFromWishlist(Number(productId));
-        replaceWithBackendItems(responseItems.map((item) => item.product));
+        replaceWithBackendItems(responseItems.map((item: { product: Product }) => item.product));
         return true;
       } catch (err: any) {
         setError(err?.message || 'Không thể xóa khỏi wishlist.');

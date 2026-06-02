@@ -101,6 +101,56 @@ export async function findReviewByUserProduct(userId, productId) {
   return rows[0] || null;
 }
 
+function reviewableOrderStatusParams() {
+  return [
+    'DELIVERED',
+    'COMPLETED',
+    'GIAO HANG THANH CONG',
+    'GIAO HÀNG THÀNH CÔNG',
+  ];
+}
+
+function orderStatusWhere(alias = 'o') {
+  return `UPPER(ISNULL(${alias}.status, '')) IN (${reviewableOrderStatusParams().map(() => '?').join(', ')})`;
+}
+
+export async function findLatestPurchasedOrderForProduct({ userId, productId }) {
+  const rows = await query(
+    `SELECT TOP 1 o.id,
+            o.status,
+            o.created_at
+     FROM orders o
+     INNER JOIN order_items oi ON oi.order_id = o.id
+     WHERE o.user_id = ?
+       AND oi.product_id = ?
+     ORDER BY o.created_at DESC, o.id DESC`,
+    [Number(userId), Number(productId)]
+  );
+  return rows[0] || null;
+}
+
+export async function findReviewableOrderForProduct({ userId, productId, orderId = null }) {
+  const conditions = ['o.user_id = ?', 'oi.product_id = ?', orderStatusWhere('o')];
+  const params = [Number(userId), Number(productId), ...reviewableOrderStatusParams()];
+
+  if (orderId) {
+    conditions.push('o.id = ?');
+    params.push(Number(orderId));
+  }
+
+  const rows = await query(
+    `SELECT TOP 1 o.id,
+            o.status,
+            o.created_at
+     FROM orders o
+     INNER JOIN order_items oi ON oi.order_id = o.id
+     WHERE ${conditions.join(' AND ')}
+     ORDER BY o.created_at DESC, o.id DESC`,
+    params
+  );
+  return rows[0] || null;
+}
+
 export async function insertReview({ productId, userId, orderId = null, rating, title, comment }) {
   const rows = await query(
     `INSERT INTO product_reviews (product_id, user_id, order_id, rating, title, comment, status)

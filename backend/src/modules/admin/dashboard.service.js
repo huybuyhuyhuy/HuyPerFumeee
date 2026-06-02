@@ -61,6 +61,35 @@ function normalizeMonthlySeries(rows = [], valueField, outputField) {
   }));
 }
 
+function normalizeMonthlyRevenueRows(rows = [], months = 12) {
+  const values = new Map(
+    rows.map((row) => [toMonthStartString(row.monthStart), {
+      revenue: Number(row.revenue || 0),
+      orders: Number(row.orders || 0),
+    }])
+  );
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+  return Array.from({ length: months }, (_, index) => {
+    const date = new Date(start.getFullYear(), start.getMonth() + index, 1);
+    const monthStart = toMonthStartString(date);
+    return {
+      monthStart,
+      revenue: values.get(monthStart)?.revenue || 0,
+      orders: values.get(monthStart)?.orders || 0,
+    };
+  });
+}
+
+function toPercent(numerator, denominator) {
+  if (!denominator) return 0;
+  return Number(((Number(numerator || 0) / Number(denominator || 0)) * 100).toFixed(1));
+}
+
+function startOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
 /**
  * Resolve { range, from, to } into four SQL-date boundaries:
  * currentStart, currentEnd, previousStart, previousEnd.
@@ -205,40 +234,88 @@ function mergeChartSeries(periods, revenueMap, ordersMap, customersMap) {
  * plus 6-month sparkline data and top 10 products.
  */
 export async function getStats() {
+  const now = new Date();
+  const todayStart = toSqlDate(startOfDay(now));
+  const tomorrow = startOfDay(new Date(now.getTime() + 86400000));
+  const tomorrowStart = toSqlDate(tomorrow);
+  const monthStart = toSqlDate(startOfMonth(now));
+  const currentMonthFilter = { start: monthStart, end: tomorrowStart };
+
   const [
     orderStats,
+    operationalCounts,
+    revenueToday,
+    revenueThisMonth,
     totalProducts,
     totalUsers,
     newUsersThisMonth,
     chartSeries,
     orderTrendRows,
+    revenue7DaysRows,
+    monthlyRevenueRows,
     topProductRows,
+    topBrandRows,
+    revenueSplit,
+    paymentMethodRows,
     lowStockProducts,
+    lowStockRows,
+    outOfStockRows,
+    topCustomerRows,
+    pendingReviewRows,
     recentOrderRows,
   ] = await Promise.all([
     repo.fetchOrderStats(),
+    repo.fetchOperationalOrderCounts(),
+    repo.fetchRevenueInPeriod(todayStart, tomorrowStart),
+    repo.fetchRevenueInPeriod(monthStart, tomorrowStart),
     repo.fetchTotalProducts(),
     repo.fetchTotalUsers(),
     repo.fetchNewUsersThisMonth(),
     repo.fetchStatsChartSeries(),
     repo.fetchRecentOrderTrend(14),
+    repo.fetchRevenueLastDays(7),
+    repo.fetchRevenueByMonth(12),
     repo.fetchTopProducts(10, null),
+    repo.fetchTopBrands(5, currentMonthFilter),
+    repo.fetchRevenueSplitByItemType(currentMonthFilter),
+    repo.fetchPaymentMethodBreakdown(currentMonthFilter),
     repo.fetchLowStockProductCount(),
+    repo.fetchLowStockProducts(5),
+    repo.fetchLowStockProducts(5, { outOfStock: true }),
+    repo.fetchTopCustomers(5, currentMonthFilter),
+    repo.fetchPendingReviews(5),
     repo.fetchRecentOrders(8),
   ]);
 
   const stats = mapper.toOrderStats(orderStats);
+  const totalOperationalOrders = Number(operationalCounts.totalOrders || stats.totalOrders || 0);
+  const cancelledOperationalOrders = Number(operationalCounts.cancelledOrders || stats.cancelledOrders || 0);
   return {
     ...stats,
+    revenueToday,
+    revenueThisMonth,
+    newOrdersToProcess: Number(operationalCounts.newOrdersToProcess || 0),
+    shippingOrders: Number(operationalCounts.shippingOrders || 0),
+    cancelRate: toPercent(cancelledOperationalOrders, totalOperationalOrders),
+    fullBottleRevenue: Number(revenueSplit.fullBottleRevenue || 0),
+    decantRevenue: Number(revenueSplit.decantRevenue || 0),
     totalProducts,
     totalUsers,
     newUsersThisMonth,
     lowStockProducts,
     lowStockCount: lowStockProducts,
+    outOfStockProducts: outOfStockRows.length,
     charts: {
       revenue: normalizeMonthlySeries(chartSeries.revenue, 'revenue', 'revenue'),
       orders: normalizeMonthlySeries(chartSeries.orders, 'orders', 'orders'),
       users: normalizeMonthlySeries(chartSeries.users, 'users', 'users'),
+      revenue7Days: revenue7DaysRows.map((row) => ({
+        date: toDateString(row.date),
+        revenue: Number(row.revenue || 0),
+        orders: Number(row.orders || 0),
+      })),
+      monthlyRevenue: normalizeMonthlyRevenueRows(monthlyRevenueRows, 12),
+      paymentMethods: paymentMethodRows.map(mapper.toPaymentMethod),
     },
     orderGrowth: calcTrendGrowth(orderTrendRows),
     orderTrend: orderTrendRows.map((row) => ({
@@ -247,6 +324,11 @@ export async function getStats() {
       revenue: Number(row.revenue || 0),
     })),
     topProducts: topProductRows.map(mapper.toTopProduct),
+    topBrands: topBrandRows.map(mapper.toTopBrand),
+    lowStockItems: lowStockRows.map(mapper.toLowStockProduct),
+    outOfStockItems: outOfStockRows.map(mapper.toLowStockProduct),
+    topCustomers: topCustomerRows.map(mapper.toTopCustomer),
+    pendingReviews: pendingReviewRows.map(mapper.toPendingReview),
     recentOrders: recentOrderRows.map((row) => ({
       id: Number(row.id),
       userName: row.customer_name || 'Khách vãng lai',
@@ -353,5 +435,66 @@ export async function getCharts(params = {}) {
     startDate: toDateString(new Date(currentStart)),
     endDate: toDateString(new Date(currentEnd)),
     data: mergeChartSeries(periods, revenueMap, ordersMap, customersMap),
+  };
+}
+
+export async function getRevenue(params = {}) {
+  const { currentStart, currentEnd } = resolveDateWindows(params);
+  const dateFilter = { start: currentStart, end: currentEnd };
+  const [revenue7DaysRows, monthlyRevenueRows, revenueSplit, paymentMethodRows] = await Promise.all([
+    repo.fetchRevenueLastDays(7),
+    repo.fetchRevenueByMonth(12),
+    repo.fetchRevenueSplitByItemType(dateFilter),
+    repo.fetchPaymentMethodBreakdown(dateFilter),
+  ]);
+
+  return {
+    range: params.range || (params.from ? 'custom' : '30d'),
+    startDate: toDateString(new Date(currentStart)),
+    endDate: toDateString(new Date(currentEnd)),
+    revenue7Days: revenue7DaysRows.map((row) => ({
+      date: toDateString(row.date),
+      revenue: Number(row.revenue || 0),
+      orders: Number(row.orders || 0),
+    })),
+    monthlyRevenue: normalizeMonthlyRevenueRows(monthlyRevenueRows, 12),
+    revenueByType: {
+      fullBottleRevenue: Number(revenueSplit.fullBottleRevenue || 0),
+      decantRevenue: Number(revenueSplit.decantRevenue || 0),
+    },
+    paymentMethods: paymentMethodRows.map(mapper.toPaymentMethod),
+  };
+}
+
+export async function getTopProducts(params = {}) {
+  const { currentStart, currentEnd } = resolveDateWindows(params);
+  const dateFilter = { start: currentStart, end: currentEnd };
+  const limit = Math.max(1, Math.min(20, Number(params.limit) || 5));
+  const [topProductRows, topBrandRows, topCustomerRows] = await Promise.all([
+    repo.fetchTopProducts(limit, dateFilter),
+    repo.fetchTopBrands(limit, dateFilter),
+    repo.fetchTopCustomers(limit, dateFilter),
+  ]);
+
+  return {
+    range: params.range || (params.from ? 'custom' : '30d'),
+    topProducts: topProductRows.map(mapper.toTopProduct),
+    topBrands: topBrandRows.map(mapper.toTopBrand),
+    topCustomers: topCustomerRows.map(mapper.toTopCustomer),
+  };
+}
+
+export async function getLowStock(params = {}) {
+  const limit = Math.max(1, Math.min(50, Number(params.limit) || 5));
+  const [lowStockRows, outOfStockRows, pendingReviewRows] = await Promise.all([
+    repo.fetchLowStockProducts(limit),
+    repo.fetchLowStockProducts(limit, { outOfStock: true }),
+    repo.fetchPendingReviews(5),
+  ]);
+
+  return {
+    lowStockProducts: lowStockRows.map(mapper.toLowStockProduct),
+    outOfStockProducts: outOfStockRows.map(mapper.toLowStockProduct),
+    pendingReviews: pendingReviewRows.map(mapper.toPendingReview),
   };
 }

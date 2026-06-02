@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { restorePaymentAuthBridge } from '../utils/paymentAuthBridge';
 
 function normalizeApiBaseUrl(value: string | undefined) {
   const trimmed = String(value || '').trim().replace(/\/+$/, '');
@@ -58,7 +59,7 @@ function readAuthTransferToken() {
 }
 
 function getAccessToken() {
-  return sessionStorage.getItem(TOKEN_KEY) || readAuthTransferToken() || localStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY) || readAuthTransferToken() || restorePaymentAuthBridge()?.token || localStorage.getItem(TOKEN_KEY);
 }
 
 async function refreshAccessToken() {

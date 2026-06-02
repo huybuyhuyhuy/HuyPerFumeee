@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import type { Product, ProductReview } from '../../types';
 
 const TAB_KEYS = ['description', 'specs', 'reviews', 'policy'];
 
-export function ProductDiscoveryTabs({ product, reviews = [] }) {
+type ProductDiscoveryTabsProps = {
+  product?: Product | null;
+  reviews?: ProductReview[];
+  reviewComposer?: ReactNode;
+};
+
+export function ProductDiscoveryTabs({ product, reviews = [], reviewComposer = null }: ProductDiscoveryTabsProps) {
   const tabs = useMemo(() => ([
     {
       id: 'description',
@@ -37,12 +45,16 @@ export function ProductDiscoveryTabs({ product, reviews = [] }) {
       content: (
         <div className="story-copy">
           <p className="mb-2">{product?.reviewCount || 0} đánh giá và {product?.soldCount || 0} lượt bán cho thấy đây là lựa chọn được tin tưởng.</p>
+          {reviewComposer}
           {reviews.length > 0 ? (
             <div className="d-grid gap-3 mt-3">
               {reviews.map((review) => (
                 <article key={review.id} className="product-review-item">
                   <div className="d-flex align-items-center justify-content-between gap-3 mb-1">
                     <strong>{review.user?.name || 'Khách hàng'}</strong>
+                    {(review.verifiedPurchase || review.isVerifiedPurchase || review.orderId) && (
+                      <span className="product-review-verified">Đã mua hàng</span>
+                    )}
                     <span className="product-rating-stars">{'★'.repeat(Math.max(0, Math.round(review.rating || 0)))}</span>
                   </div>
                   {review.title && <p className="mb-1 fw-semibold">{review.title}</p>}
@@ -66,7 +78,7 @@ export function ProductDiscoveryTabs({ product, reviews = [] }) {
         </div>
       ),
     },
-  ]), [product, reviews]);
+  ]), [product, reviews, reviewComposer]);
 
   const [activeTab, setActiveTab] = useState(tabs[0].id);
   const activeIndex = TAB_KEYS.indexOf(activeTab);

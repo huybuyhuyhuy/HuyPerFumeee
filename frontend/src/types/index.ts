@@ -104,10 +104,13 @@ export interface ProductReview {
   id: number;
   productId: number;
   userId: number;
+  orderId?: number | null;
   rating: number;
   title: string;
   comment: string;
   status: string;
+  verifiedPurchase?: boolean;
+  isVerifiedPurchase?: boolean;
   user?: { id: number; name: string } | null;
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -116,6 +119,8 @@ export interface ProductReview {
 export interface CartItem {
   product: Product;
   quantity: number;
+  price: number;
+  subtotal?: number;
 }
 
 export interface CartSummary {

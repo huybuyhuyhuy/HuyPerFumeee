@@ -16,10 +16,13 @@ function normalizeReview(raw: any): ProductReview {
     id: asNumber(raw?.id),
     productId: asNumber(raw?.productId ?? raw?.product_id),
     userId: asNumber(raw?.userId ?? raw?.user_id),
+    orderId: raw?.orderId ?? raw?.order_id ?? null,
     rating: asNumber(raw?.rating),
     title: asString(raw?.title),
     comment: asString(raw?.comment),
     status: asString(raw?.status),
+    verifiedPurchase: Boolean(raw?.verifiedPurchase ?? raw?.isVerifiedPurchase ?? raw?.orderId ?? raw?.order_id),
+    isVerifiedPurchase: Boolean(raw?.isVerifiedPurchase ?? raw?.verifiedPurchase ?? raw?.orderId ?? raw?.order_id),
     user: raw?.user ? { id: asNumber(raw.user.id), name: asString(raw.user.name) } : null,
     createdAt: raw?.createdAt ?? raw?.created_at ?? null,
     updatedAt: raw?.updatedAt ?? raw?.updated_at ?? null,
@@ -45,10 +48,21 @@ export const productService = {
     const { data } = await api.get('/products', { params });
     return normalizeProductPage(unwrapApiData(data));
   },
+  async getProductFacets() {
+    const { data } = await api.get('/products/facets');
+    const payload = unwrapApiData<any>(data);
+    return {
+      categories: Array.isArray(payload?.categories) ? payload.categories.filter((category: unknown) => !isHiddenPublicCategory(category)) : [],
+      brands: Array.isArray(payload?.brands) ? payload.brands : [],
+      scentGroups: Array.isArray(payload?.scentGroups) ? payload.scentGroups.filter(Boolean) : [],
+      volumes: Array.isArray(payload?.volumes) ? payload.volumes.filter(Boolean) : [],
+      priceRanges: Array.isArray(payload?.priceRanges) ? payload.priceRanges : [],
+    };
+  },
   async getCategories() {
     const { data } = await api.get('/categories');
     const payload = unwrapApiData<any>(data);
-    return Array.isArray(payload) ? payload.filter((category) => !isHiddenPublicCategory(category)) : [];
+    return Array.isArray(payload) ? payload.filter((category: unknown) => !isHiddenPublicCategory(category)) : [];
   },
   async getBrands() {
     const { data } = await api.get('/brands');
@@ -72,6 +86,19 @@ export const productService = {
       content: Array.isArray(payload?.content) ? payload.content.map(normalizeReview) : [],
     };
   },
+  async getReviewEligibility(id: number, params: Record<string, unknown> = {}) {
+    const { data } = await api.get(`/products/${id}/review-eligibility`, { params });
+    const payload = unwrapApiData<any>(data);
+    return {
+      eligible: Boolean(payload?.eligible),
+      reason: asString(payload?.reason),
+      message: asString(payload?.message, 'Bạn cần mua sản phẩm này trước khi đánh giá.'),
+      orderId: payload?.orderId ?? payload?.order_id ?? null,
+      orderStatus: payload?.orderStatus ?? payload?.order_status ?? null,
+      alreadyReviewed: Boolean(payload?.alreadyReviewed),
+      review: payload?.review ? normalizeReview(payload.review) : null,
+    };
+  },
   async getTrendingProducts(params: Record<string, unknown> = { limit: 8 }) {
     const { data } = await api.get('/products/recommendations/trending', { params });
     const payload = unwrapApiData<any>(data);
@@ -87,7 +114,7 @@ export const productService = {
     const payload = unwrapApiData<any>(data);
     return Array.isArray(payload) ? payload.map(normalizeProduct) : [];
   },
-  async createReview(id: number, payload: { rating: number; title?: string; comment?: string }) {
+  async createReview(id: number, payload: { rating: number; title?: string; comment?: string; orderId?: number | null }) {
     const { data } = await api.post(`/products/${id}/reviews`, payload);
     return unwrapApiData(data);
   },
