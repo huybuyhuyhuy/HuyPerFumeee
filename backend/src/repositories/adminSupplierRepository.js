@@ -38,13 +38,38 @@ export async function ensureSupplierSchema() {
       BEGIN
         CREATE TABLE dbo.PurchaseReceipts (
           PurchaseReceiptId INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          ReceiptCode NVARCHAR(30) NOT NULL,
           SupplierId INT NOT NULL,
-          TotalAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_PurchaseReceipts_TotalAmount DEFAULT 0,
+          ImportDate DATETIME2 NOT NULL CONSTRAINT DF_PurchaseReceipts_ImportDate DEFAULT SYSDATETIME(),
           ReceiptDate DATETIME2 NOT NULL CONSTRAINT DF_PurchaseReceipts_ReceiptDate DEFAULT SYSDATETIME(),
+          TotalAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_PurchaseReceipts_TotalAmount DEFAULT 0,
+          Note NVARCHAR(MAX) NULL,
           Status NVARCHAR(30) NOT NULL CONSTRAINT DF_PurchaseReceipts_Status DEFAULT N'COMPLETED',
+          CreatedBy INT NULL,
+          CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_PurchaseReceipts_CreatedAt DEFAULT SYSDATETIME(),
+          UpdatedAt DATETIME2 NULL,
           IsDeleted BIT NOT NULL CONSTRAINT DF_PurchaseReceipts_IsDeleted DEFAULT 0
         );
       END;
+      IF COL_LENGTH('dbo.PurchaseReceipts', 'ReceiptCode') IS NULL
+        ALTER TABLE dbo.PurchaseReceipts ADD ReceiptCode NVARCHAR(30) NULL;
+      IF COL_LENGTH('dbo.PurchaseReceipts', 'ImportDate') IS NULL
+        ALTER TABLE dbo.PurchaseReceipts ADD ImportDate DATETIME2 NULL;
+      IF COL_LENGTH('dbo.PurchaseReceipts', 'ReceiptDate') IS NULL
+        ALTER TABLE dbo.PurchaseReceipts ADD ReceiptDate DATETIME2 NULL;
+      IF COL_LENGTH('dbo.PurchaseReceipts', 'Note') IS NULL
+        ALTER TABLE dbo.PurchaseReceipts ADD Note NVARCHAR(MAX) NULL;
+      IF COL_LENGTH('dbo.PurchaseReceipts', 'CreatedBy') IS NULL
+        ALTER TABLE dbo.PurchaseReceipts ADD CreatedBy INT NULL;
+      IF COL_LENGTH('dbo.PurchaseReceipts', 'CreatedAt') IS NULL
+        ALTER TABLE dbo.PurchaseReceipts ADD CreatedAt DATETIME2 NULL;
+      IF COL_LENGTH('dbo.PurchaseReceipts', 'UpdatedAt') IS NULL
+        ALTER TABLE dbo.PurchaseReceipts ADD UpdatedAt DATETIME2 NULL;
+      UPDATE dbo.PurchaseReceipts
+      SET ImportDate = COALESCE(ImportDate, ReceiptDate, SYSDATETIME()),
+          ReceiptDate = COALESCE(ReceiptDate, ImportDate, SYSDATETIME()),
+          CreatedAt = COALESCE(CreatedAt, ReceiptDate, ImportDate, SYSDATETIME()),
+          ReceiptCode = COALESCE(NULLIF(ReceiptCode, N''), CONCAT(N'PN', RIGHT(CONCAT(N'0000', PurchaseReceiptId), 4)));
     `);
     supplierSchemaReadyPromise = supplierSchemaReadyPromise.catch((error) => {
       supplierSchemaReadyPromise = null;
@@ -67,6 +92,9 @@ function mapSupplier(row = {}) {
     status: row.Status ?? row.status ?? 'ACTIVE',
     createdAt: row.CreatedAt ?? row.createdAt ?? null,
     updatedAt: row.UpdatedAt ?? row.updatedAt ?? null,
+    totalReceipts: Number(row.TotalReceipts ?? row.totalReceipts ?? 0),
+    totalImportValue: Number(row.TotalImportValue ?? row.totalImportValue ?? 0),
+    lastImportDate: row.LastImportDate ?? row.lastImportDate ?? null,
   };
 }
 
@@ -134,8 +162,16 @@ export async function listSuppliers({ search = '', status = '', sortBy = 'Create
 
   const rows = await query(
     `SELECT s.SupplierId, s.SupplierCode, s.SupplierName, s.RepresentativeName,
-            s.Phone, s.Email, s.Address, s.Note, s.Status, s.CreatedAt, s.UpdatedAt
+            s.Phone, s.Email, s.Address, s.Note, s.Status, s.CreatedAt, s.UpdatedAt,
+            receiptStats.TotalReceipts, receiptStats.TotalImportValue, receiptStats.LastImportDate
      FROM dbo.Suppliers s
+     OUTER APPLY (
+       SELECT COUNT(*) AS TotalReceipts,
+              COALESCE(SUM(CASE WHEN pr.Status = N'COMPLETED' THEN pr.TotalAmount ELSE 0 END), 0) AS TotalImportValue,
+              MAX(CASE WHEN pr.Status = N'COMPLETED' THEN COALESCE(pr.ImportDate, pr.ReceiptDate) ELSE NULL END) AS LastImportDate
+       FROM dbo.PurchaseReceipts pr
+       WHERE pr.SupplierId = s.SupplierId AND pr.IsDeleted = 0
+     ) receiptStats
      ${whereSql}
      ORDER BY ${sortExpression(sortBy, sortOrder)}
      OFFSET ? ROWS FETCH NEXT ? ROWS ONLY`,
@@ -159,8 +195,16 @@ export async function listSuppliersForExport(filters = {}) {
   const { whereSql, params } = buildWhere(filters);
   const rows = await query(
     `SELECT s.SupplierId, s.SupplierCode, s.SupplierName, s.RepresentativeName,
-            s.Phone, s.Email, s.Address, s.Note, s.Status, s.CreatedAt, s.UpdatedAt
+            s.Phone, s.Email, s.Address, s.Note, s.Status, s.CreatedAt, s.UpdatedAt,
+            receiptStats.TotalReceipts, receiptStats.TotalImportValue, receiptStats.LastImportDate
      FROM dbo.Suppliers s
+     OUTER APPLY (
+       SELECT COUNT(*) AS TotalReceipts,
+              COALESCE(SUM(CASE WHEN pr.Status = N'COMPLETED' THEN pr.TotalAmount ELSE 0 END), 0) AS TotalImportValue,
+              MAX(CASE WHEN pr.Status = N'COMPLETED' THEN COALESCE(pr.ImportDate, pr.ReceiptDate) ELSE NULL END) AS LastImportDate
+       FROM dbo.PurchaseReceipts pr
+       WHERE pr.SupplierId = s.SupplierId AND pr.IsDeleted = 0
+     ) receiptStats
      ${whereSql}
      ORDER BY ${sortExpression(filters.sortBy, filters.sortOrder)}`,
     params
@@ -188,8 +232,8 @@ export async function getSupplierDetail(id) {
   const [summaryRows, historyRows] = await Promise.all([
     query(
       `SELECT COUNT(*) AS totalReceipts,
-              COALESCE(SUM(CASE WHEN IsDeleted = 0 THEN TotalAmount ELSE 0 END), 0) AS totalImportValue,
-              MAX(CASE WHEN IsDeleted = 0 THEN ReceiptDate ELSE NULL END) AS lastImportDate
+              COALESCE(SUM(CASE WHEN IsDeleted = 0 AND Status = N'COMPLETED' THEN TotalAmount ELSE 0 END), 0) AS totalImportValue,
+              MAX(CASE WHEN IsDeleted = 0 AND Status = N'COMPLETED' THEN COALESCE(ImportDate, ReceiptDate) ELSE NULL END) AS lastImportDate
        FROM dbo.PurchaseReceipts
        WHERE SupplierId = ? AND IsDeleted = 0`,
       [id]
@@ -386,7 +430,7 @@ export async function softDeleteSupplier(id, updatedBy = null) {
 
 export async function getSupplierStatistics() {
   await ensureSupplierSchema();
-  const [summaryRows, importSummaryRows, topRows, monthRows] = await Promise.all([
+  const [summaryRows, importSummaryRows, topRows, supplierValueRows, monthRows] = await Promise.all([
     query(
       `SELECT COUNT(*) AS totalSuppliers,
               SUM(CASE WHEN Status = N'ACTIVE' THEN 1 ELSE 0 END) AS activeSuppliers,
@@ -397,11 +441,11 @@ export async function getSupplierStatistics() {
     query(
       `SELECT COALESCE(SUM(TotalAmount), 0) AS totalImportValue
        FROM dbo.PurchaseReceipts
-       WHERE IsDeleted = 0`
+       WHERE IsDeleted = 0 AND Status = N'COMPLETED'`
     ),
     query(
       `SELECT TOP 5 s.SupplierId, s.SupplierName,
-              COALESCE(SUM(CASE WHEN pr.IsDeleted = 0 THEN pr.TotalAmount ELSE 0 END), 0) AS totalImportValue
+              COALESCE(SUM(CASE WHEN pr.IsDeleted = 0 AND pr.Status = N'COMPLETED' THEN pr.TotalAmount ELSE 0 END), 0) AS totalImportValue
        FROM dbo.Suppliers s
        LEFT JOIN dbo.PurchaseReceipts pr ON pr.SupplierId = s.SupplierId AND pr.IsDeleted = 0
        WHERE s.IsDeleted = 0
@@ -409,12 +453,21 @@ export async function getSupplierStatistics() {
        ORDER BY totalImportValue DESC, s.SupplierName ASC`
     ),
     query(
-      `SELECT CONVERT(CHAR(7), ReceiptDate, 120) AS month,
+      `SELECT s.SupplierId, s.SupplierName,
+              COALESCE(SUM(CASE WHEN pr.IsDeleted = 0 AND pr.Status = N'COMPLETED' THEN pr.TotalAmount ELSE 0 END), 0) AS totalImportValue
+       FROM dbo.Suppliers s
+       LEFT JOIN dbo.PurchaseReceipts pr ON pr.SupplierId = s.SupplierId AND pr.IsDeleted = 0
+       WHERE s.IsDeleted = 0
+       GROUP BY s.SupplierId, s.SupplierName
+       ORDER BY s.SupplierName ASC`
+    ),
+    query(
+      `SELECT CONVERT(CHAR(7), COALESCE(ImportDate, ReceiptDate), 120) AS month,
               COALESCE(SUM(TotalAmount), 0) AS totalValue
        FROM dbo.PurchaseReceipts
-       WHERE IsDeleted = 0
-         AND ReceiptDate >= DATEADD(month, -11, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))
-       GROUP BY CONVERT(CHAR(7), ReceiptDate, 120)
+       WHERE IsDeleted = 0 AND Status = N'COMPLETED'
+         AND COALESCE(ImportDate, ReceiptDate) >= DATEADD(month, -11, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))
+       GROUP BY CONVERT(CHAR(7), COALESCE(ImportDate, ReceiptDate), 120)
        ORDER BY month ASC`
     ),
   ]);
@@ -427,6 +480,11 @@ export async function getSupplierStatistics() {
     inactiveSuppliers: Number(summary.inactiveSuppliers || 0),
     totalImportValue: Number(importSummary.totalImportValue || 0),
     topSuppliersByImportValue: topRows.map((row) => ({
+      supplierId: Number(row.SupplierId || 0),
+      supplierName: row.SupplierName || '',
+      totalImportValue: Number(row.totalImportValue || 0),
+    })),
+    supplierImportValues: supplierValueRows.map((row) => ({
       supplierId: Number(row.SupplierId || 0),
       supplierName: row.SupplierName || '',
       totalImportValue: Number(row.totalImportValue || 0),

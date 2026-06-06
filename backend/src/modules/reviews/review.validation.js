@@ -32,6 +32,13 @@ export function validateReviewInput(input = {}, { partial = false } = {}) {
     }
   }
 
+  if (!partial || input.title !== undefined) {
+    if (normalized.title.length < 3) errors.push('VUI_LONG_NHAP_TIEU_DE');
+  }
+  if (!partial || input.comment !== undefined || input.content !== undefined) {
+    if (normalized.comment.length < 10) errors.push('VUI_LONG_NHAP_NOI_DUNG_DANH_GIA');
+  }
+
   if (normalized.title.length > 180) errors.push('TIEU_DE_QUA_DAI');
   if (normalized.comment.length > 2000) errors.push('BINH_LUAN_QUA_DAI');
   if (normalized.orderId !== null && (!Number.isInteger(normalized.orderId) || normalized.orderId <= 0)) {

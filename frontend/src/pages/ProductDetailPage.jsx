@@ -97,7 +97,7 @@ function ProductReviewComposer({
   const notice = !isLoggedIn
     ? 'Vui lòng đăng nhập để đánh giá sản phẩm.'
     : eligibility
-      ? eligibility.message || 'Bạn cần mua sản phẩm này trước khi đánh giá.'
+      ? eligibility.message || 'Bạn cần mua sản phẩm và đơn hàng phải hoàn tất trước khi đánh giá.'
       : 'Đang kiểm tra quyền đánh giá của bạn...';
 
   if (!canReview) {
@@ -136,6 +136,8 @@ function ProductReviewComposer({
         <input
           type="text"
           value={form.title}
+          required
+          minLength={3}
           maxLength={180}
           placeholder="Cảm nhận ngắn gọn của bạn"
           onChange={(event) => onChange('title', event.target.value)}
@@ -145,6 +147,8 @@ function ProductReviewComposer({
         <span>Nội dung</span>
         <textarea
           value={form.comment}
+          required
+          minLength={10}
           maxLength={2000}
           rows={4}
           placeholder="Chia sẻ trải nghiệm mùi hương, độ lưu hương, đóng gói..."
@@ -201,6 +205,7 @@ export function ProductDetailPage() {
   const [cartFeedback, setCartFeedback] = useState(false);
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [reviewSummary, setReviewSummary] = useState(null);
   const [reviewEligibility, setReviewEligibility] = useState(null);
   const [reviewForm, setReviewForm] = useState({ rating: 5, title: '', comment: '' });
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
@@ -227,6 +232,7 @@ export function ProductDetailPage() {
     setError('');
     setRelatedProducts([]);
     setReviews([]);
+    setReviewSummary(null);
     setReviewEligibility(null);
     setReviewFeedback('');
 
@@ -242,18 +248,19 @@ export function ProductDetailPage() {
 
       const [related, reviewPage, fallbackList, eligibility] = await Promise.all([
         productService.getRelatedProducts(numericId, { limit: 8 }).catch(() => []),
-        productService.getProductReviews(numericId, { page: 1, size: 5 }).catch(() => ({ content: [] })),
+        productService.getProductReviews(numericId, { page: 1, size: 5 }).catch(() => ({ content: [], summary: null })),
         productService.getProducts({ page: 1, size: 12 }).catch(() => ({ content: [] })),
         productService.getReviewEligibility(numericId).catch(() => ({
           eligible: false,
           reason: 'UNKNOWN',
-          message: 'Bạn cần mua sản phẩm này trước khi đánh giá.',
+          message: 'Bạn cần mua sản phẩm và đơn hàng phải hoàn tất trước khi đánh giá.',
         })),
       ]);
       if (loadRequestRef.current !== requestId) return;
 
       setRelatedProducts(related?.length ? related : pickRelated(fallbackList?.content || [], detail, 8));
       setReviews(reviewPage?.content || []);
+      setReviewSummary(reviewPage?.summary || null);
       setReviewEligibility(eligibility);
       const normalizedStock = Number(detail?.stock ?? 0);
       if (Number.isFinite(normalizedStock) && normalizedStock !== Number(detail?.stockQuantity ?? normalizedStock)) {
@@ -373,7 +380,22 @@ export function ProductDetailPage() {
   const handleReviewSubmit = async (event) => {
     event.preventDefault();
     if (!reviewEligibility?.eligible) {
-      const message = reviewEligibility?.message || 'Bạn cần mua sản phẩm này trước khi đánh giá.';
+      const message = reviewEligibility?.message || 'Bạn cần mua sản phẩm và đơn hàng phải hoàn tất trước khi đánh giá.';
+      setReviewFeedback(message);
+      pushToast(message, 'info');
+      return;
+    }
+
+    const title = String(reviewForm.title || '').trim();
+    const comment = String(reviewForm.comment || '').trim();
+    if (title.length < 3) {
+      const message = 'Vui lòng nhập tiêu đề đánh giá tối thiểu 3 ký tự.';
+      setReviewFeedback(message);
+      pushToast(message, 'info');
+      return;
+    }
+    if (comment.length < 10) {
+      const message = 'Vui lòng chia sẻ nội dung nhận xét tối thiểu 10 ký tự.';
       setReviewFeedback(message);
       pushToast(message, 'info');
       return;
@@ -384,8 +406,8 @@ export function ProductDetailPage() {
     try {
       await productService.createReview(Number(id), {
         rating: Number(reviewForm.rating),
-        title: reviewForm.title,
-        comment: reviewForm.comment,
+        title,
+        comment,
         orderId: reviewEligibility.orderId,
       });
       const message = 'Đánh giá của bạn đã được gửi và đang chờ duyệt.';
@@ -583,7 +605,7 @@ export function ProductDetailPage() {
         </div>
         <ProductStorytelling product={product} />
         <Suspense fallback={<SectionFallback />}>
-          <ProductDiscoveryTabs product={product} reviews={reviews} reviewComposer={reviewComposer} />
+          <ProductDiscoveryTabs product={product} reviews={reviews} reviewSummary={reviewSummary} reviewComposer={reviewComposer} />
         </Suspense>
         <Suspense fallback={<SectionFallback />}>
           <RelatedProductRail title="Sản phẩm tương tự" products={relatedProducts} />

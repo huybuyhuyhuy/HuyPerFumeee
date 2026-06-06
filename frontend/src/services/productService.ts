@@ -1,6 +1,6 @@
 import api, { unwrapApiData } from './api';
 import { normalizeProduct, normalizeProductPage } from './dataMappers';
-import type { ProductReview } from '../types';
+import type { ProductReview, ProductReviewSummary } from '../types';
 
 function asNumber(value: unknown, fallback = 0) {
   const number = Number(value);
@@ -26,6 +26,22 @@ function normalizeReview(raw: any): ProductReview {
     user: raw?.user ? { id: asNumber(raw.user.id), name: asString(raw.user.name) } : null,
     createdAt: raw?.createdAt ?? raw?.created_at ?? null,
     updatedAt: raw?.updatedAt ?? raw?.updated_at ?? null,
+  };
+}
+
+function normalizeReviewSummary(raw: any): ProductReviewSummary {
+  const breakdown = raw?.ratingBreakdown || raw?.rating_breakdown || {};
+  return {
+    ratingAverage: asNumber(raw?.ratingAverage ?? raw?.rating_average),
+    reviewCount: asNumber(raw?.reviewCount ?? raw?.review_count),
+    soldCount: asNumber(raw?.soldCount ?? raw?.sold_count),
+    ratingBreakdown: {
+      1: asNumber(breakdown[1] ?? breakdown['1']),
+      2: asNumber(breakdown[2] ?? breakdown['2']),
+      3: asNumber(breakdown[3] ?? breakdown['3']),
+      4: asNumber(breakdown[4] ?? breakdown['4']),
+      5: asNumber(breakdown[5] ?? breakdown['5']),
+    },
   };
 }
 
@@ -84,6 +100,7 @@ export const productService = {
     return {
       ...payload,
       content: Array.isArray(payload?.content) ? payload.content.map(normalizeReview) : [],
+      summary: normalizeReviewSummary(payload?.summary),
     };
   },
   async getReviewEligibility(id: number, params: Record<string, unknown> = {}) {
@@ -92,7 +109,7 @@ export const productService = {
     return {
       eligible: Boolean(payload?.eligible),
       reason: asString(payload?.reason),
-      message: asString(payload?.message, 'Bạn cần mua sản phẩm này trước khi đánh giá.'),
+      message: asString(payload?.message, 'Bạn cần mua sản phẩm và đơn hàng phải hoàn tất trước khi đánh giá.'),
       orderId: payload?.orderId ?? payload?.order_id ?? null,
       orderStatus: payload?.orderStatus ?? payload?.order_status ?? null,
       alreadyReviewed: Boolean(payload?.alreadyReviewed),

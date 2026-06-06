@@ -29,8 +29,8 @@ export async function listProductReviews(req, res, next) {
       productId,
       page: req.query.page || 1,
       size: req.query.size || 10,
-      status: req.query.status || 'APPROVED',
-      viewer: req.user || null,
+      status: 'APPROVED',
+      viewer: null,
     });
     return successResponse(res, 'Lay danh sach review thanh cong', result);
   } catch (error) {

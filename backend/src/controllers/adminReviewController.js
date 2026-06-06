@@ -272,17 +272,18 @@ export async function seedDemoReviews(req, res) {
 
 export async function listReviews(req, res) {
   try {
-    const { page = 1, pageSize = 20, status = 'PENDING', productId, rating } = req.query;
+    const { page = 1, pageSize = 20, status = 'ALL', productId, rating } = req.query;
     const safePage = Math.max(1, Number(page));
     const safePageSize = Math.max(1, Math.min(100, Number(pageSize)));
     const offset = (safePage - 1) * safePageSize;
 
     const conditions = ['r.deleted_at IS NULL'];
     const params = [];
+    const normalizedStatus = String(status || 'ALL').trim().toUpperCase();
 
-    if (status) {
+    if (normalizedStatus && normalizedStatus !== 'ALL') {
       conditions.push('r.status = ?');
-      params.push(String(status));
+      params.push(normalizedStatus);
     }
     if (productId) {
       conditions.push('r.product_id = ?');
@@ -299,10 +300,10 @@ export async function listReviews(req, res) {
     const total = Number(totalRows[0]?.total || 0);
 
     const reviews = await query(
-      `SELECT r.id, r.product_id, r.user_id, r.rating, r.title, r.comment, r.status,
+      `SELECT r.id, r.product_id, r.user_id, r.order_id, r.rating, r.title, r.comment, r.status,
               r.created_at, r.updated_at, r.moderated_by, r.moderated_at,
               p.name AS product_name, p.image AS product_image,
-              u.name AS user_name
+              u.name AS user_name, u.email AS user_email
        FROM product_reviews r
        LEFT JOIN products p ON p.id = r.product_id
        LEFT JOIN users u ON u.id = r.user_id
@@ -317,10 +318,13 @@ export async function listReviews(req, res) {
         id: r.id,
         productId: r.product_id,
         userId: r.user_id,
+        orderId: r.order_id,
         rating: r.rating,
         title: r.title,
         comment: r.comment,
         status: r.status,
+        verifiedPurchase: Boolean(r.order_id),
+        isVerifiedPurchase: Boolean(r.order_id),
         createdAt: r.created_at,
         updatedAt: r.updated_at,
         moderatedBy: r.moderated_by,
@@ -328,6 +332,7 @@ export async function listReviews(req, res) {
         productName: r.product_name,
         productImage: r.product_image,
         userName: r.user_name,
+        userEmail: r.user_email,
       })),
       page: safePage,
       size: safePageSize,

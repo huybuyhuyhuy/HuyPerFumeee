@@ -124,6 +124,13 @@ export interface ProductReview {
   updatedAt?: string | null;
 }
 
+export interface ProductReviewSummary {
+  ratingAverage: number;
+  reviewCount: number;
+  soldCount?: number;
+  ratingBreakdown: Record<1 | 2 | 3 | 4 | 5, number>;
+}
+
 export interface CartItem {
   product: Product;
   quantity: number;

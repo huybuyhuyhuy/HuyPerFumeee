@@ -5,6 +5,8 @@ import { getProductStorageCapabilities } from '../modules/products/product.repos
 import { hasColumn } from '../modules/checkout/checkout.storage.js';
 
 const LOW_STOCK_THRESHOLD = env.lowStockThreshold;
+let inventoryLedgerReadyPromise = null;
+let inventoryLedgerColumnsPromise = null;
 
 function productColumn(capabilities, column, fallback = 'NULL') {
   return hasColumn(capabilities.productColumns, column) ? `p.${column}` : fallback;
@@ -17,6 +19,116 @@ function firstProductColumn(capabilities, columns, fallback = '0') {
 
 function productStockExpression(capabilities) {
   return firstProductColumn(capabilities, ['stock', 'quantity'], '0');
+}
+
+async function ensureInventoryLedgerCompatibility() {
+  if (!inventoryLedgerReadyPromise) {
+    inventoryLedgerReadyPromise = query(`
+      IF OBJECT_ID(N'dbo.inventory_transactions', N'U') IS NULL
+      BEGIN
+        CREATE TABLE dbo.inventory_transactions (
+          id BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          product_id INT NOT NULL,
+          variant_id INT NULL,
+          product_variant_id INT NULL,
+          transaction_type NVARCHAR(40) NULL,
+          delta INT NULL,
+          quantity INT NULL,
+          stock_before INT NULL,
+          stock_after INT NULL,
+          reason NVARCHAR(500) NULL,
+          reference_type NVARCHAR(50) NULL,
+          reference_id INT NULL,
+          performed_by INT NULL,
+          metadata NVARCHAR(MAX) NULL,
+          created_at DATETIME2 NOT NULL CONSTRAINT DF_inventory_transactions_created_at DEFAULT SYSUTCDATETIME()
+        );
+      END;
+
+      IF COL_LENGTH('dbo.inventory_transactions', 'variant_id') IS NULL
+        ALTER TABLE dbo.inventory_transactions ADD variant_id INT NULL;
+      IF COL_LENGTH('dbo.inventory_transactions', 'product_variant_id') IS NULL
+        ALTER TABLE dbo.inventory_transactions ADD product_variant_id INT NULL;
+      IF COL_LENGTH('dbo.inventory_transactions', 'delta') IS NULL
+        ALTER TABLE dbo.inventory_transactions ADD delta INT NULL;
+      IF COL_LENGTH('dbo.inventory_transactions', 'reason') IS NULL
+        ALTER TABLE dbo.inventory_transactions ADD reason NVARCHAR(500) NULL;
+      IF COL_LENGTH('dbo.inventory_transactions', 'reference_type') IS NULL
+        ALTER TABLE dbo.inventory_transactions ADD reference_type NVARCHAR(50) NULL;
+      IF COL_LENGTH('dbo.inventory_transactions', 'reference_id') IS NULL
+        ALTER TABLE dbo.inventory_transactions ADD reference_id INT NULL;
+      IF COL_LENGTH('dbo.inventory_transactions', 'performed_by') IS NULL
+        ALTER TABLE dbo.inventory_transactions ADD performed_by INT NULL;
+
+      IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_inventory_transactions_type')
+        ALTER TABLE dbo.inventory_transactions DROP CONSTRAINT CK_inventory_transactions_type;
+      IF COL_LENGTH('dbo.inventory_transactions', 'transaction_type') IS NOT NULL
+        ALTER TABLE dbo.inventory_transactions WITH NOCHECK ADD CONSTRAINT CK_inventory_transactions_type
+        CHECK (
+          transaction_type IS NULL OR transaction_type IN (
+            N'RESERVE', N'COMMIT', N'RELEASE', N'RESTORE', N'ADJUST',
+            N'IMPORT', N'IMPORT_CANCEL', N'SALE', N'ORDER_CANCEL', N'ADJUSTMENT'
+          )
+        );
+    `).then((result) => {
+      inventoryLedgerColumnsPromise = null;
+      return result;
+    });
+    inventoryLedgerReadyPromise = inventoryLedgerReadyPromise.catch((error) => {
+      inventoryLedgerReadyPromise = null;
+      throw error;
+    });
+  }
+  return inventoryLedgerReadyPromise;
+}
+
+async function getInventoryLedgerColumns() {
+  await ensureInventoryLedgerCompatibility();
+  if (!inventoryLedgerColumnsPromise) {
+    inventoryLedgerColumnsPromise = query(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'inventory_transactions'
+    `).then((rows) => new Set(rows.map((row) => String(row.COLUMN_NAME || '').toLowerCase())));
+  }
+  return inventoryLedgerColumnsPromise;
+}
+
+async function recordAdjustmentLedger({ productId, variantId = null, delta, reason = null, userId = null, stockBefore = null, stockAfter = null }) {
+  try {
+    const columns = await getInventoryLedgerColumns();
+    const insertColumns = [];
+    const placeholders = [];
+    const params = [];
+    const add = (column, value) => {
+      if (!columns.has(column)) return;
+      insertColumns.push(column);
+      placeholders.push('?');
+      params.push(value);
+    };
+
+    add('product_id', productId);
+    add('variant_id', variantId);
+    add('product_variant_id', variantId);
+    add('transaction_type', 'ADJUSTMENT');
+    add('delta', delta);
+    add('quantity', Math.abs(delta));
+    add('stock_before', stockBefore);
+    add('stock_after', stockAfter);
+    add('reason', reason || 'Điều chỉnh tồn kho');
+    add('reference_type', 'ADJUSTMENT');
+    add('performed_by', userId || null);
+    add('metadata', JSON.stringify({ reason: reason || null, source: 'admin_inventory_adjust' }));
+
+    if (!insertColumns.length) return;
+    await query(
+      `INSERT INTO inventory_transactions (${insertColumns.join(', ')})
+       VALUES (${placeholders.join(', ')})`,
+      params
+    );
+  } catch {
+    // Inventory ledger should not block stock correction if schema repair fails.
+  }
 }
 
 function activeProductConditions(capabilities) {
@@ -173,6 +285,8 @@ export async function getLowStockAlerts() {
 
 export async function adjustStock({ productId, variantId = null, delta, reason = null, userId = null }) {
   const capabilities = await getProductStorageCapabilities();
+  let stockBefore = null;
+  let stockAfter = null;
   if (variantId) {
     if (!capabilities.hasVariants || !hasColumn(capabilities.variantColumns, 'stock_quantity')) {
       return { error: { status: 501, message: 'Schema chua ho tro ton kho variant' } };
@@ -183,17 +297,20 @@ export async function adjustStock({ productId, variantId = null, delta, reason =
     ]);
     if (!variant.length) return { error: { status: 404, message: 'Không tìm thấy variant' } };
 
-    const newStock = Number(variant[0].stock_quantity) + delta;
+    stockBefore = Number(variant[0].stock_quantity);
+    const newStock = stockBefore + delta;
     if (newStock < 0) return { error: { status: 400, message: 'Tồn kho không thể âm' } };
 
     const updatedAt = hasColumn(capabilities.variantColumns, 'updated_at') ? ', updated_at = GETDATE()' : '';
     await query(`UPDATE product_variants SET stock_quantity = ?${updatedAt} WHERE id = ?`, [newStock, variantId]);
+    stockAfter = newStock;
   } else {
     const stockExpr = productStockExpression(capabilities);
     const product = await query(`SELECT TOP 1 id, ${stockExpr} AS stock FROM products p WHERE id = ?`, [productId]);
     if (!product.length) return { error: { status: 404, message: 'Không tìm thấy sản phẩm' } };
 
-    const newStock = Number(product[0].stock) + delta;
+    stockBefore = Number(product[0].stock);
+    const newStock = stockBefore + delta;
     if (newStock < 0) return { error: { status: 400, message: 'Tồn kho không thể âm' } };
 
     const updates = [];
@@ -209,23 +326,16 @@ export async function adjustStock({ productId, variantId = null, delta, reason =
     if (!updates.length) return { error: { status: 501, message: 'Schema products chua co cot ton kho' } };
     if (hasColumn(capabilities.productColumns, 'updated_at')) updates.push('updated_at = GETDATE()');
     await query(`UPDATE products SET ${updates.join(', ')} WHERE id = ?`, [...params, productId]);
+    stockAfter = newStock;
   }
 
-  // Log transaction to audit table
-  try {
-    await query(
-      `INSERT INTO inventory_transactions (product_id, variant_id, delta, reason, performed_by, created_at)
-       VALUES (?, ?, ?, ?, ?, GETDATE())`,
-      [productId, variantId, delta, reason || null, userId || null]
-    );
-  } catch {
-    // inventory_transactions table may not exist; fail silently
-  }
+  await recordAdjustmentLedger({ productId, variantId, delta, reason, userId, stockBefore, stockAfter });
 
   return { success: true, productId, variantId, delta };
 }
 
 export async function getTransactionHistory({ productId = null, page = 1, pageSize = 20 } = {}) {
+  await ensureInventoryLedgerCompatibility();
   const safePage = Math.max(1, Number(page));
   const safePageSize = Math.max(1, Math.min(100, Number(pageSize)));
   const offset = (safePage - 1) * safePageSize;

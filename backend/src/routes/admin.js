@@ -48,13 +48,24 @@ import {
   supplierStatistics,
   updateSupplier,
 } from '../controllers/adminSupplierController.js';
+import {
+  cancelPurchaseReceipt,
+  createPurchaseReceipt,
+  deletePurchaseReceipt,
+  listPurchaseReceipts,
+  purchaseReceiptDetail,
+  purchaseReceiptProductOptions,
+  purchaseReceiptStatistics,
+  updatePurchaseReceipt,
+} from '../controllers/adminPurchaseReceiptController.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import upload from '../config/upload.js';
 import { auditLog } from '../config/logger.js';
 
 const router = Router();
 const adminProductsMiddleware = [...adminMiddleware, authMiddleware.requireRoles([ROLES.ADMIN])];
-const supplierManageMiddleware = [...adminMiddleware, authMiddleware.requireRoles([ROLES.ADMIN])];
+const supplierManageMiddleware = [...adminMiddleware, authMiddleware.requireRoles([ROLES.ADMIN, ROLES.STAFF])];
+const purchaseReceiptMiddleware = supplierManageMiddleware;
 const supplierImportUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -144,6 +155,16 @@ router.get('/suppliers/:id', adminMiddleware, supplierDetail);
 router.post('/suppliers', supplierManageMiddleware, createSupplier);
 router.put('/suppliers/:id', supplierManageMiddleware, updateSupplier);
 router.delete('/suppliers/:id', supplierManageMiddleware, deleteSupplier);
+
+// --- Purchase Receipts ---
+router.get('/purchase-receipts', purchaseReceiptMiddleware, listPurchaseReceipts);
+router.get('/purchase-receipts/statistics', purchaseReceiptMiddleware, purchaseReceiptStatistics);
+router.get('/purchase-receipts/products', purchaseReceiptMiddleware, purchaseReceiptProductOptions);
+router.get('/purchase-receipts/:id', purchaseReceiptMiddleware, purchaseReceiptDetail);
+router.post('/purchase-receipts', purchaseReceiptMiddleware, createPurchaseReceipt);
+router.put('/purchase-receipts/:id', purchaseReceiptMiddleware, updatePurchaseReceipt);
+router.delete('/purchase-receipts/:id', purchaseReceiptMiddleware, deletePurchaseReceipt);
+router.post('/purchase-receipts/:id/cancel', purchaseReceiptMiddleware, cancelPurchaseReceipt);
 
 // --- Users ---
 router.get('/users', adminMiddleware, listAdminUsers);

@@ -490,6 +490,8 @@ export function AdminSuppliersPage() {
                     <th>Nhà cung cấp</th>
                     <th>Liên hệ</th>
                     <th>Người đại diện</th>
+                    <th>Tổng phiếu nhập</th>
+                    <th>Tổng giá trị nhập</th>
                     <th>Trạng thái</th>
                     <th>Ngày tạo</th>
                     <th className="text-end">Hành động</th>
@@ -514,6 +516,8 @@ export function AdminSuppliersPage() {
                         </div>
                       </td>
                       <td>{supplier.representativeName || '-'}</td>
+                      <td><strong>{formatNumber(supplier.totalReceipts)}</strong></td>
+                      <td><strong>{formatCurrency(supplier.totalImportValue)}</strong></td>
                       <td><SupplierStatusBadge status={supplier.status} /></td>
                       <td>{formatAdminDate(supplier.createdAt)}</td>
                       <td>

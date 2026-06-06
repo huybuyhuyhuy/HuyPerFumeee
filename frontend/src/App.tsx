@@ -31,6 +31,8 @@ const AdminOrderDetailPage = lazy(() => import('./pages/AdminOrderDetailPage').t
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then((module) => ({ default: module.AdminUsersPage })));
 const AdminUserDetailPage = lazy(() => import('./pages/AdminUserDetailPage').then((module) => ({ default: module.AdminUserDetailPage })));
 const AdminSuppliersPage = lazy(() => import('./pages/AdminSuppliersPage').then((module) => ({ default: module.AdminSuppliersPage })));
+const AdminPurchaseReceiptsPage = lazy(() => import('./pages/AdminPurchaseReceiptsPage').then((module) => ({ default: module.AdminPurchaseReceiptsPage })));
+const AdminReviewsPage = lazy(() => import('./pages/AdminReviewsPage').then((module) => ({ default: module.AdminReviewsPage })));
 const AdminDecantPage = lazy(() => import('./pages/AdminDecantPage').then((module) => ({ default: module.AdminDecantPage })));
 const AdminInventoryPage = lazy(() => import('./pages/AdminInventoryPage').then((module) => ({ default: module.AdminInventoryPage })));
 const AdminProductAddPage = lazy(() => import('./pages/AdminProductAddPage').then((module) => ({ default: module.AdminProductAddPage })));
@@ -73,6 +75,8 @@ function AdminRoutes() {
         <Route path="orders/:id" element={<AdminOrderDetailPage />} />
         <Route path="users" element={<AdminUsersPage />} />
         <Route path="suppliers" element={<AdminSuppliersPage />} />
+        <Route path="purchase-receipts" element={<AdminPurchaseReceiptsPage />} />
+        <Route path="reviews" element={<AdminReviewsPage />} />
         <Route path="inventory" element={<AdminInventoryPage />} />
         <Route path="decant" element={<AdminDecantPage />} />
         <Route path="users/:id" element={<AdminUserDetailPage />} />
@@ -88,6 +92,8 @@ function AdminRoutes() {
       <Route path="/reports" element={<Navigate to="/admin/reports" replace />} />
       <Route path="/users" element={<Navigate to="/admin/users" replace />} />
       <Route path="/suppliers" element={<Navigate to="/admin/suppliers" replace />} />
+      <Route path="/purchase-receipts" element={<Navigate to="/admin/purchase-receipts" replace />} />
+      <Route path="/reviews" element={<Navigate to="/admin/reviews" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
     </Routes>

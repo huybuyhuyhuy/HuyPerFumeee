@@ -16,6 +16,9 @@
     "db:migrate:payment": "node scripts/run-sql-migration.js migrations/20260602_payment_order_statuses.sql migrations/20260602_payment_gateway_refs.sql",
     "db:migrate:membership": "node scripts/run-sql-migration.js migrations/20260606_user_membership.sql",
     "db:migrate:suppliers": "node scripts/run-sql-migration.js migrations/20260606_create_suppliers_module.sql",
+    "db:migrate:supplier-purchases": "node scripts/run-sql-migration.js migrations/006_supplier_purchase_receipts.sql",
+    "db:migrate:reviews": "node scripts/run-sql-migration.js migrations/007_complete_product_reviews.sql",
+    "db:setup:reviews": "node scripts/run-sql-migration.js migrations/007_complete_product_reviews.sql migrations/20260602_seed_product_reviews.sql",
     "db:seed:reviews": "node scripts/run-sql-migration.js migrations/20260602_seed_product_reviews.sql",
     "db:migrate:decant": "node scripts/run-sql-migration.js migrations/003_decant_inventory.sql",
     "db:migrate:cart-variants": "node scripts/run-sql-migration.js migrations/20260526_cart_items_variant_compat.sql"

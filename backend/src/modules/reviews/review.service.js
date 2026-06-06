@@ -45,7 +45,7 @@ function eligibilityResult(overrides = {}) {
   return {
     eligible: false,
     reason: 'NOT_ELIGIBLE',
-    message: 'Bạn cần mua sản phẩm này trước khi đánh giá.',
+    message: 'Bạn cần mua sản phẩm và đơn hàng phải hoàn tất trước khi đánh giá.',
     orderId: null,
     orderStatus: null,
     alreadyReviewed: false,
@@ -108,7 +108,7 @@ export async function getProductReviewEligibility({ productId, userId, orderId =
     const normalizedStatus = normalizeOrderStatus(latestOrder.status);
     return eligibilityResult({
       reason: isReviewableStatus(normalizedStatus) ? 'ORDER_NOT_SELECTED' : 'ORDER_NOT_COMPLETED',
-      message: 'Đơn hàng của bạn cần hoàn tất hoặc giao thành công trước khi đánh giá.',
+      message: 'Bạn cần mua sản phẩm và đơn hàng phải hoàn tất trước khi đánh giá.',
       orderId: Number(latestOrder.id),
       orderStatus: normalizedStatus,
     });
@@ -163,10 +163,10 @@ export async function createProductReview({ productId, userId, input }) {
   if (storageError) return storageError;
 
   const product = await getProductById(productId);
-  if (!product) return serviceError(404, 'Khong tim thay san pham');
+  if (!product) return serviceError(404, 'Không tìm thấy sản phẩm.');
 
   const validation = validateReviewInput(input);
-  if (!validation.valid) return serviceError(400, 'Du lieu review khong hop le', { errors: validation.errors });
+  if (!validation.valid) return serviceError(400, 'Dữ liệu đánh giá không hợp lệ.', { errors: validation.errors });
 
   const eligibility = await getProductReviewEligibility({
     productId,
@@ -192,7 +192,7 @@ export async function createProductReview({ productId, userId, input }) {
     review: mapReviewRow(row),
     moderation: {
       status: REVIEW_STATUSES.PENDING,
-      message: 'Review da duoc ghi nhan va dang cho duyet.',
+      message: 'Đánh giá của bạn đã được gửi và đang chờ duyệt.',
     },
   };
 }

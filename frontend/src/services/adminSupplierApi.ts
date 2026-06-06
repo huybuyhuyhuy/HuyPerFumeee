@@ -14,6 +14,9 @@ export interface Supplier {
   status: SupplierStatus;
   createdAt?: string | null;
   updatedAt?: string | null;
+  totalReceipts?: number;
+  totalImportValue?: number;
+  lastImportDate?: string | null;
 }
 
 export interface SupplierPayload {
@@ -71,6 +74,11 @@ export interface SupplierStatistics {
   inactiveSuppliers: number;
   totalImportValue: number;
   topSuppliersByImportValue: Array<{
+    supplierId: number;
+    supplierName: string;
+    totalImportValue: number;
+  }>;
+  supplierImportValues?: Array<{
     supplierId: number;
     supplierName: string;
     totalImportValue: number;
