@@ -49,6 +49,14 @@ export interface User {
   address: string;
   dob: string | null;
   status?: string;
+  totalSpent?: number;
+  membershipTier?: string;
+  membershipLabel?: string;
+  nextTier?: string | null;
+  nextTierLabel?: string | null;
+  amountToNextTier?: number;
+  membershipProgress?: number;
+  membershipUpdatedAt?: string | null;
   emailVerifiedAt?: string | null;
   lastLoginAt?: string | null;
   createdAt?: string | null;

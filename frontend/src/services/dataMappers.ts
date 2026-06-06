@@ -1,4 +1,5 @@
 import type { CartItem, CartSummary, OrderResponse, Product, ProductVariant } from '../types';
+import { normalizeOrderStatus } from '../constants/orderStatus';
 
 function asNumber(value: unknown, fallback = 0) {
   const number = Number(value);
@@ -223,8 +224,8 @@ export function normalizeOrder(raw: any): OrderResponse {
   const timeline = Array.isArray(raw?.timeline)
     ? raw.timeline.map((event: any) => ({
       id: asNumber(event.id),
-      oldStatus: event.oldStatus ?? event.old_status ?? null,
-      newStatus: asString(event.newStatus ?? event.new_status),
+      oldStatus: event.oldStatus || event.old_status ? normalizeOrderStatus(event.oldStatus ?? event.old_status) : null,
+      newStatus: normalizeOrderStatus(event.newStatus ?? event.new_status),
       changedBy: event.changedBy ?? event.changed_by ?? null,
       changedByName: asString(event.changedByName ?? event.changed_by_name),
       note: asString(event.note),
@@ -250,7 +251,7 @@ export function normalizeOrder(raw: any): OrderResponse {
     momoOrderId: asString(raw?.momoOrderId ?? raw?.momo_order_id),
     momoTransId: asString(raw?.momoTransId ?? raw?.momo_trans_id),
     zalopayAppTransId: asString(raw?.zalopayAppTransId ?? raw?.zalopay_app_trans_id),
-    status: asString(raw?.status),
+    status: normalizeOrderStatus(raw?.status),
     createdAt: asString(raw?.createdAt ?? raw?.created_at),
     items,
     timeline,

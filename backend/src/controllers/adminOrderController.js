@@ -1,5 +1,6 @@
 import { errorResponse, successResponse } from '../utils/response.js';
 import { getAdminOrderAnalytics, getAdminOrderById, listAdminOrders, updateAdminOrderStatus } from '../models/adminOrderModel.js';
+import { recalculateUserMembership } from '../models/userModel.js';
 import { auditLog } from '../config/logger.js';
 import { buildAuditContext, writeAdminAuditLog } from '../utils/adminAuditLogger.js';
 import { ORDER_STATUS_VALUES } from '../constants/orderStatus.js';
@@ -91,6 +92,10 @@ export async function changeStatus(req, res) {
     const result = await updateAdminOrderStatus(orderId, status, { changedBy: req.user.id, note });
     if (result.code) {
       return errorResponse(res, result.code, result.message);
+    }
+    const order = await getAdminOrderById(orderId);
+    if (order?.userId) {
+      result.membership = await recalculateUserMembership(order.userId);
     }
 
     const auditContext = buildAuditContext(req);

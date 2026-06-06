@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth.js';
-import { updateProfile } from '../api/profileApi.js';
+import { getCurrentProfile, updateProfile } from '../api/profileApi.js';
 import { addressService, formatAddress, type UserAddress, type UserAddressPayload } from '../services/addressService';
+import { clampMembershipProgress, formatVnd, getMembershipLabel, getMembershipTone, normalizeMembershipTier } from '../utils/membership';
 
 const emptyAddressForm: UserAddressPayload = {
   label: '',
@@ -43,6 +44,21 @@ export function ProfilePage() {
       phone: user?.phone || '',
     });
   }, [user?.name, user?.phone]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+
+    getCurrentProfile()
+      .then((freshUser) => {
+        if (!cancelled) setUser({ ...user, ...freshUser });
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const loadAddresses = async () => {
     setAddressLoading(true);
@@ -209,6 +225,12 @@ export function ProfilePage() {
     );
   }
 
+  const membershipTier = normalizeMembershipTier(user.membershipTier);
+  const membershipLabel = user.membershipLabel || getMembershipLabel(membershipTier);
+  const nextTierLabel = user.nextTierLabel || (user.nextTier ? getMembershipLabel(user.nextTier) : null);
+  const membershipProgress = clampMembershipProgress(user.membershipProgress);
+  const isTopTier = membershipTier === 'DIAMOND';
+
   return (
     <main className="luxury-page profile-page">
       <div className="container py-5">
@@ -231,6 +253,49 @@ export function ProfilePage() {
             <button type="button" className="btn-close" onClick={() => setMessage(null)} aria-label="Đóng" />
           </div>
         )}
+
+        <section className={`luxury-surface profile-panel profile-membership-card ${getMembershipTone(membershipTier)}`}>
+          <div className="profile-panel-heading profile-membership-heading">
+            <div>
+              <p className="section-eyebrow">Hạng thành viên của bạn</p>
+              <h2>Bạn đang là {membershipLabel}</h2>
+            </div>
+            <span className={`profile-membership-badge ${getMembershipTone(membershipTier)}`}>
+              {membershipLabel}
+            </span>
+          </div>
+
+          <div className="profile-membership-summary">
+            <article>
+              <span>Tổng chi tiêu đã ghi nhận</span>
+              <strong>{formatVnd(user.totalSpent)}</strong>
+            </article>
+            <article>
+              <span>Hạng tiếp theo</span>
+              <strong>{isTopTier ? 'Cao nhất' : nextTierLabel || '-'}</strong>
+            </article>
+            <article>
+              <span>Còn thiếu</span>
+              <strong>{isTopTier ? formatVnd(0) : formatVnd(user.amountToNextTier)}</strong>
+            </article>
+          </div>
+
+          {isTopTier ? (
+            <p className="profile-membership-top">Bạn đã đạt hạng thành viên cao nhất của HuyPerfume</p>
+          ) : (
+            <p className="profile-membership-next">
+              Còn {formatVnd(user.amountToNextTier)} để lên {nextTierLabel || 'hạng tiếp theo'}
+            </p>
+          )}
+
+          <div className="profile-membership-progress" aria-label="Tiến độ lên hạng">
+            <span style={{ width: `${membershipProgress}%` }} />
+          </div>
+          <div className="profile-membership-progress-label">
+            <span>{membershipProgress}%</span>
+            <small>Chỉ tính các đơn hàng đã giao thành công hoặc hoàn tất</small>
+          </div>
+        </section>
 
         <section className="luxury-surface profile-panel">
           <form onSubmit={handleSave}>

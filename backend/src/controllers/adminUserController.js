@@ -28,13 +28,14 @@ async function getAdminCount() {
 
 export async function listAdminUsers(req, res) {
   try {
-    const { page, pageSize, search, role, status } = req.query;
+    const { page, pageSize, search, role, status, membershipTier } = req.query;
     const data = await listUsersEnhanced({
       page: Number(page) || 1,
       pageSize: Number(pageSize) || 20,
       search: search || null,
       role: role || null,
       status: status || null,
+      membershipTier: membershipTier || null,
     });
     return successResponse(res, 'Lấy danh sách người dùng thành công', data);
   } catch (err) {

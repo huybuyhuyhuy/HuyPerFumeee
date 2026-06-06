@@ -30,6 +30,7 @@ const AdminAuditLogsPage = lazy(() => import('./pages/AdminAuditLogsPage').then(
 const AdminOrderDetailPage = lazy(() => import('./pages/AdminOrderDetailPage').then((module) => ({ default: module.AdminOrderDetailPage })));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage').then((module) => ({ default: module.AdminUsersPage })));
 const AdminUserDetailPage = lazy(() => import('./pages/AdminUserDetailPage').then((module) => ({ default: module.AdminUserDetailPage })));
+const AdminSuppliersPage = lazy(() => import('./pages/AdminSuppliersPage').then((module) => ({ default: module.AdminSuppliersPage })));
 const AdminDecantPage = lazy(() => import('./pages/AdminDecantPage').then((module) => ({ default: module.AdminDecantPage })));
 const AdminInventoryPage = lazy(() => import('./pages/AdminInventoryPage').then((module) => ({ default: module.AdminInventoryPage })));
 const AdminProductAddPage = lazy(() => import('./pages/AdminProductAddPage').then((module) => ({ default: module.AdminProductAddPage })));
@@ -71,6 +72,7 @@ function AdminRoutes() {
         <Route path="audit-logs" element={<AdminAuditLogsPage />} />
         <Route path="orders/:id" element={<AdminOrderDetailPage />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="suppliers" element={<AdminSuppliersPage />} />
         <Route path="inventory" element={<AdminInventoryPage />} />
         <Route path="decant" element={<AdminDecantPage />} />
         <Route path="users/:id" element={<AdminUserDetailPage />} />
@@ -85,6 +87,7 @@ function AdminRoutes() {
       <Route path="/orders" element={<Navigate to="/admin/orders" replace />} />
       <Route path="/reports" element={<Navigate to="/admin/reports" replace />} />
       <Route path="/users" element={<Navigate to="/admin/users" replace />} />
+      <Route path="/suppliers" element={<Navigate to="/admin/suppliers" replace />} />
       <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
     </Routes>

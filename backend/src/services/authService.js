@@ -10,6 +10,7 @@ import {
   incrementFailedLogin,
   lockUserUntil,
   markEmailVerified,
+  recalculateUserMembership,
   toSafeUser,
   updateSuccessfulLogin,
   updateUserPasswordById,
@@ -36,6 +37,10 @@ function tokenPayloadForUser(user) {
     ...safe,
     role: normalizeRole(safe.role),
   };
+}
+
+function mergeMembership(user, membership) {
+  return user && membership ? { ...user, ...membership } : user;
 }
 
 async function issueAuthTokens(user, context = {}) {
@@ -169,9 +174,11 @@ export async function loginUser(identifier, password, context = {}) {
     userAgent: context.userAgent,
   });
   await updateSuccessfulLogin(user.id);
+  const membership = await recalculateUserMembership(user.id);
 
   const safeUser = await findUserById(user.id);
-  return issueAuthTokens(safeUser, context);
+  const session = await issueAuthTokens(safeUser, context);
+  return { ...session, user: mergeMembership(session.user, membership) };
 }
 
 export async function isLoginCaptchaRequired(identifier) {
@@ -193,11 +200,13 @@ export async function refreshAuthSession(refreshToken, context = {}) {
   const rotated = await rotateRefreshToken(refreshToken, user, context);
   if (rotated.code) return rotated;
 
-  const safeUser = tokenPayloadForUser(user);
+  const membership = await recalculateUserMembership(user.id);
+  const refreshedUser = await findUserById(user.id);
+  const safeUser = tokenPayloadForUser(refreshedUser || user);
   const permissions = getPermissionsForRole(safeUser.role);
   const accessToken = signAccessToken(safeUser, permissions);
   return {
-    user: safeUser,
+    user: mergeMembership(safeUser, membership),
     token: accessToken,
     accessToken,
     refreshToken: rotated.token,
@@ -220,8 +229,9 @@ export async function logoutUser({ refreshToken, userId, allDevices = false }) {
 }
 
 export async function getCurrentUser(userId) {
+  const membership = await recalculateUserMembership(userId);
   const user = await findUserById(userId);
-  return toSafeUser(user);
+  return mergeMembership(toSafeUser(user), membership);
 }
 
 export async function updateProfile(userId, payload) {
@@ -243,7 +253,8 @@ export async function updateProfile(userId, payload) {
   }
 
   await updateUserProfile(userId, next);
-  return toSafeUser(await findUserById(userId));
+  const membership = await recalculateUserMembership(userId);
+  return mergeMembership(toSafeUser(await findUserById(userId)), membership);
 }
 
 export async function forgotPassword({ email }) {

@@ -7,9 +7,18 @@ import {
   formatAdminCurrency,
   formatAdminDate,
 } from '../components/Admin/AdminUi';
+import { clampMembershipProgress, formatVnd, getMembershipLabel, getMembershipShortLabel, getMembershipTone, normalizeMembershipTier } from '../utils/membership';
 
 function unwrapApiData(payload) {
   return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload;
+}
+
+function MembershipBadge({ tier }) {
+  return (
+    <span className={`admin-membership-badge ${getMembershipTone(tier)}`}>
+      {getMembershipShortLabel(tier)}
+    </span>
+  );
 }
 
 export function AdminUserDetailPage() {
@@ -28,6 +37,12 @@ export function AdminUserDetailPage() {
 
   const user = data?.user || {};
   const stats = data?.stats || {};
+  const membership = data?.membership || user;
+  const membershipTier = normalizeMembershipTier(membership.membershipTier);
+  const membershipLabel = membership.membershipLabel || getMembershipLabel(membershipTier);
+  const nextTierLabel = membership.nextTierLabel || (membership.nextTier ? getMembershipLabel(membership.nextTier) : null);
+  const membershipProgress = clampMembershipProgress(membership.membershipProgress);
+  const isTopTier = membershipTier === 'DIAMOND';
 
   return (
     <div className="admin-page">
@@ -61,11 +76,50 @@ export function AdminUserDetailPage() {
             </div>
           </section>
 
+          <section className={`admin-surface-card admin-membership-card ${getMembershipTone(membershipTier)}`}>
+            <div className="admin-membership-head">
+              <div>
+                <h3>Hạng thành viên</h3>
+                <p>Tự động tính từ đơn hàng đã giao thành công hoặc hoàn tất.</p>
+              </div>
+              <MembershipBadge tier={membershipTier} />
+            </div>
+
+            <div className="admin-membership-summary">
+              <article>
+                <span>Tổng chi tiêu</span>
+                <strong>{formatVnd(membership.totalSpent ?? stats.totalSpent)}</strong>
+              </article>
+              <article>
+                <span>Hạng hiện tại</span>
+                <strong>{membershipLabel}</strong>
+              </article>
+              <article>
+                <span>Hạng tiếp theo</span>
+                <strong>{isTopTier ? 'Cao nhất' : nextTierLabel || '-'}</strong>
+              </article>
+              <article>
+                <span>Còn thiếu</span>
+                <strong>{isTopTier ? formatVnd(0) : formatVnd(membership.amountToNextTier)}</strong>
+              </article>
+            </div>
+
+            {isTopTier ? (
+              <p className="admin-membership-top">Đã đạt hạng cao nhất</p>
+            ) : (
+              <p className="admin-membership-next">Còn {formatVnd(membership.amountToNextTier)} để lên {nextTierLabel || 'hạng tiếp theo'}</p>
+            )}
+            <div className="admin-membership-progress" aria-label="Tiến độ lên hạng">
+              <span style={{ width: `${membershipProgress}%` }} />
+            </div>
+          </section>
+
           <section className="admin-surface-card">
             <h3>Thống kê</h3>
             <div className="admin-kpi-grid compact">
               <article className="admin-kpi-card"><span>Tổng đơn</span><strong>{Number(stats.totalOrders || 0).toLocaleString('vi-VN')}</strong></article>
-              <article className="admin-kpi-card"><span>Tổng chi tiêu</span><strong>{formatAdminCurrency(stats.totalSpent || 0)}</strong></article>
+              <article className="admin-kpi-card"><span>Đơn hoàn tất</span><strong>{Number(stats.completedOrders || 0).toLocaleString('vi-VN')}</strong></article>
+              <article className="admin-kpi-card"><span>Tổng chi tiêu</span><strong>{formatVnd(stats.totalSpent || 0)}</strong></article>
               <article className="admin-kpi-card"><span>Đơn hủy</span><strong>{Number(stats.cancelledOrders || 0).toLocaleString('vi-VN')}</strong></article>
               <article className="admin-kpi-card"><span>Đơn gần nhất</span><strong>{formatAdminDate(stats.lastOrderAt)}</strong></article>
             </div>

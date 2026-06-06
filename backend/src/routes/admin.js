@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { adminMiddleware } from '../middlewares/adminMiddleware.js';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { ROLES } from '../modules/auth/rbac.js';
@@ -36,12 +37,46 @@ import {
 import { adminList, create as createBanner, update as updateBanner, remove as removeBanner, reorder } from '../controllers/bannerController.js';
 import { list as listVouchers, detail as voucherDetail, create as createVoucher, update as updateVoucher, updateStatus as updateVoucherStatus, remove as removeVoucher } from '../controllers/adminVoucherController.js';
 import { listAuditLogs } from '../controllers/adminAuditController.js';
+import {
+  createSupplier,
+  deleteSupplier,
+  exportSuppliersExcel,
+  exportSuppliersPdf,
+  importSuppliersExcel,
+  listSuppliers,
+  supplierDetail,
+  supplierStatistics,
+  updateSupplier,
+} from '../controllers/adminSupplierController.js';
 import { successResponse, errorResponse } from '../utils/response.js';
 import upload from '../config/upload.js';
 import { auditLog } from '../config/logger.js';
 
 const router = Router();
 const adminProductsMiddleware = [...adminMiddleware, authMiddleware.requireRoles([ROLES.ADMIN])];
+const supplierManageMiddleware = [...adminMiddleware, authMiddleware.requireRoles([ROLES.ADMIN])];
+const supplierImportUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter(_req, file, cb) {
+    const isExcel = /\.(xlsx)$/i.test(file.originalname || '') ||
+      file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    if (!isExcel) return cb(new Error('Vui lòng chọn file Excel .xlsx'));
+    return cb(null, true);
+  },
+});
+
+function handleSupplierImportUpload(req, res, next) {
+  supplierImportUpload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return errorResponse(res, 400, 'File import quá lớn. Kích thước tối đa là 5MB');
+      }
+      return errorResponse(res, 400, err.message || 'Không đọc được file import');
+    }
+    return next();
+  });
+}
 
 // --- Dashboard ---
 router.get('/dashboard', adminMiddleware, stats);
@@ -98,6 +133,17 @@ router.get('/orders/analytics', adminMiddleware, orderAnalytics);
 router.get('/orders/:id', adminMiddleware, orderDetail);
 router.put('/orders/:id/status', adminMiddleware, changeStatus);
 router.patch('/orders/:id/status', adminMiddleware, changeStatus);
+
+// --- Suppliers ---
+router.get('/suppliers', adminMiddleware, listSuppliers);
+router.get('/suppliers/statistics', adminMiddleware, supplierStatistics);
+router.get('/suppliers/export/excel', supplierManageMiddleware, exportSuppliersExcel);
+router.get('/suppliers/export/pdf', supplierManageMiddleware, exportSuppliersPdf);
+router.post('/suppliers/import/excel', supplierManageMiddleware, handleSupplierImportUpload, importSuppliersExcel);
+router.get('/suppliers/:id', adminMiddleware, supplierDetail);
+router.post('/suppliers', supplierManageMiddleware, createSupplier);
+router.put('/suppliers/:id', supplierManageMiddleware, updateSupplier);
+router.delete('/suppliers/:id', supplierManageMiddleware, deleteSupplier);
 
 // --- Users ---
 router.get('/users', adminMiddleware, listAdminUsers);

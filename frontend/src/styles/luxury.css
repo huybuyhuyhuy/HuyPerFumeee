@@ -6955,6 +6955,109 @@ body.navbar-menu-open {
   padding: clamp(1.1rem, 2vw, 1.5rem);
 }
 
+.profile-membership-card {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(178, 134, 51, 0.34);
+  background:
+    linear-gradient(135deg, rgba(255, 252, 246, 0.98), rgba(248, 239, 220, 0.86));
+}
+
+.profile-membership-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 0.32rem;
+  background: linear-gradient(90deg, #7a4b23, #d0af67, #fff4cf);
+}
+
+.profile-membership-heading {
+  align-items: center;
+}
+
+.profile-membership-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 7.2rem;
+  padding: 0.42rem 0.78rem;
+  border: 1px solid rgba(106, 70, 31, 0.16);
+  border-radius: 999px;
+  color: #4b321f;
+  background: rgba(255, 253, 248, 0.86);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.profile-membership-badge.tier-normal { color: #62615e; background: #f1eee8; }
+.profile-membership-badge.tier-bronze { color: #764821; background: rgba(184, 111, 49, 0.16); }
+.profile-membership-badge.tier-silver { color: #58616a; background: rgba(217, 224, 226, 0.72); }
+.profile-membership-badge.tier-gold { color: #8a5b12; background: rgba(222, 183, 89, 0.26); }
+.profile-membership-badge.tier-diamond { color: #286679; background: rgba(214, 244, 250, 0.74); }
+
+.profile-membership-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.profile-membership-summary article {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(229, 215, 196, 0.82);
+  border-radius: 0.9rem;
+  background: rgba(255, 253, 248, 0.78);
+}
+
+.profile-membership-summary span,
+.profile-membership-progress-label small {
+  color: var(--luxury-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.profile-membership-summary strong {
+  color: var(--luxury-espresso);
+  font-size: clamp(1rem, 1.6vw, 1.18rem);
+}
+
+.profile-membership-next,
+.profile-membership-top {
+  margin: 1rem 0 0.7rem;
+  color: var(--luxury-espresso);
+  font-weight: 760;
+}
+
+.profile-membership-top {
+  color: #286679;
+}
+
+.profile-membership-progress {
+  height: 0.72rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(120, 91, 58, 0.13);
+}
+
+.profile-membership-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7a4b23, #d0af67);
+  transition: width 280ms ease;
+}
+
+.profile-membership-progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.46rem;
+  color: var(--luxury-gold-dark);
+  font-weight: 760;
+}
+
 .profile-address-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.82fr);
@@ -7900,6 +8003,15 @@ body.navbar-menu-open {
 
   .profile-address-layout {
     grid-template-columns: 1fr;
+  }
+
+  .profile-membership-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-membership-progress-label {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .checkout-address-tabs {

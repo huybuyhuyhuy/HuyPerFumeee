@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { orderService } from '../services/orderService';
 import { useToast } from '../store/ToastContext';
@@ -11,7 +11,16 @@ import {
   getOrderStatusLabel,
   getOrderStatusTone,
   getOrderTimelineIndex,
+  normalizeOrderStatus,
 } from '../constants/orderStatus';
+
+const ORDER_REFRESH_INTERVAL_MS = 5000;
+const TERMINAL_ORDER_STATUSES = [
+  ORDER_STATUS.PAYMENT_FAILED,
+  ORDER_STATUS.CANCELLED_PAYMENT,
+  ORDER_STATUS.CANCELLED,
+  ORDER_STATUS.REFUNDED,
+];
 
 function StatusBadge({ status }) {
   return (
@@ -28,7 +37,8 @@ function getOrderItemLabel(item) {
 
 function OrderProgress({ order }) {
   const activeStep = getOrderTimelineIndex(order.status, order.timeline);
-  const terminalStatus = [ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED].includes(order.status);
+  const normalizedStatus = normalizeOrderStatus(order.status);
+  const terminalStatus = [ORDER_STATUS.CANCELLED, ORDER_STATUS.REFUNDED].includes(normalizedStatus);
 
   return (
     <section className="luxury-surface order-detail-progress">
@@ -53,7 +63,7 @@ function OrderProgress({ order }) {
       </div>
       {terminalStatus && (
         <p className="order-detail-terminal">
-          Đơn hàng đã {order.status === ORDER_STATUS.REFUNDED ? 'được hoàn tiền' : 'bị hủy'}.
+          Đơn hàng đã {normalizedStatus === ORDER_STATUS.REFUNDED ? 'được hoàn tiền' : 'bị hủy'}.
         </p>
       )}
       {Array.isArray(order.timeline) && order.timeline.length > 0 && (
@@ -78,11 +88,21 @@ export function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState('');
+  const latestStatusRef = useRef('');
 
-  const loadOrder = async () => {
+  const loadOrder = useCallback(async ({ notifyStatusChange = false } = {}) => {
     const data = await orderService.getOrder(Number(id));
+    const nextStatus = normalizeOrderStatus(data?.status);
+    const previousStatus = latestStatusRef.current;
+    latestStatusRef.current = nextStatus;
     setOrder(data);
-  };
+
+    if (notifyStatusChange && previousStatus && previousStatus !== nextStatus) {
+      pushToast(`Trạng thái đơn #${data.id}: ${getOrderStatusLabel(nextStatus)}.`, 'success');
+    }
+
+    return data;
+  }, [id, pushToast]);
 
   useEffect(() => {
     if (!id) {
@@ -92,10 +112,34 @@ export function OrderDetailPage() {
     }
     setLoading(true);
     setError('');
+    latestStatusRef.current = '';
     loadOrder()
       .catch((err) => setError(err?.response?.data?.message || 'Không tải được chi tiết đơn hàng.'))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, loadOrder]);
+
+  useEffect(() => {
+    if (!id || loading || error) return undefined;
+    const normalizedStatus = normalizeOrderStatus(order?.status);
+    if (TERMINAL_ORDER_STATUSES.includes(normalizedStatus)) return undefined;
+
+    const refreshOrderStatus = () => {
+      loadOrder({ notifyStatusChange: true }).catch(() => {});
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshOrderStatus();
+    };
+
+    const intervalId = window.setInterval(refreshOrderStatus, ORDER_REFRESH_INTERVAL_MS);
+    window.addEventListener('focus', refreshOrderStatus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshOrderStatus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [error, id, loadOrder, loading, order?.status]);
 
   const handleCancel = async () => {
     if (!order || !window.confirm('Bạn chắc chắn muốn hủy đơn hàng này? Tồn kho sẽ được hoàn lại.')) return;

@@ -10,6 +10,7 @@ const adminMenu = [
   { to: '/admin/products', label: 'Sản phẩm', note: 'Quản lý catalog' },
   { to: '/admin/orders', label: 'Đơn hàng', note: 'Xử lý đơn & trạng thái' },
   { to: '/admin/users', label: 'Khách hàng', note: 'Tài khoản khách hàng' },
+  { to: '/admin/suppliers', label: 'Nhà cung cấp', note: 'Đối tác cung ứng' },
   { to: '/admin/inventory', label: 'Tồn kho', note: 'Theo dõi stock' },
   { to: '/admin/decant', label: 'Decant', note: 'Dung tích chiết' },
   { to: '/admin/voucher', label: 'Voucher', note: 'Ưu đãi & mã giảm' },
@@ -55,6 +56,7 @@ function getBreadcrumbLabel(pathname: string) {
   if (pathname.startsWith('/admin/products')) return 'Sản phẩm';
   if (pathname.startsWith('/admin/orders')) return 'Đơn hàng';
   if (pathname.startsWith('/admin/users')) return 'Khách hàng';
+  if (pathname.startsWith('/admin/suppliers')) return 'Nhà cung cấp';
   if (pathname.startsWith('/admin/reports')) return 'Báo cáo';
   if (pathname.startsWith('/admin/inventory')) return 'Tồn kho';
   if (pathname.startsWith('/admin/decant')) return 'Decant';

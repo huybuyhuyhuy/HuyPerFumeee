@@ -8,12 +8,12 @@ import {
   AdminPagination,
   AdminStatGrid,
   AdminStatusBadge,
-  formatAdminCurrency,
   formatAdminDate,
 } from '../components/Admin/AdminUi';
+import { formatVnd, getMembershipShortLabel, getMembershipTone } from '../utils/membership';
 
 const PAGE_SIZE = 12;
-const DEFAULT_FILTERS = { search: '', role: '', status: '' };
+const DEFAULT_FILTERS = { search: '', role: '', status: '', membershipTier: '' };
 const ROLE_OPTIONS = [
   { value: '', label: 'Tất cả' },
   { value: 'USER', label: 'Khách hàng' },
@@ -27,12 +27,29 @@ const STATUS_OPTIONS = [
   { value: 'DISABLED', label: 'DISABLED' },
 ];
 
+const MEMBERSHIP_OPTIONS = [
+  { value: '', label: 'Tất cả' },
+  { value: 'NORMAL', label: 'Khách hàng thường' },
+  { value: 'BRONZE', label: 'Đồng' },
+  { value: 'SILVER', label: 'Bạc' },
+  { value: 'GOLD', label: 'Vàng' },
+  { value: 'DIAMOND', label: 'Kim Cương' },
+];
+
 function unwrapApiData(payload) {
   return payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload;
 }
 
 function initials(value) {
   return String(value || '?').trim().charAt(0).toUpperCase();
+}
+
+function MembershipBadge({ tier }) {
+  return (
+    <span className={`admin-membership-badge ${getMembershipTone(tier)}`}>
+      {getMembershipShortLabel(tier)}
+    </span>
+  );
 }
 
 export function AdminUsersPage() {
@@ -142,6 +159,12 @@ export function AdminUsersPage() {
             {STATUS_OPTIONS.map((opt) => <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>)}
           </select>
         </div>
+        <div className="admin-filter-field">
+          <label htmlFor="admin-user-membership">Hạng thành viên</label>
+          <select id="admin-user-membership" className="form-select" value={filters.membershipTier} onChange={(e) => setFilters({ ...filters, membershipTier: e.target.value })}>
+            {MEMBERSHIP_OPTIONS.map((opt) => <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </div>
         <button className="btn luxury-primary-btn" type="submit">Lọc</button>
         <button className="btn btn-outline-dark" type="button" onClick={clearFilters}>Xóa lọc</button>
       </form>
@@ -162,7 +185,9 @@ export function AdminUsersPage() {
                     <th>Liên hệ</th>
                     <th>Vai trò</th>
                     <th>Trạng thái</th>
-                    <th>Đăng nhập cuối</th>
+                    <th>Tổng đơn</th>
+                    <th>Tổng chi tiêu</th>
+                    <th>Hạng thành viên</th>
                     <th>Ngày tạo</th>
                     <th className="text-end">Hành động</th>
                   </tr>
@@ -179,7 +204,9 @@ export function AdminUsersPage() {
                       <td><div className="admin-contact-cell"><span>{account.email}</span><small>{account.phone || '-'}</small></div></td>
                       <td><span className="admin-role-badge">{account.role}</span></td>
                       <td><AdminStatusBadge status={account.status} /></td>
-                      <td>{formatAdminDate(account.lastLoginAt)}</td>
+                      <td>{Number(account.totalOrders || 0).toLocaleString('vi-VN')}</td>
+                      <td><strong className="admin-money-value">{formatVnd(account.totalSpent)}</strong></td>
+                      <td><MembershipBadge tier={account.membershipTier} /></td>
                       <td>{formatAdminDate(account.created_at)}</td>
                       <td>
                         <div className="admin-row-actions justify-content-end">
